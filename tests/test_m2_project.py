@@ -93,12 +93,12 @@ class M2ProjectTests(unittest.TestCase):
         e.add_module(b, parent_id=a.id)
         entries = module_outline(e.report)
         self.assertEqual([(x.number, x.title) for x in entries],
-                         [("1", "A"), ("1.1", "B"), ("2", "Linea"), ("", "Conclusioni")])
+                         [("1", "A"), ("1.1", "B"), ("2", "Linea"), ("2.1", "Cuscinetti"), ("", "Conclusioni")])
         e.rename_module(b.id, "Renamed")
         self.assertEqual(module_outline(e.report)[1].title, "Renamed")
         e.move_module(b.id, index=0)
         self.assertEqual([(x.number, x.title) for x in module_outline(e.report)],
-                         [("1", "Renamed"), ("2", "A"), ("3", "Linea"), ("", "Conclusioni")])
+                         [("1", "Renamed"), ("2", "A"), ("3", "Linea"), ("3.1", "Cuscinetti"), ("", "Conclusioni")])
         self.assertEqual(len(e.report.modules), 3)
         self.assertIs(e.report.ordered_sections()[-1], e.report.conclusion)
 
