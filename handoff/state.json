@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-26T16:02:29.703Z",
+  "generatedAt": "2026-10-26T16:13:12.033Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,32 +11,11 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "11c8d8da5206615260f9bab95c528da602f4c640",
-    "message": "Add reviewed GitHub-backed continuity and M0 checkpoint foundation (#4)\n\nContinuity-only bootstrap: curated handoff, architecture contract, checkpoint register, hosted snapshot workflow and privacy gates. Does not merge M0 implementation PR #1 or #3.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/11c8d8da5206615260f9bab95c528da602f4c640"
+    "sha": "cb774e714fabd847c8a34218686e9375cc4afcde",
+    "message": "Merge M0 foundation, Windows installer, and retained continuity (PR #1)\n\nM0 foundation includes merged PR #3; exact integration head passed Windows architecture/model and Qt layout CI and continuity contract. Retain main's curated handoff and checkpoints. M0 interactive acceptance remains partially pending.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/cb774e714fabd847c8a34218686e9375cc4afcde"
   },
-  "openPullRequests": [
-    {
-      "number": 3,
-      "title": "M0: provide self-contained Windows installer without Python or Git",
-      "draft": true,
-      "head": "feature/m0-windows-installer",
-      "headSha": "b1cf60870b96f13706437567bad249a278e665b8",
-      "base": "feature/m0-foundation",
-      "updatedAt": "2026-10-26T15:21:51Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/3"
-    },
-    {
-      "number": 1,
-      "title": "M0: Windows-first foundation, architecture contract and browser compatibility spike",
-      "draft": true,
-      "head": "feature/m0-foundation",
-      "headSha": "4c6fff52bafd3f755888f46f321efb7b17b3e62e",
-      "base": "main",
-      "updatedAt": "2026-10-26T14:06:04Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/1"
-    }
-  ],
+  "openPullRequests": [],
   "openIssues": [
     {
       "number": 2,
@@ -47,14 +26,91 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40355215330,
+      "id": 40356954917,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "cb774e714fabd847c8a34218686e9375cc4afcde",
+      "event": "push",
+      "updatedAt": "2026-10-26T16:13:08Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40356954917"
+    },
+    {
+      "id": 40356954834,
+      "name": "Windows installer (M0 prototype)",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "cb774e714fabd847c8a34218686e9375cc4afcde",
+      "event": "push",
+      "updatedAt": "2026-10-26T16:13:08Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40356954834"
+    },
+    {
+      "id": 40356954782,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "cb774e714fabd847c8a34218686e9375cc4afcde",
+      "event": "push",
+      "updatedAt": "2026-10-26T16:13:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40356954782"
+    },
+    {
+      "id": 40356668263,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/m0-foundation",
+      "headSha": "9824198f4d9d9c68b0d075e3cc614996efb18933",
+      "event": "pull_request",
+      "updatedAt": "2026-10-26T16:11:26Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40356668263"
+    },
+    {
+      "id": 40356668092,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/m0-foundation",
+      "headSha": "9824198f4d9d9c68b0d075e3cc614996efb18933",
+      "event": "pull_request",
+      "updatedAt": "2026-10-26T16:12:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40356668092"
+    },
+    {
+      "id": 40356658101,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/m0-foundation",
+      "headSha": "9824198f4d9d9c68b0d075e3cc614996efb18933",
+      "event": "push",
+      "updatedAt": "2026-10-26T16:12:32Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40356658101"
+    },
+    {
+      "id": 40356267892,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/m0-foundation",
+      "headSha": "4846e27ed45e2ebb53ca16f51e985883305b9ddd",
+      "event": "push",
+      "updatedAt": "2026-10-26T16:09:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40356267892"
+    },
+    {
+      "id": 40355215330,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "11c8d8da5206615260f9bab95c528da602f4c640",
       "event": "push",
-      "updatedAt": "2026-10-26T16:02:25Z",
+      "updatedAt": "2026-10-26T16:02:30Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40355215330"
     },
     {
@@ -78,83 +134,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-26T16:00:34Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40354898089"
-    },
-    {
-      "id": 40348456191,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m0-windows-installer",
-      "headSha": "b1cf60870b96f13706437567bad249a278e665b8",
-      "event": "pull_request",
-      "updatedAt": "2026-10-26T15:21:59Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40348456191"
-    },
-    {
-      "id": 40348448074,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m0-windows-installer",
-      "headSha": "b1cf60870b96f13706437567bad249a278e665b8",
-      "event": "push",
-      "updatedAt": "2026-10-26T15:21:53Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40348448074"
-    },
-    {
-      "id": 40348447871,
-      "name": "Windows installer (M0 prototype)",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m0-windows-installer",
-      "headSha": "b1cf60870b96f13706437567bad249a278e665b8",
-      "event": "push",
-      "updatedAt": "2026-10-26T15:26:21Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40348447871"
-    },
-    {
-      "id": 40348219100,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "failure",
-      "branch": "feature/m0-windows-installer",
-      "headSha": "7230a9190cfcbb3cfbcac9f75ca941a24c744f5b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-26T15:20:31Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40348219100"
-    },
-    {
-      "id": 40348203397,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "failure",
-      "branch": "feature/m0-windows-installer",
-      "headSha": "7230a9190cfcbb3cfbcac9f75ca941a24c744f5b",
-      "event": "push",
-      "updatedAt": "2026-10-26T15:20:25Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40348203397"
-    },
-    {
-      "id": 40348203218,
-      "name": "Windows installer (M0 prototype)",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "feature/m0-windows-installer",
-      "headSha": "7230a9190cfcbb3cfbcac9f75ca941a24c744f5b",
-      "event": "push",
-      "updatedAt": "2026-10-26T15:22:13Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40348203218"
-    },
-    {
-      "id": 40346506081,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m0-windows-installer",
-      "headSha": "c1da17a1205335df0d5c04dadfc46e8785a47d37",
-      "event": "pull_request",
-      "updatedAt": "2026-10-26T15:10:05Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40346506081"
     }
   ]
 }
