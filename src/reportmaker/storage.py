@@ -108,7 +108,10 @@ class CustomerStore:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             if self.path.is_symlink():
                 raise ValueError("Refusing a symlink database")
+        new_database = str(self.path) != ":memory:" and not self.path.exists()
         self.connection = sqlite3.connect(str(self.path), timeout=10)
+        if new_database and os.name != "nt":
+            os.chmod(self.path, 0o600)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA busy_timeout = 10000")
@@ -323,6 +326,8 @@ class CustomerStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("xb"):
             pass
+        if os.name != "nt":
+            os.chmod(target, 0o600)
         try:
             with closing(sqlite3.connect(str(target))) as destination_db:
                 self.connection.backup(destination_db)

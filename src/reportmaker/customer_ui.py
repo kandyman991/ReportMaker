@@ -12,7 +12,7 @@ import sqlite3
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
+    QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
     QVBoxLayout,
 )
@@ -165,18 +165,18 @@ class CustomerManagerDialog(QDialog):
         self.tree.setAlternatingRowColors(True)
         self.tree.itemSelectionChanged.connect(self._selection_changed)
         layout.addWidget(self.tree, 1)
-        buttons = QHBoxLayout()
+        buttons = QGridLayout()
         self.actions = {}
-        for label, callback in (
+        for position, (label, callback) in enumerate((
             ("Add customer", self.add_customer), ("Add site", self.add_site),
             ("Add machine", self.add_machine), ("Edit selected", self.edit_selected),
             ("Delete selected", self.delete_selected), ("Machine history", self.history),
             ("Preview reference", self.preview_reference),
             ("Manual reference", self.manual_reference), ("Backup database", self.backup),
-        ):
+        )):
             button = QPushButton(label)
             button.clicked.connect(callback)
-            buttons.addWidget(button)
+            buttons.addWidget(button, position // 3, position % 3)
             self.actions[label] = button
         layout.addLayout(buttons)
         self.status = QLabel()
