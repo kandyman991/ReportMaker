@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import tempfile
 import zipfile
+import zlib
 
 from .engine import MAX_NESTING, validate_report_tree
 from .model import (
@@ -265,20 +266,26 @@ def _assets_checked(project):
     if not isinstance(project, ReportProject) or not isinstance(project.assets, dict):
         raise ValueError("Expected a report project")
     report_json = _report_to(project.report)
-    total = 0
-    metadata = []
-    for identifier, blob in sorted(project.assets.items()):
+    # Unreferenced images remain available to the in-memory undo history, but
+    # MUST NOT survive in a saved portable project after deletion. Reused IDs
+    # shared by another module stay referenced and therefore are preserved.
+    referenced = _photo_ids(project.report)
+    for identifier in project.assets:
         if not isinstance(identifier, str) or ASSET_ID.fullmatch(identifier) is None:
             raise ValueError("Unsafe logical asset ID")
+    if not referenced <= project.assets.keys():
+        raise ValueError("Project refers to an asset that has not been stored")
+    total = 0
+    metadata = []
+    for identifier in sorted(referenced):
+        blob = project.assets[identifier]
         if not isinstance(blob, bytes) or len(blob) > MAX_ASSET:
-            raise ValueError("Photo assets must be bounded bytes")
+            raise ValueError("Referenced photo assets must be bounded bytes")
         total += len(blob)
         if total > MAX_TOTAL_ASSETS or len(metadata) >= MAX_ENTRIES - 1:
             raise ValueError("Report assets exceed project limits")
         metadata.append({"id": identifier, "length": len(blob),
                          "sha256": sha256(blob).hexdigest()})
-    if not _photo_ids(project.report) <= project.assets.keys():
-        raise ValueError("Project refers to an asset that has not been stored")
     manifest = {"format": FORMAT, "version": VERSION,
                 "report": report_json, "assets": metadata}
     serialized = json.dumps(manifest, ensure_ascii=False, sort_keys=True,
@@ -328,10 +335,15 @@ def load_project(source: str | Path) -> ReportProject:
             infos = archive.infolist()
             names = [i.filename for i in infos]
             if (not names or len(names) > MAX_ENTRIES or len(names) != len(set(names)) or
-                "manifest.json" not in names or
-                any(i.is_dir() or i.flag_bits & 0x1 for i in infos)):
+                "manifest.json" not in names or any(i.is_dir() for i in infos)):
                 raise ValueError("Invalid project archive entries")
             for info in infos:
+                # Never enter zipfile's unsupported/encrypted compression paths.
+                # ZIP_STORED and ZIP_DEFLATED are sufficient for v1 and native
+                # Python interoperability on Windows.
+                if (info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+                    or info.flag_bits & (0x1 | 0x40 | 0x2000)):
+                    raise ValueError("Unsupported ZIP compression or encryption")
                 if (info.file_size > (MAX_MANIFEST if info.filename == "manifest.json" else MAX_ASSET)
                     or info.filename != "manifest.json" and
                     not info.filename.startswith("assets/")):
@@ -370,8 +382,14 @@ def load_project(source: str | Path) -> ReportProject:
                 assets[identifier] = blob
             if set(names) != expected:
                 raise ValueError("Unlisted/untrusted files in project archive")
-            project = ReportProject(_report_from(manifest["report"]), assets)
+            report = _report_from(manifest["report"])
+            # Older v1 bundles may contain orphan assets. Read/verify the
+            # manifest faithfully, but discard orphans in the active project.
+            project = ReportProject(report, {
+                identifier: assets[identifier] for identifier in _photo_ids(report)
+            })
             _assets_checked(project)
             return project
-    except (zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError, EOFError) as exc:
-        raise ValueError("Invalid or damaged ReportMaker project") from exc
+    except (zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError,
+            EOFError, zlib.error, NotImplementedError, RuntimeError) as exc:
+        raise ValueError("Invalid, unsupported or damaged ReportMaker project") from exc
