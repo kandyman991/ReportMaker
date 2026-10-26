@@ -112,10 +112,12 @@ class CustomerStore:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA busy_timeout = 10000")
-        if str(self.path) != ":memory:":
-            self.connection.execute("PRAGMA journal_mode = WAL")
         try:
             self._migrate()
+            if str(self.path) != ":memory:":
+                # Do not touch a future-version database; set WAL only after
+                # a compatible schema has been verified and migrated.
+                self.connection.execute("PRAGMA journal_mode = WAL").fetchone()
         except BaseException:
             self.connection.close()
             raise
