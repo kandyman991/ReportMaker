@@ -117,3 +117,12 @@ Next reproducible action:
 - No browser integration changes, real customer data, release, installer or deployment. Actual installed Windows mouse drag/drop, responsive DPI, image rendering, dialogs and full UI acceptance still outstanding.
 - Next: independently review PR #12 at exact head; verify hosted Windows CI; only after explicit user authorization integrate PR #12 into PR #11 and repeat final combined-head review. **Do not merge either PR without authorization.**
 
+
+
+## CP-M4-DRAFT — editable DOCX / PDF export, PR #13 (2026-10-26)
+- Parent main SHA: `bb5f716974818f72fefb446820980cc09698e7f2`. Branch `feature/m4-editable-docx-pdf-export`, draft PR [#13](https://github.com/kandyman991/ReportMaker/pull/13) -> main. Implementation bookmark/font revision `adc84667d30c75c1dec3ba7786aecaf125db393f` (later docs may advance branch HEAD).
+- Requirements: `ARCHITECTURE.md`, ADR-0006, `docs/REPORT_COMPOSITION_CONTRACT.md`. Export consumes source/canonical ordered modules; tree/summary are the same `module_outline`; conclusion last; multi-type and detached customer report snapshots unchanged; `.rmproj` remains canonical.
+- Implementation: editable DOCX Word title/paragraph/heading/table/inline picture/caption/page break; visible auto-derived section contents with Word PAGEREF fields to refresh after Word pagination; local PDF built from same projection with multipass TOC/page footer; source-only M4 export, M5 language review deferred. Qt Save As actions with atomic replace and guarded pending edits. See `docs/M4_EXPORT.md`.
+- Tests: `tests/test_m4_export.py` and offline Qt `--export-self-test`. Hosted Windows M4 smoke, M1 GUI regression and continuity **PASS** at prior exact PR commit `d49ac34885fb4bd0dde945c53ed7ff4ff0ffd497`: [core #40409676216](https://github.com/kandyman991/ReportMaker/actions/runs/40409676216), [M1 #40409676222](https://github.com/kandyman991/ReportMaker/actions/runs/40409676222), [continuity #40409676310](https://github.com/kandyman991/ReportMaker/actions/runs/40409676310). Check NEW head CI after these updated bookmarks/font/docs commits; do not transfer evidence between SHAs.
+- Installed native Windows: **NOT done**. Required consolidate M0–M4 checklist and actual desktop Word/PDF validation in `docs/WINDOWS_ACCEPTANCE_M0_M4.md`; no installer or prerelease published.
+- Privacy: synthetic fixtures only, local asset bytes, no browser/AI/report uploads; M0 rolling prerelease stays pinned. Next: exact-head CI and independent review before seeking merge approval. **NO MERGE/RELEASE AUTHORIZATION.**
