@@ -297,6 +297,27 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
         PageTemplate, Paragraph, Spacer, Table, TableStyle,
     )
     from reportlab.platypus.tableofcontents import TableOfContents
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    body_font, bold_font = "Helvetica", "Helvetica-Bold"
+    # Embed a local system Unicode font where present. No font/user data is
+    # uploaded, and unsupported language-specific typography belongs to M5.
+    windows_fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
+    candidates = [
+        (windows_fonts / "segoeui.ttf", windows_fonts / "segoeuib.ttf"),
+        (Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")),
+    ]
+    for regular, bold in candidates:
+        if regular.is_file() and bold.is_file():
+            try:
+                pdfmetrics.registerFont(TTFont("RM-Body", str(regular)))
+                pdfmetrics.registerFont(TTFont("RM-Bold", str(bold)))
+                body_font, bold_font = "RM-Body", "RM-Bold"
+                break
+            except (ValueError, OSError):
+                continue
 
     class ReportPDF(BaseDocTemplate):
         def __init__(self, path):
@@ -310,7 +331,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
 
         def footer(self, canvas, doc):
             canvas.saveState()
-            canvas.setFont("Helvetica", 9)
+            canvas.setFont(body_font, 9)
             canvas.drawRightString(A4[0] - 2*cm, 1.1*cm, "Page " + str(doc.page))
             canvas.restoreState()
 
@@ -325,12 +346,12 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
 
     styles = getSampleStyleSheet()
     normal = styles["BodyText"]
-    normal.fontName = "Helvetica"
+    normal.fontName = body_font
     normal.fontSize = 10
     normal.leading = 14
     heading_styles = [
         ParagraphStyle("ReportSection" + str(i), parent=normal,
-                       fontName="Helvetica-Bold", fontSize=max(11, 16-i),
+                       fontName=bold_font, fontSize=max(11, 16-i),
                        leading=max(15, 20-i), spaceBefore=13, spaceAfter=6,
                        keepWithNext=1, leftIndent=min(i, 12)*.35*cm)
         for i in range(9)
@@ -338,11 +359,14 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
     toc = TableOfContents()
     toc.levelStyles = [
         ParagraphStyle("TOC" + str(i), parent=normal, leftIndent=i * .4*cm,
-                       firstLineIndent=0, fontSize=9, leading=12, alignment=TA_LEFT)
+                       firstLineIndent=0, fontName=body_font, fontSize=9,
+                       leading=12, alignment=TA_LEFT)
         for i in range(9)
     ]
-    story = [Paragraph(escape(plan.title), styles["Title"]),
-             Spacer(1, 10), Paragraph("Report information", styles["Heading2"])]
+    title_style = ParagraphStyle("ReportTitle", parent=styles["Title"], fontName=bold_font)
+    label_style = ParagraphStyle("ReportLabel", parent=styles["Heading2"], fontName=bold_font)
+    story = [Paragraph(escape(plan.title), title_style),
+             Spacer(1, 10), Paragraph("Report information", label_style)]
     metadata = [[Paragraph(escape(label), styles["BodyText"]),
                  Paragraph(escape(value).replace("\n", "<br/>"), styles["BodyText"])]
                 for label, value in plan.info]
@@ -355,7 +379,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ]))
         story.extend([tbl, Spacer(1, 12)])
-    story.extend([Paragraph("Summary", styles["Heading2"]), toc, PageBreak()])
+    story.extend([Paragraph("Summary", label_style), toc, PageBreak()])
 
     for item in plan.items:
         if item.kind == "module":
@@ -396,7 +420,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
                           height=pixels[1]*ratio)
             if item.text:
                 story.append(KeepTogether([image, Paragraph(escape(item.text),
-                                                           styles["Italic"])]))
+                                                           normal)]))
             else:
                 story.append(image)
         elif item.kind == "page_break":
