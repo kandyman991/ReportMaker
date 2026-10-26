@@ -85,8 +85,11 @@ class MainWindow(QMainWindow):
         self.browser_page = QWebEnginePage(self.profile, self.browser)
         self.browser.setPage(self.browser_page)
         self.browser.loadFinished.connect(self._web_loaded)
+        self.browser.urlChanged.connect(self._show_browser_origin)
         self.browser.setUrl(CHAT_URL)
         right_layout.addWidget(self.browser)
+        self.browser_origin = QLabel("Website origin: loading...")
+        right_layout.addWidget(self.browser_origin)
         self.browser_status = QLabel("Browser compatibility and website login are not yet verified.")
         right_layout.addWidget(self.browser_status)
         splitter.addWidget(right)
@@ -99,6 +102,13 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             "M0 shell: no database, DOCX export, credential capture or AI API."
         )
+
+    def _show_browser_origin(self, url: QUrl) -> None:
+        # Show a trustworthy origin indicator without exposing URL query secrets.
+        origin = f"{url.scheme()}://{url.host()}" if url.host() else "(unknown)"
+        if url.scheme() != "https":
+            origin = f"WARNING — non-HTTPS website: {origin}"
+        self.browser_origin.setText(f"Website origin: {origin}")
 
     def _web_loaded(self, succeeded: bool) -> None:
         if succeeded:

@@ -5,6 +5,7 @@ M0 = architectural foundation plus browser integration feasibility. CI alone doe
 Automated (Windows CI, synthetic data only):
 - [ ] python -m unittest discover -s tests -v passes.
 - [ ] python -m compileall -q src passes.
+- [ ] Install pinned PySide6 desktop dependencies and import Windows Qt WebEngine UI module.
 - [ ] Report validation rejects inverted dates/invalid language selections and conclusion stays last.
 - [ ] Arbitrary module block ordering and nesting represented without Qt dependencies.
 - [ ] Contract guard protects Windows/browser-only/no-API/any-language invariants.
