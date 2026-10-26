@@ -216,10 +216,16 @@ class ProjectEditor:
                 raise ValueError("Conclusions may not contain intervention modules")
             target = report.modules if parent_id is None else _find(report, parent_id)[2].blocks
             at = _insert_index(target, index)
-            container.pop(old_index)
+            old_item = container.pop(old_index)
             if container is target and at > old_index:
                 at -= 1
-            target.insert(at, module if parent_id is None else NestedModuleBlock(module))
+            # Preserve an existing nested wrapper ID while moving between parents.
+            # Root modules have no wrapper; nesting a root module creates one.
+            item = module if parent_id is None else (
+                old_item if isinstance(old_item, NestedModuleBlock)
+                else NestedModuleBlock(module)
+            )
+            target.insert(at, item)
         self.apply(operation)
 
     def duplicate_module(self, module_id: str) -> str:
