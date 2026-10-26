@@ -29,6 +29,7 @@ from .model import (
     ParagraphBlock, PhotoBlock, Report, TableBlock,
 )
 from .project_io import MAX_ASSET, ReportProject, default_projects_directory, load_project, save_project
+from .export import ExportError, export_project
 from .reference import CustomerSnapshot, manual_snapshot
 
 
@@ -335,6 +336,12 @@ class VisualReportEditor:
             action.setShortcut(QKeySequence(shortcut))
             action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
             action.triggered.connect(slot)
+            toolbar.addAction(action)
+            self.owner.addAction(action)
+        for fmt in ("docx", "pdf"):
+            action = QAction("Export " + fmt.upper(), self.owner)
+            action.setObjectName("export" + fmt.upper() + "Action")
+            action.triggered.connect(lambda checked=False, kind=fmt: self.export_as(kind))
             toolbar.addAction(action)
             self.owner.addAction(action)
 
@@ -992,6 +999,43 @@ class VisualReportEditor:
                                     "Replace the selected project file?") != QMessageBox.StandardButton.Yes:
                 return False
         return self.save_to_path(target)
+
+    def export_to_path(self, path, format):
+        """Export the current validated draft without saving/changing .rmproj."""
+        if not self._flush_block() or not self._flush_info():
+            return False
+        if (self.report.customer_id is None and
+                self.report.customer_snapshot.customer_name == "Customer (edit me)"):
+            self._warn("Customer required", "Enter a customer before exporting.")
+            return False
+        try:
+            export_project(ReportProject(self.report, dict(self.assets)), path, format=format)
+        except (ExportError, ValueError, OSError, RuntimeError) as exc:
+            self._warn("Cannot export report", exc)
+            return False
+        return True
+
+    def export_as(self, format):
+        if format not in ("docx", "pdf"):
+            raise ValueError("Unsupported export")
+        ext = "." + format
+        suggested = (self.path.with_suffix(ext) if self.path else
+                     default_projects_directory() / ("Untitled" + ext))
+        destination, _ = QFileDialog.getSaveFileName(
+            self.owner, "Export " + format.upper(), str(suggested),
+            "Word documents (*.docx)" if format == "docx" else "PDF documents (*.pdf)")
+        if not destination:
+            return False
+        target = Path(destination)
+        if target.suffix.lower() != ext:
+            target = target.with_suffix(ext)
+        if target.exists():
+            if QMessageBox.question(
+                    self.owner, "Replace exported file",
+                    "Replace the selected exported document?"
+            ) != QMessageBox.StandardButton.Yes:
+                return False
+        return self.export_to_path(target, format)
 
     def ok_to_close(self):
         return self._confirm_discard()
