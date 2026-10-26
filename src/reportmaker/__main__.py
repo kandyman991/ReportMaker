@@ -38,6 +38,9 @@ def main() -> int:
     if "--visual-editor-self-test" in sys.argv:
         from .editor_probe import run
         return run()
+    if "--export-self-test" in sys.argv:
+        from .export_probe import run
+        return run()
 
     try:
         from PySide6.QtWidgets import QApplication
