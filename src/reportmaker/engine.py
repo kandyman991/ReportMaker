@@ -7,11 +7,13 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable
+import re
 from uuid import uuid4
 
 from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, Report, TableBlock,
+    validate_localized_text, validate_report_metadata,
 )
 
 MAX_NESTING = 256
@@ -30,19 +32,20 @@ def validate_report_tree(report: Report) -> None:
     """Reject malformed hierarchy, cyclic objects, duplicate IDs and bad blocks."""
     if not isinstance(report, Report):
         raise ValueError("A Report is required")
-    report.__post_init__()  # validate editable report metadata after mutations
+    validate_report_metadata(report)  # pure, never silently repair mutated input
     report.ordered_sections()
     if any(isinstance(block, NestedModuleBlock) for block in report.conclusion.blocks):
         raise ValueError("Conclusions cannot contain intervention submodules")
-    seen_ids: set[str] = set()
+    seen_ids: set[str] = {report.id}
     seen_objects: set[int] = set()
     stack = [(part, 0) for part in reversed(report.ordered_sections())]
     while stack:
         module, depth = stack.pop()
         if depth > MAX_NESTING:
             raise ValueError("Report nesting exceeds safe project depth")
-        if not isinstance(module, Module) or not isinstance(module.title, LocalizedText):
-            raise ValueError("Invalid module or title")
+        if not isinstance(module, Module):
+            raise ValueError("Invalid module")
+        validate_localized_text(module.title)
         if id(module) in seen_objects:
             raise ValueError("Module appears more than once or forms a cycle")
         seen_objects.add(id(module))
@@ -55,21 +58,21 @@ def validate_report_tree(report: Report) -> None:
                                       TableBlock, PageBreakBlock, NestedModuleBlock)):
                 raise ValueError("Unsupported report block")
             _check_id(block.id, seen_ids)
-            if isinstance(block, (ParagraphBlock, HeadingBlock)) and not isinstance(block.text, LocalizedText):
-                raise ValueError("Invalid text block")
+            if isinstance(block, (ParagraphBlock, HeadingBlock)):
+                validate_localized_text(block.text)
             if isinstance(block, HeadingBlock) and (not isinstance(block.level, int) or not 1 <= block.level <= 6):
                 raise ValueError("Heading level must be 1..6")
             if isinstance(block, PhotoBlock):
-                if not isinstance(block.asset_id, str) or not block.asset_id:
-                    raise ValueError("Photo must use a logical asset ID")
-                if block.caption is not None and not isinstance(block.caption, LocalizedText):
-                    raise ValueError("Invalid photo caption")
+                if not isinstance(block.asset_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,96}", block.asset_id):
+                    raise ValueError("Photo must use a safe logical asset ID")
+                if block.caption is not None:
+                    validate_localized_text(block.caption)
             if isinstance(block, TableBlock):
-                if not isinstance(block.rows, list) or any(
-                    not isinstance(row, list) or any(not isinstance(cell, LocalizedText) for cell in row)
-                    for row in block.rows
-                ):
+                if not isinstance(block.rows, list) or any(not isinstance(row, list) for row in block.rows):
                     raise ValueError("Invalid table cells")
+                for row in block.rows:
+                    for cell in row:
+                        validate_localized_text(cell)
             if isinstance(block, NestedModuleBlock):
                 children.append((block.module, depth + 1))
         stack.extend(reversed(children))
