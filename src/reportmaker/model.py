@@ -72,6 +72,13 @@ class TableBlock:
 
 
 @dataclass
+class HeadingBlock:
+    text: LocalizedText
+    level: int = 2
+    id: str = field(default_factory=lambda: uuid4().hex)
+
+
+@dataclass
 class PageBreakBlock:
     id: str = field(default_factory=lambda: uuid4().hex)
 
@@ -89,7 +96,7 @@ class NestedModuleBlock:
     id: str = field(default_factory=lambda: uuid4().hex)
 
 
-Block = ParagraphBlock | PhotoBlock | TableBlock | PageBreakBlock | NestedModuleBlock
+Block = ParagraphBlock | HeadingBlock | PhotoBlock | TableBlock | PageBreakBlock | NestedModuleBlock
 
 
 @dataclass
@@ -104,6 +111,11 @@ class Report:
     ticket: str = ""
     id: str = field(default_factory=lambda: uuid4().hex)
     customer_snapshot: CustomerSnapshot | None = None
+    created_date: date = field(default_factory=date.today)
+    title: LocalizedText | None = None
+    technicians: list[str] = field(default_factory=list)
+    intervention_types: list[str] = field(default_factory=list)
+    other_intervention_detail: str = ""
 
     def __post_init__(self) -> None:
         if self.customer_id is not None and not isinstance(self.customer_id, str):
@@ -127,6 +139,27 @@ class Report:
         normalized = [language.lower() for language in self.output_languages]
         if len(set(normalized)) != len(normalized):
             raise ValueError("Duplicate output language")
+        if not isinstance(self.created_date, date) or isinstance(self.created_date, __import__("datetime").datetime):
+            raise ValueError("Creation date must be a date")
+        if self.title is None:
+            self.title = LocalizedText(self.primary_language, "Report of intervention")
+        if not isinstance(self.title, LocalizedText):
+            raise ValueError("Report title must be localized text")
+        if not isinstance(self.technicians, list) or any(
+            not isinstance(name, str) or not name.strip() for name in self.technicians
+        ):
+            raise ValueError("Technicians must be nonempty strings")
+        valid_types = {"supervision", "ordinary_maintenance", "extraordinary_maintenance", "other"}
+        if not isinstance(self.intervention_types, list) or any(
+            not isinstance(kind, str) or kind not in valid_types for kind in self.intervention_types
+        ) or len(self.intervention_types) != len(set(self.intervention_types)):
+            raise ValueError("Invalid or duplicated intervention types")
+        if not isinstance(self.other_intervention_detail, str):
+            raise ValueError("Other intervention description must be text")
+        if "other" in self.intervention_types and not self.other_intervention_detail.strip():
+            raise ValueError("Other intervention type requires a description")
+        if "other" not in self.intervention_types and self.other_intervention_detail.strip():
+            raise ValueError("Other intervention description requires the Other type")
         # Writing language is independent of export languages. For example,
         # an Italian original may produce only German and French documents.
 
