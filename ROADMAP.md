@@ -1,6 +1,6 @@
 # Roadmap
 
-## M0 — Foundation (this PR)
+## M0 — Foundation (implementation remains in draft PRs #1 and #3)
 - [x] Document immutable product constraints and architecture decisions.
 - [x] Define typed flexible module/report data model and pure-model tests.
 - [x] Create Windows-first application shell, ChatGPT browser spike, clipboard paste and external browser fallback.
@@ -10,6 +10,7 @@
 - [x] Add reproducible Windows installer build workflow (PyInstaller onedir + Inno Setup and self-test).
 - [x] Publish rolling Windows M0 **GitHub prerelease** without GitHub Actions artifact storage; scoped legacy-artifact cleanup after successful publication.
 - [ ] Install/uninstall and normal embedded browser sign-in acceptance on an actual Windows desktop.
+- [x] Add GitHub-backed curated handoff + mechanical state snapshot + continuity regression gates (continuity-only bootstrap).
 Exit: docs/tests green AND native Windows manual checklist completed. M0 is not complete solely because CI is green.
 
 ## M1 — Customer database
