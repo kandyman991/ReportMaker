@@ -7,6 +7,8 @@ from datetime import date
 from re import fullmatch
 from uuid import uuid4
 
+from .reference import CustomerSnapshot
+
 
 def validate_language_tag(language: str) -> str:
     """Accept extensible BCP-47-style tags; this is syntax checking, not a locale registry."""
@@ -101,10 +103,15 @@ class Report:
     modules: list[Module] = field(default_factory=list)
     ticket: str = ""
     id: str = field(default_factory=lambda: uuid4().hex)
+    customer_snapshot: CustomerSnapshot | None = None
 
     def __post_init__(self) -> None:
-        if not self.customer_id.strip():
-            raise ValueError("customer_id is required")
+        if not self.customer_id.strip() and self.customer_snapshot is None:
+            raise ValueError("A customer ID or a manual customer snapshot is required")
+        if self.customer_snapshot is not None:
+            source_id = self.customer_snapshot.customer_id or ""
+            if source_id != self.customer_id:
+                raise ValueError("Report customer ID and captured reference disagree")
         if self.start_date > self.end_date:
             raise ValueError("Intervention end date precedes start date")
         validate_language_tag(self.primary_language)
