@@ -29,6 +29,11 @@ _Last curated: 2026-10-26. This is an intentional checkpoint; it is **not** auto
 - Use hosted Windows Actions runners (`windows-latest`), no user-owned self-hosted machine requirement.
 - Direct rolling GitHub **prerelease** distribution; no `actions/upload-artifact`, no Actions cache storage. Keep developer/test releases separate from approved main builds in a later reviewable change.
 
+## Report composition clarification (2026-10-26; ADR-0006)
+Read `docs/REPORT_COMPOSITION_CONTRACT.md` before any M1 database, M2 model, M3 editor, M4 export or M5 language work. The user's sketch defines the report-info header (creation date, title, intervention from/to, optional ticket, type(s), personnel), a generated table of contents, and a titled module/submodule hierarchy. A report may select **multiple intervention types**. The contents and editor tree MUST derive from the same canonical hierarchy. Customer data may be selected from the database **or entered manually** with no master; each saved report captures a detached snapshot. Conclusions remain last. These are requirements, **not yet fully implemented features**. The original sketch was provided in chat; the public repo contains the textual contract, not the uploaded image.
+
+Live state at documentation review: main `5188f8ff74f50753650cb5975713e9c7bc56576f` (mechanical handoff refresh); M1 implementation was open as PR #5 on `feature/m1-customer-site-machine-database`. Revalidate head/CI before resuming; do not merge PR #5 or the documentation PR without authorization.
+
 ## M1 entry
 Start after reading the records and verifying M0 PR #1 and #3 are integrated into main. Design local SQLite customer/site/machine schema/migrations and editable GUI. A report must capture a local immutable customer/site/machine snapshot; support work without a master customer entry. Define backup and privacy boundaries before persistent data. Work on an isolated M1 feature branch/PR from the correct *live* main commit; do not overwrite continuity records. Use fabricated test customers, never production information.
 
