@@ -44,6 +44,56 @@ This is not the M3 visual report editor, and not a DOCX/PDF export or an M1 inst
 - M2 does not yet provide a graphical Open/Save dialog or drag/drop editor:
   those are integrated and acceptance-tested in M3.
 
+## Media lifetime and no-hidden-photo contract (PR9-F01)
+- The report's currently reachable `PhotoBlock.asset_id` values are the only
+  assets eligible for serialization. Unreferenced/orphan assets are omitted from
+  the saved ZIP/manifest and will not reappear when the project is reopened.
+- The in-memory `ReportProject.assets` map can temporarily contain bytes from
+  deleted blocks, so Undo can restore the picture. Saving does **not** mutate
+  that in-memory undo cache; reuse/duplication of a photo ID in surviving modules
+  preserves exactly one shared asset entry.
+- Old M2 v1 ZIP files that already contain orphan entries remain readable if
+  their complete manifests and digests validate. Import drops orphan bytes from
+  the active project; the next save produces a scrubbed archive.
+- Deleted content is removed from a newly saved project, not securely erased
+  from old copies, filesystem snapshots or backups. Users must manage those
+  copies independently.
+
+## Import safety, validation and version compatibility (PR9-F02/F03)
+- All metadata and each localized original/translation/stale marker are
+  validated *without mutating the report* at editing and save boundaries.
+  Invalid edits cannot silently repair a missing title or enter undo history.
+  An accepted valid mutation round-trips through the same storage constraints.
+- ZIP version 1 permits `ZIP_STORED` and `ZIP_DEFLATED` only. Encryption,
+  unsupported compression, corrupt streams and invalid schema/provenance yield
+  a controlled ValueError; no archived path is ever extracted.
+- Format compatibility matrix:
+  
+  | Input | Behavior |
+  |---|---|
+  | M2 `.rmproj` v1, valid | Load, edit, save (v1) |
+  | M2 v1 with legacy extra/unreferenced assets | Load safely and prune orphans in memory and next save |
+  | Missing/malformed manifest, unsupported ZIP method or damaged data | Reject, leaving source unchanged |
+  | Future schema version (v2+) | Reject without migration/downgrade; retain original bytes |
+  | M0/M1 report model and SQLite customer DB | Continue to work; M2 never alters DB schema |
+  
+  Any future migration requires an explicit ADR, fixture corpus and
+  revision-specific regression gates before enabling it.
+
+## Backup, crash recovery and known limitations
+- Atomic same-directory replace and fsync guard against incomplete destination
+  writes; this is **not** an automatic project backup or a historical revision
+  history. An existing valid destination is preserved when validation fails.
+- M2 deliberately does **not** create `.bak` or versioned files by default;
+  doing so could retain deleted photos in a hidden earlier revision and violate
+  user expectations. Users can explicitly make a private filesystem copy of
+  a successfully saved project before editing. Synthetic tests verify loading
+  such a copy after a corrupted current file.
+- The M3 graphical editor must offer clear opt-in backup/recovery controls and
+  disclose where old photos remain. A crash/power-loss/hardware test on an
+  installed Windows machine is still outstanding; CI tests cannot prove it.
+- No production customer reports or photos are used in CI or public assets.
+
 ## Minimal Python usage
 ```python
 from reportmaker.project_io import ReportProject, save_project, load_project
