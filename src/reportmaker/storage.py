@@ -6,6 +6,7 @@ API, which includes committed WAL data.
 """
 from __future__ import annotations
 
+from contextlib import closing
 from datetime import date, datetime, timezone
 import json
 import os
@@ -256,9 +257,15 @@ class CustomerStore:
         self, customer_id: str, *, site_id: str | None = None,
         machine_id: str | None = None,
     ) -> CustomerSnapshot:
-        customer = self.get("customers", customer_id)
-        site = self.get("sites", site_id) if site_id else None
-        machine = self.get("machines", machine_id) if machine_id else None
+        # A single SQLite read transaction avoids combining values captured
+        # across concurrent master-data updates by another local process.
+        self.connection.execute("SAVEPOINT reference_snapshot")
+        try:
+            customer = self.get("customers", customer_id)
+            site = self.get("sites", site_id) if site_id else None
+            machine = self.get("machines", machine_id) if machine_id else None
+        finally:
+            self.connection.execute("RELEASE SAVEPOINT reference_snapshot")
         if site and site["customer_id"] != customer_id:
             raise ValueError("Selected site does not belong to customer")
         if machine and (site is None or machine["site_id"] != site_id):
@@ -315,7 +322,7 @@ class CustomerStore:
         with target.open("xb"):
             pass
         try:
-            with sqlite3.connect(str(target)) as destination_db:
+            with closing(sqlite3.connect(str(target))) as destination_db:
                 self.connection.backup(destination_db)
                 result = destination_db.execute("PRAGMA quick_check").fetchone()[0]
                 if result != "ok":

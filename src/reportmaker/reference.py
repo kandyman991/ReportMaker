@@ -59,7 +59,10 @@ class CustomerSnapshot:
         if not isinstance(data, dict):
             raise ValueError("Snapshot must be an object")
         # Reject unknown properties to catch incompatible schemas early.
-        return cls(**data)
+        try:
+            return cls(**data)
+        except TypeError as exc:
+            raise ValueError("Invalid or incompatible snapshot properties") from exc
 
 
 def manual_snapshot(

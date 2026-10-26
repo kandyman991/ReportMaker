@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication
 
 from .customer_ui import CustomerManagerDialog
@@ -49,7 +50,7 @@ def run() -> int:
                                QSettings.Format.IniFormat))
         shell.show()
         app.processEvents()
-        assert shell.findChild(object, "customerManagerAction") is not None
+        assert shell.findChild(QAction, "customerManagerAction") is not None
         assert shell.browser.url().toString() != "https://chatgpt.com/"
         shell.close()
         shell.deleteLater()

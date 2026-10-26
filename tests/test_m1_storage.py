@@ -1,4 +1,5 @@
 """M1 uses only synthetic, non-identifying data."""
+from contextlib import closing
 from dataclasses import FrozenInstanceError
 from datetime import date
 import sqlite3
@@ -101,7 +102,7 @@ class CustomerStorageTests(unittest.TestCase):
 
     def test_newer_schema_is_not_modified(self):
         future_path = Path(self.folder.name) / "future.sqlite3"
-        with sqlite3.connect(future_path) as db:
+        with closing(sqlite3.connect(future_path)) as db:
             db.execute("PRAGMA user_version = 999")
         with self.assertRaises(RuntimeError):
             CustomerStore(future_path)
