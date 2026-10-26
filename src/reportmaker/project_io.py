@@ -6,7 +6,7 @@ operations are local; no browser data or network dependencies are involved.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import date
 from hashlib import sha256
 import json
@@ -162,10 +162,44 @@ def _block_from(obj, depth):
     return NestedModuleBlock(_module_from(obj["module"], depth + 1), identifier)
 
 
+def _snapshot_checked(value):
+    """Fail closed on malformed imported customer/site/machine snapshot data."""
+    if not isinstance(value, dict):
+        raise ValueError("Customer snapshot must be an object")
+    valid = {f.name for f in fields(CustomerSnapshot)}
+    if set(value) - valid:
+        raise ValueError("Unknown customer snapshot field")
+    snapshot = CustomerSnapshot.from_dict(value)
+    for key, entry in snapshot.to_dict().items():
+        if key == "schema_version":
+            if type(entry) is not int or entry != 1:
+                raise ValueError("Unsupported snapshot schema version")
+        elif key in ("customer_id", "site_id", "machine_id"):
+            if entry is not None and not isinstance(entry, str):
+                raise ValueError("Invalid snapshot database link")
+        elif not isinstance(entry, str):
+            raise ValueError("Snapshot details must be text")
+    return snapshot
+
+
+def _unique_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicated JSON project field")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value):
+    raise ValueError("Non-finite JSON constant in project")
+
+
 def _report_to(report):
     validate_report_tree(report)
     if report.customer_snapshot is None:
         raise ValueError("Persisted projects require a detached customer snapshot")
+    _snapshot_checked(report.customer_snapshot.to_dict())
     return {
         "id": report.id, "customer_id": report.customer_id,
         "customer_snapshot": report.customer_snapshot.to_dict(),
@@ -197,7 +231,7 @@ def _report_from(obj):
         _string(customer_id)
     report = Report(
         customer_id=customer_id,
-        customer_snapshot=CustomerSnapshot.from_dict(obj["customer_snapshot"]),
+        customer_snapshot=_snapshot_checked(obj["customer_snapshot"]),
         created_date=_date(obj["created_date"]), title=_localized_from(obj["title"]),
         start_date=_date(obj["start_date"]), end_date=_date(obj["end_date"]),
         primary_language=_string(obj["primary_language"]),
@@ -305,7 +339,9 @@ def load_project(source: str | Path) -> ReportProject:
             data = archive.read("manifest.json")
             if len(data) > MAX_MANIFEST:
                 raise ValueError("Project manifest is too large")
-            manifest = _shape(json.loads(data.decode("utf-8")),
+            manifest = _shape(json.loads(data.decode("utf-8"),
+                                              object_pairs_hook=_unique_pairs,
+                                              parse_constant=_reject_constant),
                               ("format", "version", "report", "assets"))
             if manifest["format"] != FORMAT or type(manifest["version"]) is not int or manifest["version"] != VERSION:
                 raise ValueError("Unsupported project schema; no automatic downgrade")
