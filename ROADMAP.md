@@ -43,7 +43,7 @@ See `docs/M3_VISUAL_EDITOR.md`.
 - [x] Local multipass PDF pagination/TOC with current page footers; export from the same canonical plan, no Word/LibreOffice prerequisite.
 - [x] Native Qt export actions, atomic output replacement and synthetic export/Qt smoke regression gates.
 - [ ] Exact-current-head hosted Windows CI, independent export/security review and corrective PRs.
-- [ ] Installed Windows/Word/PDF manual acceptance; branded layout/template integration belongs to M6, full translation workflows to M5.
+- [ ] Installed Windows/Word/PDF manual acceptance. M4 branded header/footer design, image anchoring and pagination polish remain open; they cannot be called complete without an approved design. Full DOCX template import/designer is M6; translation workflows are M5.
 See `docs/M4_EXPORT.md` and `docs/WINDOWS_ACCEPTANCE_M0_M4.md`.
 
 ## M5 — Open-ended languages
