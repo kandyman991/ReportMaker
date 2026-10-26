@@ -29,6 +29,14 @@ _Updated 2026-10-26. Maintainers edit this file at PR, milestone and chat-handof
 - Next: independently review PR #5 at its exact live head and CI; perform manual Windows UI acceptance on a separately approved test build; consider M1 rolling prerelease only after review. **Do not merge without user authorization.**
 - Rollback: no main changes; close app before replacing local database from a verified private backup. See `docs/M1_CUSTOMER_DATABASE.md`.
 
+## CP-M1-R1 — Independent PR #5 review and isolated fixes
+- Review target: PR #5 at exact head `20f74d48009b8669a43a793397852d4d8f6b168a`. Do not merge.
+- Correction branch: `review/pr5-m1-storage-ui-fixes`, branched from PR #5, not `main`. Fixes and synthetic regression tests through `f20c998e4338f6b295ff4f3204cecc59c8675675`; further doc commit only.
+- Found five issues (backup false-success, LIKE wildcard matching, noncanonical history dates, UI write-error refresh, uncaught SQLite toolbar error); corrected without changing architecture contracts. Full detail in `docs/PR5_REVIEW.md`.
+- Original PR #5 Windows CI success does not validate correction commits; inspect correction PR's exact-head Actions checks and independently review before integration.
+- Outstanding: native installed Windows manual acceptance, private backup restore verification and reconciliations with main's merged PR #6 document contract. No production data, installer, deployment or merge.
+- Next action: have an independent reviewer assess corrections at their exact commit, then (only with authorization) integrate this correction PR into PR #5's feature branch. Reconcile PR #5 with latest main separately before merging.
+
 ## Checkpoint template for subsequent work
 ```text
 Checkpoint ID / date:
