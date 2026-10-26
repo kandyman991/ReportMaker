@@ -118,8 +118,10 @@ class FinalReviewCorrections(unittest.TestCase):
         self.assertEqual(sum(map(len, machines.values())), 14)
         selects = [s for s in traces if s.strip().upper().startswith("SELECT")]
         self.assertEqual(len(selects), 3)
-        self.assertEqual(sum("FROM sites" in q for q in selects), 1)
-        self.assertEqual(sum("FROM machines" in q for q in selects), 1)
+        # The customers query also contains a correlated "FROM sites";
+        # count only the concrete grouped child SELECT statements.
+        self.assertEqual(sum(q.lstrip().startswith("SELECT * FROM sites ") for q in selects), 1)
+        self.assertEqual(sum(q.lstrip().startswith("SELECT * FROM machines ") for q in selects), 1)
         selected, child_sites, child_machines = self.store.list_hierarchy("SERIAL-09")
         self.assertEqual(len(selected), 1)
         self.assertEqual(len(child_sites[selected[0]["id"]]), 1)

@@ -52,6 +52,15 @@ _Updated 2026-10-26. Maintainers edit this file at PR, milestone and chat-handof
 - PR #6 composition contract and ADR-0006 are retained with M1 docs. M1 supports manual customers/snapshots; multiselect intervention types, one-tree Summary, project persistence and export remain M2–M4 work.
 - Pending: exact-head Windows CI after reconciliation, independent review, native installed Windows forms/backup restore/DPI tests. Synthetic-only; no production data, install or merge into main.
 
+## CP-M1-R2 — Review corrections in independent stacked PR #8
+- Source PR #5 reviewed commit: `99e486fffd071a62aa0f0b4a9af40d1127f9f9a2`; correction branch `review/pr5-final-review-corrections`, PR #8, targeting PR #5 feature branch (not main). Initial fix commit `e61c4a4598479d63ecc68111019473c28cf08cbc`.
+- R2-F01 High: release workflow no longer auto-publishes M1 from main under M0 tag; manual M0 rebuild pinned to `1981d802194bb2619e689533ac35dabde0f706da`. M1 CI runs on main but does not package or publish release assets.
+- R2-F02 Medium: nullable unregistered report customer IDs supported by model, including strict matching of registered snapshots.
+- R2-F03 Medium: customer/site postal codes persist in historical snapshots; older serialized reference format compatible.
+- UI followups: full manual detail entry; debounced search and batched child queries; read/history errors preserve context and warn rather than escape Qt handlers.
+- Added synthetic unit and Windows Qt smoke regressions. First Windows test run exposed an overly broad assertion matching the subquery in customer search, corrected on this branch; verify the next exact commit before approval.
+- No real customer/corporate data, browser state or credentials. Independent correction review and installed-PC M1 acceptance remain outstanding. Neither PR #8 nor #5 may be merged without authorization.
+
 ## Checkpoint template for subsequent work
 ```text
 Checkpoint ID / date:
