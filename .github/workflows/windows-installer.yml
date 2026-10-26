@@ -1,11 +1,12 @@
 name: Windows installer (M0 prototype)
 
+# M1 and later revisions must NOT auto-publish under the M0 release name.
+# Manual M0 re-publication is pinned to the last approved M0-only source.
 on:
-  push:
-    branches:
-      - feature/m0-windows-installer
-      - main
   workflow_dispatch:
+
+env:
+  M0_SOURCE_SHA: 1981d802194bb2619e689533ac35dabde0f706da
 
 # Match Graph Studio's rolling-release workflow: cancel superseded builds.
 concurrency:
@@ -17,12 +18,15 @@ permissions:
 
 jobs:
   installer:
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.M0_SOURCE_SHA }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -96,9 +100,9 @@ jobs:
           $notes = @"
           Rolling **Windows M0 development preview** from ReportMaker.
           This is NOT a production release or the full report editor.
-          Source commit: $env:GITHUB_SHA
+          Source commit (pinned M0): $env:M0_SOURCE_SHA
           Build: $env:GITHUB_RUN_ID
-          Source branch: $env:GITHUB_REF_NAME
+          Workflow dispatch branch: $env:GITHUB_REF_NAME
 
           Contents: ReportMaker-M0-Setup.exe, SHA256SUMS.txt.
           The installer is unsigned; interactive ChatGPT login and use on an
@@ -110,13 +114,13 @@ jobs:
           gh release view $tag --repo $repo *> $null
           $exists = ($LASTEXITCODE -eq 0)
           if ($exists) {
-            gh api --method PATCH "repos/$repo/git/refs/tags/$tag" -f "sha=$env:GITHUB_SHA" -F "force=true"
+            gh api --method PATCH "repos/$repo/git/refs/tags/$tag" -f "sha=$env:M0_SOURCE_SHA" -F "force=true"
             if ($LASTEXITCODE -ne 0) { throw "Failed to update rolling release tag" }
             gh release edit $tag --repo $repo --title "ReportMaker - Windows M0 Preview" --notes-file $notesPath --prerelease
             if ($LASTEXITCODE -ne 0) { throw "Failed to update rolling release metadata" }
           }
           else {
-            gh release create $tag --repo $repo --target $env:GITHUB_SHA --title "ReportMaker - Windows M0 Preview" --notes-file $notesPath --prerelease
+            gh release create $tag --repo $repo --target $env:M0_SOURCE_SHA --title "ReportMaker - Windows M0 Preview" --notes-file $notesPath --prerelease
             if ($LASTEXITCODE -ne 0) { throw "Failed to create rolling prerelease" }
           }
 

@@ -5,7 +5,7 @@ usable for one-off interventions with no customer registered in the database.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 
 
@@ -19,6 +19,7 @@ class CustomerSnapshot:
     customer_id: str | None = None
     customer_code: str = ""
     customer_address: str = ""
+    customer_postal_code: str = ""
     customer_city: str = ""
     customer_country: str = ""
     customer_contact: str = ""
@@ -27,6 +28,7 @@ class CustomerSnapshot:
     site_id: str | None = None
     site_name: str = ""
     site_address: str = ""
+    site_postal_code: str = ""
     site_city: str = ""
     site_country: str = ""
     site_contact: str = ""
@@ -65,16 +67,25 @@ class CustomerSnapshot:
             raise ValueError("Invalid or incompatible snapshot properties") from exc
 
 
-def manual_snapshot(
-    customer_name: str,
-    *, site_name: str = "", machine_name: str = "",
-    machine_serial: str = "", customer_address: str = "",
-    customer_contact: str = "", site_address: str = "",
-) -> CustomerSnapshot:
-    """Capture an intervention without creating any master customer records."""
+def manual_snapshot(customer_name: str, **details: str) -> CustomerSnapshot:
+    """Create a detached one-off reference; never silently adopt master IDs.
+
+    All address, contact and machine fields can be entered manually, while
+    database keys and timestamp/schema metadata are controlled internally.
+    """
+    if not isinstance(customer_name, str):
+        raise ValueError("Manual customer name must be text")
+    allowed = {part.name for part in fields(CustomerSnapshot)} - {
+        "customer_name", "customer_id", "site_id", "machine_id",
+        "captured_at", "schema_version",
+    }
+    unknown = set(details) - allowed
+    if unknown:
+        raise ValueError(f"Unexpected manual reference fields: {sorted(unknown)}")
+    if any(not isinstance(value, str) or len(value) > 10000
+           for value in details.values()):
+        raise ValueError("Manual reference fields must be text under 10000 characters")
     return CustomerSnapshot(
-        customer_name=customer_name.strip(), site_name=site_name.strip(),
-        machine_name=machine_name.strip(), machine_serial=machine_serial.strip(),
-        customer_address=customer_address.strip(), customer_contact=customer_contact.strip(),
-        site_address=site_address.strip(),
+        customer_name=customer_name.strip(),
+        **{key: value.strip() for key, value in details.items()},
     )

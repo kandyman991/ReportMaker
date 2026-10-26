@@ -236,6 +236,42 @@ class CustomerStore:
             "SELECT * FROM machines WHERE site_id = ? ORDER BY name COLLATE NOCASE, id",
             (site_id,))]
 
+    def list_hierarchy(
+        self, search: str = "",
+    ) -> tuple[list[dict], dict[str, list[dict]], dict[str, list[dict]]]:
+        """Fetch filtered customer trees with bounded SQL queries, not N+1.
+
+        Search result filtering remains in list_customers. Grouped child reads
+        use batches to avoid SQLite parameter limits for large local databases.
+        """
+        customers = self.list_customers(search)
+
+        def group_children(
+            table: str, parent_key: str, parent_ids: list[str],
+        ) -> dict[str, list[dict]]:
+            result: dict[str, list[dict]] = {}
+            for offset in range(0, len(parent_ids), 400):
+                batch = parent_ids[offset:offset + 400]
+                placeholders = ", ".join("?" for _ in batch)
+                rows = self.connection.execute(
+                    f"SELECT * FROM {table} WHERE {parent_key} IN ({placeholders}) "
+                    "ORDER BY name COLLATE NOCASE, id", batch,
+                )
+                for row in rows:
+                    item = dict(row)
+                    result.setdefault(item[parent_key], []).append(item)
+            return result
+
+        sites = group_children(
+            "sites", "customer_id", [row["id"] for row in customers],
+        )
+        site_rows = [row for customer in customers
+                     for row in sites.get(customer["id"], ())]
+        machines = group_children(
+            "machines", "site_id", [row["id"] for row in site_rows],
+        )
+        return customers, sites, machines
+
     def add_intervention(
         self, machine_id: str, start_date: str, *, end_date: str | None = None,
         ticket: str = "", technician: str = "", description: str = "",
@@ -286,6 +322,7 @@ class CustomerStore:
         return CustomerSnapshot(
             customer_id=customer_id, customer_name=customer["name"],
             customer_code=customer["code"], customer_address=customer["address"],
+            customer_postal_code=customer["postal_code"],
             customer_city=customer["city"], customer_country=customer["country"],
             customer_contact=customer["contact_name"],
             customer_email=customer["contact_email"],
@@ -293,6 +330,7 @@ class CustomerStore:
             site_id=site_id,
             site_name=site["name"] if site else "",
             site_address=site["address"] if site else "",
+            site_postal_code=site["postal_code"] if site else "",
             site_city=site["city"] if site else "",
             site_country=site["country"] if site else "",
             site_contact=site["contact_name"] if site else "",

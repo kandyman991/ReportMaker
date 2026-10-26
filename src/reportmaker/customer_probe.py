@@ -13,7 +13,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QDialog
 
-from .customer_ui import CustomerManagerDialog
+from .customer_ui import CustomerManagerDialog, HistoryDialog, ManualReferenceForm
 from .storage import CustomerStore
 from .ui import MainWindow
 
@@ -50,12 +50,56 @@ def run() -> int:
                 dialog.edit_selected()
                 assert warning.called
                 refresh.assert_not_called()
-            dialog.search.setText("SN-TEST-123")
-            app.processEvents()
+            # Search input is debounced: no synchronous database rebuild while typing.
+            with patch.object(db, "list_hierarchy", wraps=db.list_hierarchy) as search_call:
+                dialog.search.setText("SN-TEST-123")
+                app.processEvents()
+                assert dialog._search_timer.isActive()
+                search_call.assert_not_called()
+            dialog._search_timer.stop()
+            dialog.refresh()
             assert dialog.tree.topLevelItemCount() == 1
             dialog.search.setText("nonexistent fixture")
-            app.processEvents()
+            dialog._search_timer.stop()
+            dialog.refresh()
             assert dialog.tree.topLevelItemCount() == 0
+            dialog.search.setText("")
+            dialog._search_timer.stop()
+            dialog.refresh()
+
+            # Failed SELECT must not clear the current hierarchy and selection.
+            dialog.tree.setCurrentItem(dialog.tree.topLevelItem(0))
+            preserved = dialog._selected()
+            with patch.object(db, "list_hierarchy",
+                              side_effect=sqlite3.OperationalError("synthetic read failure")), \
+                 patch("reportmaker.customer_ui.QMessageBox.warning") as warning:
+                dialog.refresh()
+                assert warning.called
+                assert dialog.tree.topLevelItemCount() == 1
+                assert dialog._selected() == preserved
+
+            manual = ManualReferenceForm(dialog)
+            manual.controls["customer_name"].setText("One-off Sample")
+            manual.controls["customer_postal_code"].setText("12345")
+            manual.controls["site_postal_code"].setText("67890")
+            manual.controls["machine_serial"].setText("SN-ONCE-1")
+            snapshot = manual.snapshot()
+            assert snapshot.customer_id is None
+            assert snapshot.customer_postal_code == "12345"
+            assert snapshot.site_postal_code == "67890"
+            assert snapshot.machine_serial == "SN-ONCE-1"
+            assert len(db.list_customers()) == 1
+            manual.close()
+            manual.deleteLater()
+
+            history = HistoryDialog(db, machine, dialog)
+            with patch.object(db, "list_interventions",
+                              side_effect=sqlite3.DatabaseError("synthetic history failure")), \
+                 patch("reportmaker.customer_ui.QMessageBox.warning") as warning:
+                history._refresh()
+                assert warning.called
+            history.close()
+            history.deleteLater()
             dialog.close()
             dialog.deleteLater()
             app.processEvents()
