@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 from io import BytesIO
+from hashlib import sha256
 import os
 from pathlib import Path
 import tempfile
@@ -182,16 +183,21 @@ def _word_field(paragraph, expression: str, placeholder: str = "?") -> None:
     paragraph.add_run()._r.append(end)
 
 
-def _word_bookmark(paragraph, module_id: str) -> str:
+def _bookmark_key(module_id: str) -> str:
+    return "rm_" + sha256(module_id.encode("utf-8")).hexdigest()[:30]
+
+
+def _word_bookmark(paragraph, module_id: str, number: int) -> str:
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
-    # Stable project UUID-based names, short enough for Word bookmarks.
-    key = "rm_" + module_id.replace("-", "")[:30]
+    # Word bookmark keys are safe for arbitrary valid report IDs, with unique
+    # numeric bookmark identifiers independent of any caller-supplied ID text.
+    key = _bookmark_key(module_id)
     start = OxmlElement("w:bookmarkStart")
-    start.set(qn("w:id"), str(int(module_id.replace("-", "")[:7], 16) % 2_000_000_000)
-              if all(c in "0123456789abcdefABCDEF-" for c in module_id) else "1")
+    start.set(qn("w:id"), str(number))
     start.set(qn("w:name"), key)
-    paragraph._p.insert(0, start)
+    # w:pPr must remain the first child of a Word paragraph.
+    paragraph._p.insert(1 if paragraph._p.pPr is not None else 0, start)
     end = OxmlElement("w:bookmarkEnd")
     end.set(qn("w:id"), start.get(qn("w:id")))
     paragraph._p.append(end)
@@ -226,7 +232,7 @@ def _write_docx(plan: ExportPlan, destination: Path) -> None:
             Cm(16.2), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
         paragraph.add_run(((entry.number + " ") if entry.number else "") + entry.title)
         paragraph.add_run("\t")
-        key = "rm_" + entry.module_id.replace("-", "")[:30]
+        key = _bookmark_key(entry.module_id)
         _word_field(paragraph, " PAGEREF " + key + " \\h ", "?")
     # Ask Word to resolve page references after its own final pagination.
     setting = OxmlElement("w:updateFields")
@@ -236,13 +242,14 @@ def _write_docx(plan: ExportPlan, destination: Path) -> None:
 
     from PIL import Image as PILImage
     entry_map = {e.module_id: e for e in plan.outline}
+    bookmark_numbers = {entry.module_id: i for i, entry in enumerate(plan.outline, 1)}
     for item in plan.items:
         if item.kind == "module":
             entry = entry_map[item.key]
             paragraph = document.add_heading(item.text, level=min(entry.depth + 1, 9))
             if entry.depth >= 9:
                 paragraph.paragraph_format.left_indent = Cm(min(entry.depth, 12) * .4)
-            _word_bookmark(paragraph, item.key)
+            _word_bookmark(paragraph, item.key, bookmark_numbers[item.key])
         elif item.kind == "paragraph":
             paragraph = document.add_paragraph()
             parts = item.text.split("\n")
@@ -355,7 +362,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
             label = escape(item.text)
             level = min(item.depth, 8)
             paragraph = Paragraph(label, heading_styles[level])
-            paragraph._rm_entry = (level, item.text, "rm_" + item.key)
+            paragraph._rm_entry = (level, item.text, _bookmark_key(item.key))
             story.append(paragraph)
         elif item.kind == "paragraph":
             story.append(Paragraph(escape(item.text).replace("\n", "<br/>"),
