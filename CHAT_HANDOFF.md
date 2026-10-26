@@ -75,3 +75,10 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - Stacked correction PR #10: https://github.com/kandyman991/ReportMaker/pull/10 targeting `feature/m2-project-module-engine`. Feature branch `review/pr9-m2-safety-corrections`, **not** main. Corrects asset pruning, pure recursive serialization validation and strict ZIP compression errors, adds 8 synthetic tests and M2 recovery/version-policy documentation.
 - Verified M0 Windows core and **48 tests** at correction code/doc head `fbb2bf056333a512db601e7bdbc864ac1de11af7`, GitHub run #40377387550 SUCCESS; later documentation commits require exact-current-head validation. Review ledger: `docs/PR9_REVIEW.md`.
 - PR #10 and PR #9 remain **unmerged**, with no installed-PC acceptance or deployment. Next: independent bounded review of PR #10's exact head and CI, then explicit authorization if integration is desired.
+
+
+## M3 current development handoff (2026-10-26)
+- M2 PR #9, with PR #10 corrections, is merged in live `main` at `092c84e3f0443cf1cf4022b89459046aeee0cb2b`; post-merge hosted Windows core, M1 and continuity workflows succeeded. Mechanical handoff bot made `main` commit `76131fbe25235fc6c85736fd7aaa6f61206ed247`.
+- Draft M3 PR #11: https://github.com/kandyman991/ReportMaker/pull/11; branch `feature/m3-visual-report-editor` forked from `76131fbe25235fc6c85736fd7aaa6f61206ed247`. M3 adds native Report Information form, single canonical tree/summary, mixed content editor, photo/table support, visual preview, New/Open/Save/Save As and dirty guards.
+- First hosted Windows M0 architecture+M3 offline GUI test and all **48 tests** passed at code head `b9f047c833570f596102d448563d3a08e39e5154` (GitHub run #40397071840). Later source/docs commits REQUIRE exact-final-head CI verification.
+- Restrictions: `.rmproj` only; no DOCX/PDF, no automated ChatGPT account control, no production customer data, no installer publishing. Installed-PC mouse/drag/DPI/browser test pending. Review PR #11 independently; **no merge without explicit authorization**.

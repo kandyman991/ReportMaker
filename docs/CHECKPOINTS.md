@@ -94,3 +94,26 @@ Next reproducible action:
 - Verified hosted Windows core run #40377387550 SUCCESS and 48 tests at exact head `fbb2bf056333a512db601e7bdbc864ac1de11af7` before later docs-only commits. The initial malicious ZIP fixture failure #40377228870 was corrected and is not a production test failure.
 - Synthetic fixtures only, no customer data, no installer/production changes. M1 main remains untouched.
 - Open: independent targeted correction review; final exact SHA/CI recheck; manual installed-Windows acceptance; M3 UI Save/Open and private opt-in backup decision. **No merge, release or deploy without user authorization.**
+
+
+## CP-M3-DRAFT — Visual report editor in PR #11 (2026-10-26)
+- Base main `76131fbe25235fc6c85736fd7aaa6f61206ed247`; PR #11 draft `feature/m3-visual-report-editor` -> `main`.
+- Requirements: ARCHITECTURE.md, ADR-0006, REPORT_COMPOSITION_CONTRACT.md. Editor tree and Summary are two projections of the canonical M2 hierarchy, never independently maintained; conclusion remains mandatory/last, manual customer data and frozen DB snapshots preserved.
+- Changes: native tree drag/drop, reordered heterogeneous text/photo/table blocks, block editing, report metadata, Qt document preview, graphical `.rmproj` New/Open/Save/Save As, undo/redo and dirty-document prompts. Browser remains unprivileged, manual only.
+- Evidence: hosted Windows M0+M3 offline smoke and 48 synthetic unittest cases SUCCESS at prior implementation revision `b9f047c833570f596102d448563d3a08e39e5154`, [run #40397071840](https://github.com/kandyman991/ReportMaker/actions/runs/40397071840). Additional updates must be verified at current exact head.
+- Native installed Windows acceptance: NOT YET performed; actual mouse drag/drop and image rendering, responsive layout, file dialogs, keyboard navigation, persisted browser profile and normal website login all pending.
+- Privacy: tests use generated dummy customer and synthetic image; no real reports, browser data, credential provision, releases or deployment.
+- Next: verify PR #11 final-head CI and independently review UI state transitions, drag indexes and failure/close handling; correct issues on PR branch. Merge only after explicit user permission.
+
+
+## CP-M3-R1 — PR #11 independent review corrections (2026-10-26)
+- Parent: draft M3 PR #11, `feature/m3-visual-report-editor`, reviewed head `bb6730767ea9466e002c886c2699832e17fd785e`. Reviewer ledger: https://github.com/kandyman991/ReportMaker/pull/11#pullrequestreview-5659096198.
+- Stacked PR #12: `review/pr11-m3-editor-corrections` -> PR #11 feature branch, **not main**. Implementation/tests committed through `55d10944dcfbcbfed1d160e9f2de69f95bf0c200`. Future documentation commits can advance branch HEAD; always verify live SHA and exact-head CI.
+- M3-F01 HIGH: report-information drafts are applied before Undo/Redo so they remain in undo history rather than being silently overwritten by UI refresh.
+- M3-F02 HIGH: pending/invalid drafts present Save/Discard/Cancel without validating the Discard path; Save still invokes guarded model/project validation.
+- M3-F03 MEDIUM: changing manual customer, site or machine resets supplementary frozen-snapshot fields scoped to that identity and its descendants; unchanged ancestor details remain intact.
+- M3-F04 MEDIUM: required Other intervention description appears in document preview, not just in project metadata.
+- Windows hosted offline GUI smoke includes synthetic key-typed pending changes, history navigation, invalid draft Discard, three identity-change levels and project round-trip, and preview description. The exact current-head CI conclusion must be checked live; the historical parent success does not validate these fixes.
+- No browser integration changes, real customer data, release, installer or deployment. Actual installed Windows mouse drag/drop, responsive DPI, image rendering, dialogs and full UI acceptance still outstanding.
+- Next: independently review PR #12 at exact head; verify hosted Windows CI; only after explicit user authorization integrate PR #12 into PR #11 and repeat final combined-head review. **Do not merge either PR without authorization.**
+

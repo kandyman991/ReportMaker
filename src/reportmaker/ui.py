@@ -1,20 +1,18 @@
-"""ReportMaker M0 desktop shell.
+"""ReportMaker desktop shell with the M3 visual editor.
 
 The three panes are locally adjustable, collapsible and maximizable. Neither
 website contents nor CAD/customer data are read by the layout manager.
-The module scratchpad is a temporary demo and is not persisted to disk.
+The local report editor writes only user-selected .rmproj project files.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from uuid import uuid4
 
 from PySide6.QtCore import QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QInputDialog, QLabel, QListWidget,
-    QListWidgetItem, QMainWindow, QPlainTextEdit, QPushButton, QSizePolicy,
+    QApplication, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSizePolicy,
     QSplitter, QToolBar, QVBoxLayout, QWidget,
 )
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
@@ -43,10 +41,9 @@ class MainWindow(QMainWindow):
         ephemeral_browser: bool = False,
     ) -> None:
         super().__init__()
-        self.setWindowTitle("ReportMaker — M1 Customer Database Preview")
+        self.setWindowTitle("ReportMaker — Visual Report Editor")
         self.resize(1450, 850)
         self.settings = settings if settings is not None else QSettings("ReportMaker", "ReportMaker")
-        self._notes: dict[str, str] = {}
         self._panels: dict[str, QWidget] = {}
         self._visibility_actions: dict[str, QAction] = {}
         self._max_buttons: dict[str, QPushButton] = {}
@@ -75,12 +72,6 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             return list(DEFAULT_WIDTHS)
         return widths if all(width > 0 for width in widths) else list(DEFAULT_WIDTHS)
-
-    def _new_item(self, title: str) -> QListWidgetItem:
-        item = QListWidgetItem(title)
-        item.setData(Qt.ItemDataRole.UserRole, uuid4().hex)
-        self._notes[item.data(Qt.ItemDataRole.UserRole)] = ""
-        return item
 
     def _panel_header(self, name: str, title: str, layout: QVBoxLayout) -> None:
         row = QHBoxLayout()
@@ -138,22 +129,14 @@ class MainWindow(QMainWindow):
         self.splitter.setHandleWidth(7)
         self.setCentralWidget(self.splitter)
 
-        _, left_layout = self._make_panel("modules", "MODULES — IN-MEMORY DEMO")
-        self.modules = QListWidget()
-        self.modules.addItem(self._new_item("Intervention module"))
-        self.modules.addItem(self._new_item("Conclusions (always last)"))
-        left_layout.addWidget(self.modules, 1)
-        add = QPushButton("Add intervention module")
-        add.clicked.connect(self._add_module)
-        left_layout.addWidget(add)
-
-        _, center_layout = self._make_panel("editor", "MODULE SCRATCHPAD — NOT SAVED")
-        self.editor = QPlainTextEdit()
-        self.editor.setPlaceholderText("Write notes or paste approved text from ChatGPT manually.")
-        center_layout.addWidget(self.editor, 1)
-        paste = QPushButton("Paste clipboard text into selected module")
-        paste.clicked.connect(self._paste_clipboard)
-        center_layout.addWidget(paste)
+        _, left_layout = self._make_panel("modules", "MODULE TREE & SUMMARY")
+        _, center_layout = self._make_panel("editor", "VISUAL REPORT EDITOR")
+        from .visual_editor import VisualReportEditor
+        self.document = VisualReportEditor(self, left_layout, center_layout)
+        self.modules = self.document.tree
+        self.editor = self.document.text_edit
+        toolbar.addSeparator()
+        self.document.add_toolbar_actions(toolbar)
 
         _, right_layout = self._make_panel("chat", "CHATGPT WEBSITE — MANUAL COPY/PASTE")
         external = QPushButton("Open ChatGPT in default browser")
@@ -199,10 +182,8 @@ class MainWindow(QMainWindow):
         self.splitter.setStretchFactor(1, 3)
         self.splitter.setStretchFactor(2, 4)
         self.splitter.splitterMoved.connect(self._capture_widths)
-        self.modules.currentItemChanged.connect(self._on_module_change)
-        self.modules.setCurrentRow(0)
         self.statusBar().showMessage(
-            "M1 local customers available; report editing/export not yet implemented. No AI API."
+            "M3 visual editor: local editable projects and preview. DOCX/PDF export is M4."
         )
 
     def _capture_widths(self, *_args) -> None:
@@ -277,29 +258,8 @@ class MainWindow(QMainWindow):
             else "Page failed — use external browser."
         )
 
-    def _on_module_change(self, current: QListWidgetItem | None,
-                          previous: QListWidgetItem | None) -> None:
-        if previous is not None:
-            old_id = previous.data(Qt.ItemDataRole.UserRole)
-            self._notes[old_id] = self.editor.toPlainText()
-        self.editor.setPlainText(
-            self._notes.get(current.data(Qt.ItemDataRole.UserRole), "")
-            if current is not None else ""
-        )
-
-    def _add_module(self) -> None:
-        title, ok = QInputDialog.getText(self, "New module", "Module title:")
-        if not ok or not title.strip():
-            return
-        item = self._new_item(title.strip())
-        index = max(0, self.modules.count() - 1)
-        self.modules.insertItem(index, item)
-        self.modules.setCurrentItem(item)
-
     def _paste_clipboard(self) -> None:
-        text = QApplication.clipboard().text()
-        if text:
-            self.editor.insertPlainText(text)  # Never HTML or website automation.
+        self.document.paste_clipboard()
 
     def _open_customers(self) -> None:
         """Open local records on demand; do not mix them with browser storage."""
@@ -314,6 +274,9 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Customer database unavailable", str(error))
 
     def closeEvent(self, event) -> None:
+        if not self.document.ok_to_close():
+            event.ignore()
+            return
         self._capture_widths()
         self.settings.setValue("workspace/window_geometry", self.saveGeometry())
         self.settings.setValue("workspace/panel_widths", self._widths)
