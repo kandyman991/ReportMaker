@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from PySide6.QtCore import QSettings
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QMessageBox
 from docx import Document
 from pypdf import PdfReader
@@ -27,11 +28,8 @@ def run() -> int:
         app.processEvents()
         doc = window.document
         try:
-            assert window.findChild(type(window.actions()[0]), "exportDOCXAction") is not None \
-                or any(a.objectName() == "exportDOCXAction" for a in window.findChildren(
-                    __import__("PySide6.QtGui", fromlist=["QAction"]).QAction))
-            assert any(a.objectName() == "exportPDFAction" for a in window.findChildren(
-                __import__("PySide6.QtGui", fromlist=["QAction"]).QAction))
+            assert window.findChild(QAction, "exportDOCXAction") is not None
+            assert window.findChild(QAction, "exportPDFAction") is not None
             doc.info["customer"].setText("Sample Export Customer")
             doc.info["other"].setText("Synthetic inspection")
             doc.types["other"].setChecked(True)
