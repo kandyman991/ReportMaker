@@ -35,6 +35,11 @@ jobs:
         run: |
           $test = Start-Process -FilePath "$PWD\dist\ReportMaker\ReportMaker.exe" -ArgumentList "--self-test" -Wait -PassThru
           if ($test.ExitCode -ne 0) { throw "Frozen WebEngine about:blank self-test failed: $($test.ExitCode)" }
+      - name: Verify resizable, collapsible and persisted panes without network
+        shell: pwsh
+        run: |
+          $test = Start-Process -FilePath "$PWD\dist\ReportMaker\ReportMaker.exe" -ArgumentList "--layout-self-test" -Wait -PassThru
+          if ($test.ExitCode -ne 0) { throw "Offline Windows layout smoke test failed: $($test.ExitCode)" }
       - name: Locate or install Inno Setup
         shell: pwsh
         run: |

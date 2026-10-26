@@ -29,6 +29,9 @@ def _frozen_browser_self_test() -> int:
 def main() -> int:
     if "--self-test" in sys.argv:
         return _frozen_browser_self_test()
+    if "--layout-self-test" in sys.argv:
+        from .layout_probe import run
+        return run()
 
     try:
         from PySide6.QtWidgets import QApplication

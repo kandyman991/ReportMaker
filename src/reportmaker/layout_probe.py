@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from PySide6.QtCore import QCoreApplication, QEvent
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
@@ -49,7 +50,9 @@ def run() -> int:
         assert all(w._panels[name].isVisible() for name in PANEL_NAMES)
         w.set_panel_visible("editor", False)
         w.close()
+        w.deleteLater()
         app.processEvents()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         reopened = MainWindow(
             load_website=False,
             settings=QSettings(settings_path, QSettings.Format.IniFormat),

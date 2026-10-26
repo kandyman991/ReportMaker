@@ -84,7 +84,8 @@ class MainWindow(QMainWindow):
     def _panel_header(self, name: str, title: str, layout: QVBoxLayout) -> None:
         row = QHBoxLayout()
         label = QLabel(title)
-        label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        label.setMinimumWidth(0)
         row.addWidget(label, 1)
         hide = QPushButton("Hide")
         hide.setToolTip(f"Collapse {name} panel; use the top toolbar to show it again")
@@ -176,7 +177,8 @@ class MainWindow(QMainWindow):
         self.browser_status = QLabel("Browser login not yet validated on Windows.")
         self.browser_origin = QLabel("Origin: loading...")
         for label in (self.browser_status, self.browser_origin):
-            label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            label.setMinimumWidth(0)
             label.setMaximumHeight(24)
             info.addWidget(label)
         right_layout.addLayout(info)
@@ -229,9 +231,10 @@ class MainWindow(QMainWindow):
     def set_panel_visible(self, name: str, visible: bool) -> None:
         if name not in PANEL_NAMES:
             raise ValueError(f"Unknown panel {name!r}")
-        # Leaving maximized mode restores the user's previous pane choices.
-        self._maximized_panel = None
+        # Snapshot widths before leaving maximize; otherwise a full-width ChatGPT
+        # pane could overwrite the user's three-pane divider preferences.
         self._capture_widths()
+        self._maximized_panel = None
         self._visible[name] = bool(visible)
         self._apply_layout()
 

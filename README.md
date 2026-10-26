@@ -24,7 +24,7 @@ On Windows 11 or supported Windows 10 x64 with Python 3.11+:
 2. Run: python -m pip install -e ".[desktop]"
 3. Run: python -m reportmaker
 
-The M0 shell contains a mock report module list, a scratchpad editor, clipboard-paste action, ChatGPT web panel and external-browser fallback. It is strictly a browser usability/Windows UI probe; saving report projects and DOCX generation arrive in later milestones.
+The M0 shell contains a mock report module list, a scratchpad editor, clipboard-paste action, a full-height ChatGPT web panel and external-browser fallback. Drag pane dividers to resize, use the top Modules/Editor/ChatGPT toggles to collapse/reopen, maximize a pane from its header, and use Reset layout to restore defaults. Pane widths and visibility are saved locally between launches; scratchpad text is NOT saved. It is strictly a browser usability/Windows UI probe; saving report projects and DOCX generation arrive in later milestones.
 
 ## Verify the architecture/tests
 Run: python -m unittest discover -s tests -v

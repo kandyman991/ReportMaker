@@ -5,6 +5,7 @@
 - [x] Define typed flexible module/report data model and pure-model tests.
 - [x] Create Windows-first application shell, ChatGPT browser spike, clipboard paste and external browser fallback.
 - [x] Add Windows CI gates for core tests and syntax checking.
+- [x] Full-height embedded browser and independently collapsible/maximizable panes with local layout persistence and Windows layout smoke gate.
 - [ ] Interactive Windows compatibility acceptance: launch, resize, close/reopen, sign in if supported, reject/error handling, fallback, data location, clipboard and no browser-log leaks.
 - [x] Add reproducible Windows installer build workflow (PyInstaller onedir + Inno Setup, self-test and artifact).
 - [ ] Install/uninstall and normal embedded browser sign-in acceptance on an actual Windows desktop.
