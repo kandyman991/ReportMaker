@@ -275,7 +275,9 @@ def _write_docx(plan: ExportPlan, destination: Path) -> None:
                     table.cell(i, j).text = value
         elif item.kind == "photo":
             with PILImage.open(BytesIO(item.image)) as im:
-                width_cm = min(16.0, 16.0 * im.width / max(im.width, im.height))
+                # Respect a conservative 96 dpi source size; never inflate a tiny
+                # image to a full-page photograph.
+                width_cm = min(16.0, im.width * 2.54 / 96.0)
             document.add_picture(BytesIO(item.image), width=Cm(width_cm))
             if item.text:
                 document.add_paragraph(item.text, style="Caption")
@@ -415,7 +417,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
             from PIL import Image as PILImage
             with PILImage.open(BytesIO(item.image)) as im:
                 pixels = im.size
-            ratio = min(17*cm/pixels[0], 17*cm/pixels[1], 20*cm/pixels[1])
+            ratio = min(72.0/96.0, 17*cm/pixels[0], 20*cm/pixels[1])
             image = Image(BytesIO(item.image), width=pixels[0]*ratio,
                           height=pixels[1]*ratio)
             if item.text:
