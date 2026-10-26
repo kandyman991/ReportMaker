@@ -248,9 +248,12 @@ class CustomerManagerDialog(QDialog):
         site = self.store.get("sites", machine["site_id"])
         return site["customer_id"], site["id"], identifier
 
-    def _safe(self, action):
+    def _safe(self, action, *, success_marker=False):
         try:
-            return action()
+            result = action()
+            # update/delete return None on success, which otherwise looks like
+            # the failure sentinel used by this error-reporting wrapper.
+            return True if success_marker else result
         except (LookupError, ValueError, sqlite3.Error, OSError) as error:
             QMessageBox.warning(self, "Local database operation failed", str(error))
             return None
@@ -293,12 +296,14 @@ class CustomerManagerDialog(QDialog):
         if selected is None:
             return
         table, identifier = selected
-        record = self.store.get(table, identifier)
+        record = self._safe(lambda: self.store.get(table, identifier))
+        if record is None:
+            return
         dialog = RecordForm(table, values=record, parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        if self._safe(lambda: self.store.update(table, identifier, **dialog.values())) is None:
-            # update() returns None on success; _safe reports errors separately.
+        if self._safe(lambda: self.store.update(table, identifier, **dialog.values()),
+                      success_marker=True):
             self.refresh(selected=selected)
 
     def delete_selected(self):
@@ -313,8 +318,8 @@ class CustomerManagerDialog(QDialog):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
-        self._safe(lambda: self.store.delete(table, identifier))
-        self.refresh()
+        if self._safe(lambda: self.store.delete(table, identifier), success_marker=True):
+            self.refresh()
 
     def history(self):
         selected = self._selected()
