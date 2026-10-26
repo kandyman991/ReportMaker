@@ -115,9 +115,11 @@ class Report:
         normalized = [language.lower() for language in self.output_languages]
         if len(set(normalized)) != len(normalized):
             raise ValueError("Duplicate output language")
-        if self.primary_language.lower() not in normalized:
-            raise ValueError("Primary language must be an output language")
+        # Writing language is independent of export languages. For example,
+        # an Italian original may produce only German and French documents.
 
     def ordered_sections(self) -> tuple[Module, ...]:
         """Conclusion is never interspersed with user-reorderable modules."""
+        if any(module.id == self.conclusion.id for module in self.modules):
+            raise ValueError("Conclusion cannot also be an intervention module")
         return (*self.modules, self.conclusion)

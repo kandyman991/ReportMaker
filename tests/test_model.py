@@ -45,8 +45,9 @@ class ContractModelTests(unittest.TestCase):
     def test_duplicate_languages_rejected(self):
         with self.assertRaises(ValueError):
             make_report(output_languages=["en", "EN"])
-        with self.assertRaises(ValueError):
-            make_report(output_languages=["it"])
+        # Writing language need not be one of the selected output languages.
+        report = make_report(primary_language="it", output_languages=["en", "de"])
+        self.assertEqual(report.ordered_sections()[-1], report.conclusion)
         with self.assertRaises(ValueError):
             LocalizedText("en", "text", {"EN": "should not overwrite"})
 
@@ -79,6 +80,9 @@ class ContractModelTests(unittest.TestCase):
         self.assertIs(r.ordered_sections()[-1], r.conclusion)
         r.modules.reverse()
         self.assertIs(r.ordered_sections()[-1], r.conclusion)
+        r.modules.append(r.conclusion)
+        with self.assertRaises(ValueError):
+            r.ordered_sections()
 
 
 if __name__ == "__main__":
