@@ -106,7 +106,8 @@ class CustomerStorageTests(unittest.TestCase):
             db.execute("PRAGMA user_version = 999")
         with self.assertRaises(RuntimeError):
             CustomerStore(future_path)
-        with sqlite3.connect(future_path) as db:
+        # sqlite3's context manager commits but does NOT close on Windows.
+        with closing(sqlite3.connect(future_path)) as db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 999)
 
     def test_invalid_names_updates_and_snapshot_shape(self):
