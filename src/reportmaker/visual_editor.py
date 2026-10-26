@@ -190,7 +190,7 @@ class VisualReportEditor:
         content_buttons = QHBoxLayout()
         for label, handler in (("+ Text", self.add_paragraph), ("+ Heading", self.add_heading),
                                ("+ Photo", self.add_photo), ("+ Table", self.add_table),
-                               ("+ Page break", self.add_page_break), ("Remove block", self.remove_block)):
+                               ("+ Page break", self.add_page_break), ("Move block", self.move_block_dialog), ("Remove block", self.remove_block)):
             btn = QPushButton(label)
             btn.clicked.connect(handler)
             content_buttons.addWidget(btn)
@@ -591,6 +591,28 @@ class VisualReportEditor:
             self._block_pending = False
             self._change(lambda: self.editor.remove_block(self._module_id, block.id))
 
+    def move_block_dialog(self):
+        item = self.blocks.currentItem()
+        if item is None or not self._module_id:
+            return
+        block_id = item.data(Qt.ItemDataRole.UserRole)
+        if any(isinstance(b, NestedModuleBlock) and b.id == block_id
+               for b in self._selected_module().blocks):
+            self._warn("Use module tree", "Move or nest submodules using the module tree.")
+            return
+        entries = module_outline(self.report)
+        labels = [(entry.number + " " if entry.number else "") + entry.title
+                  for entry in entries]
+        label, ok = QInputDialog.getItem(self.owner, "Move content block",
+                                          "Destination module:", labels, 0, False)
+        if ok:
+            destination = entries[labels.index(label)].module_id
+            source = self._module_id
+            if self._change(lambda: self.editor.move_block(source, block_id, destination)):
+                self._module_id = destination
+                self._edit_block_id = block_id
+                self.refresh()
+
     def _block_move(self, block_id, index):
         if self._module_id:
             self._change(lambda: self.editor.move_block(self._module_id, block_id,
@@ -906,6 +928,10 @@ class VisualReportEditor:
 
     def save_to_path(self, path):
         if not self._flush_block() or not self._flush_info():
+            return False
+        if (self.report.customer_id is None and
+                self.report.customer_snapshot.customer_name == "Customer (edit me)"):
+            self._warn("Customer required", "Enter a customer name or select one from the database.")
             return False
         try:
             saved = save_project(ReportProject(self.editor.report, self.assets), path)

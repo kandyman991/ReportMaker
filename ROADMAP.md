@@ -21,15 +21,22 @@ Exit: docs/tests green AND native Windows manual checklist completed. M0 is not 
 - [ ] Independent code review, installed Windows interactive acceptance and M1 prerelease build strategy.
 - [ ] Full saved report/project integration is M2, not M1. JSON/CSV import remains a separate reviewed policy task.
 
-## M2 — Project and module engine (feature branch under review)
+## M2 — Project and module engine (PR #9 merged into main 2026-10-26)
 - [x] Canonical report metadata and mixed intervention types; ordered heterogeneous blocks, nested modules and derived summary projection.
 - [x] Standalone local project save/reopen, embedded hashed photo assets, schema versioning and fail-closed import.
 - [x] Transactional model editing with undo/redo, module duplication/reordering and conclusion-last validation.
-- [ ] Exact-head CI and independent review; installed Windows save/reopen and editor UX acceptance remain pending.
+- [x] Reviewed correction PR #10 and integrated PR #9; hosted Windows CI passed after main merge.\n- [ ] Installed Windows file dialogs / interactive save-reopen acceptance remains pending.
 See `docs/M2_PROJECT_ENGINE.md`.
 
-## M3 — Visual editor
-Module tree, freely ordered drag/drop content, photo/text/table editing, resizable panes, visual document preview and accessibility.
+## M3 — Visual editor (draft PR #11)
+- [x] Native three-pane editor, tree and automatically derived Summary from the same canonical M2 hierarchy.
+- [x] Drag/drop module nesting/reordering and block reordering; move block between modules; editable text/headings/photos/captions/tables/page breaks.
+- [x] Report Information form: creation/range/ticket/personnel, multiple intervention types, language tags, database or detached manual customer snapshots.
+- [x] Graphical New/Open/Save/Save As, undo/redo, invalid import protection and unsaved edit prompts.
+- [x] On-device HTML document preview, including synthetic image resources, not Word pagination.
+- [x] Synthetic hosted Windows GUI smoke gate; no real customer data or account sessions.
+- [ ] Independent technical review, exact-final-head CI, installed-Windows acceptance, keyboard accessibility and true WYSIWYG print/pagination validation.
+See `docs/M3_VISUAL_EDITOR.md`.
 
 ## M4 — Word/PDF output
 Fully editable DOCX, rendering and pagination, image anchoring/captions, branded header/footer, table of contents and pagination regression fixtures.

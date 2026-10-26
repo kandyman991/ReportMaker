@@ -3,7 +3,7 @@
 Windows-first modular technical report editor and Word document generator.
 
 ## Status
-M0 foundation is merged. M1 customer/site/machine SQLite storage and GUI are under review in [draft PR #5](https://github.com/kandyman991/ReportMaker/pull/5). This is NOT yet a production report generator: full report/project save/reopen, Word output and template editing remain unimplemented.
+M0, M1 and M2 (editable .rmproj projects) are merged into main. The native visual report editor is under review in [draft M3 PR #11](https://github.com/kandyman991/ReportMaker/pull/11). Full editable DOCX/PDF export and Word templates remain future M4/M6 milestones; M3 is not a production-ready report generator.
 
 ## Product workflow
 Select an existing customer/site/machine, choose intervention dates, compose arbitrarily ordered and nested modules containing text/photos/tables, finish with conclusions, and export editable DOCX (with optional PDF). Every translatable text element can carry any BCP-47-style language tag; export may be monolingual or multilingual. Templates may be imported from Word or designed visually.
@@ -18,13 +18,13 @@ The installer is currently **unsigned** and may be flagged by Windows SmartScree
 
 See `docs/WINDOWS_DISTRIBUTION.md` for precise build and validation instructions.
 
-## Developer-only: run the M0 Windows shell
+## Developer-only: run the Windows desktop application
 On Windows 11 or supported Windows 10 x64 with Python 3.11+:
 1. Create and activate a virtual environment.
 2. Run: python -m pip install -e ".[desktop]"
 3. Run: python -m reportmaker
 
-The M0 shell contains a mock report module list, a scratchpad editor, clipboard-paste action, a full-height ChatGPT web panel and external-browser fallback. In the M1 branch, the **Customers / Sites / Machines** toolbar action opens the local SQLite editor (see `docs/M1_CUSTOMER_DATABASE.md`). Drag pane dividers to resize, use the top Modules/Editor/ChatGPT toggles to collapse/reopen, maximize a pane from its header, and use Reset layout to restore defaults. Pane widths and visibility are saved locally between launches; scratchpad text is NOT saved. It is strictly a browser usability/Windows UI probe; saving report projects and DOCX generation arrive in later milestones.
+On the M3 feature branch, the native editor shows the canonical module tree/derived Summary, report information, text/photo/table blocks and document preview. Use toolbar New/Open/Save/Save As for local editable `.rmproj` files. The **Customers / Sites / Machines** action manages local master data and the report's **Choose from database** action explicitly captures a frozen snapshot. Drag pane dividers, hide/show and maximize each pane as before. Browser login remains manual; copy/paste is plain text only. Word/PDF export is not yet implemented. See `docs/M3_VISUAL_EDITOR.md`.
 
 ## Verify the architecture/tests
 Run: python -m unittest discover -s tests -v

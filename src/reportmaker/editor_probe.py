@@ -5,7 +5,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
+from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from .engine import module_outline
@@ -46,6 +47,20 @@ def run() -> int:
             doc._change(lambda: doc.editor.move_module(nested.id, parent_id=parent_id))
             assert isinstance(doc.report.modules[0].blocks[-1], NestedModuleBlock)
 
+            # Real synthetic PNG bytes, never customer or external photographs.
+            image = QImage(2, 2, QImage.Format.Format_RGB32)
+            image.fill(0x00FFAA)
+            buffer = QBuffer()
+            assert buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+            assert image.save(buffer, "PNG")
+            doc.assets["synthetic-image"] = bytes(buffer.data())
+            doc._change(lambda: doc.editor.add_block(
+                parent_id, PhotoBlock("synthetic-image",
+                                      LocalizedText("en", "Synthetic photo"))))
+            assert not doc.preview.document().resource(
+                QTextDocument.ResourceType.ImageResource,
+                QUrl("rmasset:synthetic-image")
+            ) is None
             doc._module_id = parent_id
             doc.refresh()
             doc.add_paragraph()
@@ -66,6 +81,7 @@ def run() -> int:
                 "supervision", "extraordinary_maintenance",
             ]
             assert saved.report.modules[0].blocks[-1].text.original == "Approved synthetic field notes"
+            assert saved.assets["synthetic-image"] == bytes(buffer.data())
             assert not doc.dirty
 
             doc.editor.add_module(Module(LocalizedText("en", "Unsaved")))
