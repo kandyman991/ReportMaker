@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-26T16:39:00.057Z",
+  "generatedAt": "2026-10-26T17:38:31.228Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,22 +11,11 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "1981d802194bb2619e689533ac35dabde0f706da",
-    "message": "Merge pull request #6 from kandyman991/docs/report-structure-contract-20261026\n\ndocs: preserve agreed report layout, multi-type interventions and shared module tree",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/1981d802194bb2619e689533ac35dabde0f706da"
+    "sha": "933cb537ad259d709ea5f1f23b9e56433122e4cf",
+    "message": "Merge M1 customer database and reviewed corrections (PR #5)\n\nIntegrate Windows-first customer/site/machine SQLite database, detached snapshots, safe local backup, customer UI and reviewed PR #7/#8 fixes. Retain report composition contracts and release safety: M0 installer publication is manual-only and pinned; native M1 installer remains a separate approval.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/933cb537ad259d709ea5f1f23b9e56433122e4cf"
   },
-  "openPullRequests": [
-    {
-      "number": 5,
-      "title": "M1: local customer/site/machine SQLite database and Windows manager",
-      "draft": true,
-      "head": "feature/m1-customer-site-machine-database",
-      "headSha": "20f74d48009b8669a43a793397852d4d8f6b168a",
-      "base": "main",
-      "updatedAt": "2026-10-26T16:37:44Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/5"
-    }
-  ],
+  "openPullRequests": [],
   "openIssues": [
     {
       "number": 2,
@@ -37,114 +26,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40361114562,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "1981d802194bb2619e689533ac35dabde0f706da",
-      "event": "push",
-      "updatedAt": "2026-10-26T16:38:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40361114562"
-    },
-    {
-      "id": 40361114558,
-      "name": "Windows installer (M0 prototype)",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "1981d802194bb2619e689533ac35dabde0f706da",
-      "event": "push",
-      "updatedAt": "2026-10-26T16:38:56Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40361114558"
-    },
-    {
-      "id": 40361114443,
+      "id": 40370503965,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "1981d802194bb2619e689533ac35dabde0f706da",
+      "headSha": "933cb537ad259d709ea5f1f23b9e56433122e4cf",
       "event": "push",
-      "updatedAt": "2026-10-26T16:38:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40361114443"
+      "updatedAt": "2026-10-26T17:38:28Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40370503965"
     },
     {
-      "id": 40360950075,
+      "id": 40370503882,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "933cb537ad259d709ea5f1f23b9e56433122e4cf",
+      "event": "push",
+      "updatedAt": "2026-10-26T17:38:28Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40370503882"
+    },
+    {
+      "id": 40370503761,
       "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "933cb537ad259d709ea5f1f23b9e56433122e4cf",
+      "event": "push",
+      "updatedAt": "2026-10-26T17:38:28Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40370503761"
+    },
+    {
+      "id": 40370305263,
+      "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
       "branch": "feature/m1-customer-site-machine-database",
-      "headSha": "20f74d48009b8669a43a793397852d4d8f6b168a",
+      "headSha": "e606bae1c5410a2b648fa289654a9080266181a7",
       "event": "pull_request",
-      "updatedAt": "2026-10-26T16:38:35Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40360950075"
+      "updatedAt": "2026-10-26T17:37:17Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40370305263"
     },
     {
-      "id": 40360949899,
+      "id": 40370305255,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
       "branch": "feature/m1-customer-site-machine-database",
-      "headSha": "20f74d48009b8669a43a793397852d4d8f6b168a",
+      "headSha": "e606bae1c5410a2b648fa289654a9080266181a7",
       "event": "pull_request",
-      "updatedAt": "2026-10-26T16:38:43Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40360949899"
+      "updatedAt": "2026-10-26T17:38:02Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40370305255"
     },
     {
-      "id": 40360949599,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m1-customer-site-machine-database",
-      "headSha": "20f74d48009b8669a43a793397852d4d8f6b168a",
-      "event": "pull_request",
-      "updatedAt": "2026-10-26T16:37:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40360949599"
-    },
-    {
-      "id": 40360943574,
+      "id": 40370305067,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
       "branch": "feature/m1-customer-site-machine-database",
-      "headSha": "20f74d48009b8669a43a793397852d4d8f6b168a",
-      "event": "push",
-      "updatedAt": "2026-10-26T16:38:36Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40360943574"
-    },
-    {
-      "id": 40360741292,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "docs/report-structure-contract-20261026",
-      "headSha": "d027a569fdcee1639d6458049a2816cd34360d68",
+      "headSha": "e606bae1c5410a2b648fa289654a9080266181a7",
       "event": "pull_request",
-      "updatedAt": "2026-10-26T16:36:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40360741292"
+      "updatedAt": "2026-10-26T17:37:56Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40370305067"
     },
     {
-      "id": 40360741178,
+      "id": 40370293904,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "docs/report-structure-contract-20261026",
-      "headSha": "d027a569fdcee1639d6458049a2816cd34360d68",
-      "event": "pull_request",
-      "updatedAt": "2026-10-26T16:37:57Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40360741178"
+      "branch": "feature/m1-customer-site-machine-database",
+      "headSha": "e606bae1c5410a2b648fa289654a9080266181a7",
+      "event": "push",
+      "updatedAt": "2026-10-26T17:37:51Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40370293904"
     },
     {
-      "id": 40360688951,
+      "id": 40368535503,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "review/pr5-final-review-corrections",
+      "headSha": "a1136bcae6ec9041e9ef328914f8c29849cd7fdd",
+      "event": "pull_request",
+      "updatedAt": "2026-10-26T17:27:05Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40368535503"
+    },
+    {
+      "id": 40368535489,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "docs/report-structure-contract-20261026",
-      "headSha": "d027a569fdcee1639d6458049a2816cd34360d68",
+      "branch": "review/pr5-final-review-corrections",
+      "headSha": "a1136bcae6ec9041e9ef328914f8c29849cd7fdd",
+      "event": "pull_request",
+      "updatedAt": "2026-10-26T17:27:13Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40368535489"
+    },
+    {
+      "id": 40368527459,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "review/pr5-final-review-corrections",
+      "headSha": "a1136bcae6ec9041e9ef328914f8c29849cd7fdd",
       "event": "push",
-      "updatedAt": "2026-10-26T16:37:04Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40360688951"
+      "updatedAt": "2026-10-26T17:26:55Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40368527459"
     }
   ]
 }
