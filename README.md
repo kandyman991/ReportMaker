@@ -12,7 +12,7 @@ The optional ChatGPT panel is a normal website, **not** an AI integration. No ap
 
 ## Windows installation (no Python or Git needed)
 **Developer preview, not a completed report generator.**
-Build artifacts from the Windows packaging workflow produce a downloadable `ReportMaker-M0-Setup.exe` installer. On the corresponding GitHub Actions run, open **Artifacts**, download `ReportMaker-Windows-M0-Setup-<commit>`, extract the ZIP and run the enclosed installer. It creates a Start Menu shortcut and an optional desktop shortcut. Installation is per-user and should not require administrator rights. There is no API/key integration.
+A successful Windows installer build publishes an unsigned, rolling **GitHub prerelease** (the same scheme as RoadPilot Graph Studio), without consuming GitHub Actions artifact storage. Open [ReportMaker Windows M0 prerelease](https://github.com/kandyman991/ReportMaker/releases/tag/reportmaker-windows-m0), download `ReportMaker-M0-Setup.exe` and optionally verify `SHA256SUMS.txt`, then run the installer. It creates a Start Menu shortcut and an optional desktop shortcut. Installation is per-user and should not require administrator rights. There is no API/key integration.
 
 The installer is currently **unsigned** and may be flagged by Windows SmartScreen; use only trusted, reviewed builds from this repository and do not disable Windows security protections. A successful CI build does not prove live ChatGPT sign-in or full interactive desktop functionality. Keep the external-browser fallback.
 

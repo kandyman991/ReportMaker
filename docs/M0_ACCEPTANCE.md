@@ -26,7 +26,9 @@ Manual — REQUIRED on actual Windows computer:
 - [ ] Manually copy a harmless text sample and click Paste as plain text; verify no automatic AI traffic.
 - [ ] Check writable profile location, profile isolation and that logs do not contain authentication details.
 - [ ] Verify clean app exit, no account control/network activity besides the embedded site, no reports/customer data uploaded.
-- [ ] Download M0 installer artifact from GitHub Actions; extract and run Setup.exe without Python, Git or PowerShell.
+- [ ] Download the M0 installer from rolling GitHub **Releases**, not GitHub Actions artifacts; run Setup.exe without Python, Git or PowerShell.
+- [ ] Check the prerelease notes identify the expected commit and both installer/checksum release assets are present.
+- [ ] Verify the installer SHA-256 against `SHA256SUMS.txt`.
 - [ ] Installer does not prompt for administrator access on a normal per-user Windows desktop.
 - [ ] Start Menu shortcut starts the application; optional desktop shortcut works.
 - [ ] Installed binary contains Qt WebEngine resources; verify browser renders a real web page or shows fallback.

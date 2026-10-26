@@ -11,7 +11,8 @@ The build runs an automated *offline* load of about:blank in bundled Qt WebEngin
 ## Alternatives
 - Telling end users to clone and pip-install: rejected as user-facing installation flow (allowed for contributors).
 - Onefile PyInstaller build: deferred; onedir is more reliable for Qt WebEngine process/resources.
-- Distribution through unreviewed or auto-published GitHub Release: rejected until sign-off.
+- Distribution through GitHub Actions temporary artifact storage: **rejected after the Windows M0 test**, because the user requires the same storage-efficient distribution as RoadPilot Graph Studio.
+- On 2026-10-26 the user authorized using the existing rolling-release pattern: a clearly labeled **prerelease** with exact-commit notes and SHA-256. Release visibility does not constitute acceptance, merging or production approval.
 
 ## Risks / future work
-CI-generated installer is unsigned. Windows SmartScreen may warn; do not teach users to disable security features. Pin tooling, calculate artifact hashes, add signing and release attestations in a later milestone, test live installation and uninstallation, and decide licensing before public release. Never claim an installer has been installed/tested on a user's Windows PC based only on GitHub CI.
+CI-generated installer is unsigned. Windows SmartScreen may warn; do not teach users to disable security features. Pin tooling, calculate release-asset hashes, add signing and release attestations in a later milestone, test live installation and uninstallation, and decide licensing before production release. Never claim an installer has been installed/tested on a user's Windows PC based only on GitHub CI.

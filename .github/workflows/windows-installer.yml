@@ -4,13 +4,21 @@ on:
   push:
     branches:
       - feature/m0-windows-installer
+      - main
   workflow_dispatch:
+
+# Match Graph Studio's rolling-release workflow: cancel superseded builds.
+concurrency:
+  group: reportmaker-windows-rolling-release
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   installer:
+    permissions:
+      contents: write
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -70,12 +78,83 @@ jobs:
         run: |
           $hash = (Get-FileHash -Algorithm SHA256 "dist-installer/ReportMaker-M0-Setup.exe").Hash.ToLowerInvariant()
           "$hash  ReportMaker-M0-Setup.exe" | Out-File -FilePath "dist-installer/SHA256SUMS.txt" -Encoding ascii
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: ReportMaker-Windows-M0-Setup-${{ github.sha }}
-          path: |
-            dist-installer/ReportMaker-M0-Setup.exe
-            dist-installer/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 14
+      - name: Publish rolling Windows M0 prerelease
+        # Like Graph Studio: publish only after building and passing all smoke gates.
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "reportmaker-windows-m0"
+          $repo = $env:GITHUB_REPOSITORY
+          $setup = Join-Path $PWD "dist-installer/ReportMaker-M0-Setup.exe"
+          $sums = Join-Path $PWD "dist-installer/SHA256SUMS.txt"
+          if (!(Test-Path $setup) -or !(Test-Path $sums)) {
+            throw "Installer or SHA-256 file missing; refusing to publish."
+          }
+          $notesPath = Join-Path $env:RUNNER_TEMP "reportmaker-release-notes.md"
+          $notes = @"
+          Rolling **Windows M0 development preview** from ReportMaker.
+          This is NOT a production release or the full report editor.
+          Source commit: $env:GITHUB_SHA
+          Build: $env:GITHUB_RUN_ID
+          Source branch: $env:GITHUB_REF_NAME
+
+          Contents: ReportMaker-M0-Setup.exe, SHA256SUMS.txt.
+          The installer is unsigned; interactive ChatGPT login and use on an
+          end-user Windows desktop require separate manual acceptance.
+          No Python, Git or AI API keys are needed to run this installer.
+          "@
+          Set-Content -Path $notesPath -Value $notes -Encoding utf8
+
+          gh release view $tag --repo $repo *> $null
+          $exists = ($LASTEXITCODE -eq 0)
+          if ($exists) {
+            gh api --method PATCH "repos/$repo/git/refs/tags/$tag" -f "sha=$env:GITHUB_SHA" -F "force=true"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update rolling release tag" }
+            gh release edit $tag --repo $repo --title "ReportMaker - Windows M0 Preview" --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update rolling release metadata" }
+          }
+          else {
+            gh release create $tag --repo $repo --target $env:GITHUB_SHA --title "ReportMaker - Windows M0 Preview" --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create rolling prerelease" }
+          }
+
+          gh release upload $tag $setup $sums --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload installer to GitHub Releases" }
+          $assets = @(gh release view $tag --repo $repo --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0 -or
+              $assets -notcontains "ReportMaker-M0-Setup.exe" -or
+              $assets -notcontains "SHA256SUMS.txt") {
+            throw "Rolling release asset verification failed."
+          }
+          Write-Host "Installer published to https://github.com/$repo/releases/tag/$tag"
+
+  purge-legacy-storage:
+    # Separate, least-privilege job. Never uses actions/upload-artifact.
+    # Runs only after the rolling release has been published successfully.
+    needs: installer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Remove legacy ReportMaker installer artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "reportmaker-windows-m0" --repo "$GITHUB_REPOSITORY" >/dev/null
+          old_ids="$(mktemp)"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq '.artifacts[]? | select(.name | startswith("ReportMaker-Windows-M0-Setup-")) | .id' \
+            > "$old_ids"
+          total=0
+          while IFS= read -r id; do
+            [ -n "$id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            total=$((total + 1))
+          done < "$old_ids"
+          echo "Deleted $total legacy ReportMaker Actions installer artifacts."
