@@ -32,6 +32,8 @@ def validate_report_tree(report: Report) -> None:
         raise ValueError("A Report is required")
     report.__post_init__()  # validate editable report metadata after mutations
     report.ordered_sections()
+    if any(isinstance(block, NestedModuleBlock) for block in report.conclusion.blocks):
+        raise ValueError("Conclusions cannot contain intervention submodules")
     seen_ids: set[str] = set()
     seen_objects: set[int] = set()
     stack = [(part, 0) for part in reversed(report.ordered_sections())]
@@ -175,6 +177,8 @@ class ProjectEditor:
     def add_module(self, module: Module, *, parent_id: str | None = None,
                    index: int | None = None) -> None:
         def operation(report: Report) -> None:
+            if parent_id == report.conclusion.id:
+                raise ValueError("Intervention modules cannot be added under Conclusions")
             container = report.modules if parent_id is None else _find(report, parent_id)[2].blocks
             item = deepcopy(module) if parent_id is None else NestedModuleBlock(deepcopy(module))
             container.insert(_insert_index(container, index), item)
