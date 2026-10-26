@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "platform": {
+    "required": "windows-x64",
+    "linux_optional": true
+  },
+  "report": {
+    "canonical": "structured-project",
+    "customer_hierarchy": [
+      "customer",
+      "site",
+      "machine"
+    ],
+    "modules": "ordered-nested-heterogeneous",
+    "block_order": "unrestricted",
+    "conclusion": "dedicated-final",
+    "photo_ownership": "parent-module",
+    "languages": "open-ended-bcp47-style",
+    "translation_review": "stale-on-original-edit",
+    "word_export": "editable-docx",
+    "word_import": "fillable-plus-supported-visual"
+  },
+  "assistant": {
+    "integration": "user-browser-only",
+    "api_calls": false,
+    "agents": false,
+    "automation": false,
+    "credential_capture": false,
+    "transfer": "explicit-manual-copy-paste",
+    "fallback": "external-browser"
+  }
+}

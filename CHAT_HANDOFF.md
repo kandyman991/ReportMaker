@@ -10,8 +10,8 @@ _Last curated: 2026-10-26. This is an intentional checkpoint; it is **not** auto
 
 ## Repository and current branch situation
 - Repository: `kandyman991/ReportMaker` (PUBLIC).
-- M0 core foundation **draft PR #1**, `feature/m0-foundation`, head `4c6fff52bafd3f755888f46f321efb7b17b3e62e`, targeting `main`. Not merged as of this checkpoint.
-- M0 Windows installer and flexible-panel work **draft PR #3**, `feature/m0-windows-installer`, head `b1cf60870b96f13706437567bad249a278e665b8`, stacked on PR #1 branch. Not merged.
+- M0 core foundation **PR #1** is in final integration with main. The original foundation head was `4c6fff52bafd3f755888f46f321efb7b17b3e62e`; use the latest main and PR state for its merged status.
+- M0 Windows installer/layout **PR #3 merged into PR #1's feature branch** at `4846e27ed45e2ebb53ca16f51e985883305b9ddd`; its original tested head was `b1cf60870b96f13706437567bad249a278e665b8`.
 - The M0 executable is an **unsigned Windows preview**, not a functioning saved report editor.
 - Stable, rolling **test prerelease**: https://github.com/kandyman991/ReportMaker/releases/tag/reportmaker-windows-m0 . Installer and SHA256 checksum are GitHub Release assets; no new Actions artifacts.
 - Windows packaging and offline layout CI passed at the PR #3 revision listed above. User installed and launched M0 and demonstrated normal ChatGPT conversation in the embedded full-height website from Windows screenshots.
@@ -30,7 +30,7 @@ _Last curated: 2026-10-26. This is an intentional checkpoint; it is **not** auto
 - Direct rolling GitHub **prerelease** distribution; no `actions/upload-artifact`, no Actions cache storage. Keep developer/test releases separate from approved main builds in a later reviewable change.
 
 ## M1 entry
-Start only after reading the records and checking PR #1/#3. Design local SQLite customer/site/machine schema/migrations and editable GUI. A report must capture a local immutable customer/site/machine snapshot; support work without a master customer entry. Define backup and privacy boundaries before persistent data. Work on an isolated M1 feature branch/PR from the correct *live* M0 base, do not silently merge M0 or overwrite it. Use fabricated test customers, never production information.
+Start after reading the records and verifying M0 PR #1 and #3 are integrated into main. Design local SQLite customer/site/machine schema/migrations and editable GUI. A report must capture a local immutable customer/site/machine snapshot; support work without a master customer entry. Define backup and privacy boundaries before persistent data. Work on an isolated M1 feature branch/PR from the correct *live* main commit; do not overwrite continuity records. Use fabricated test customers, never production information.
 
 ## Completion/checkpoint procedure
 Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or a chat handoff. Record exact commit, PR, CI/run, behavior tested, known gaps, next specific action, and rollback; add an ADR for any architectural deviation. Never merge a PR without user authorization. Review exact commit CI and verify GitHub state before claiming work complete.

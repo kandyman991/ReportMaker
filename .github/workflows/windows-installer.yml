@@ -1,0 +1,160 @@
+name: Windows installer (M0 prototype)
+
+on:
+  push:
+    branches:
+      - feature/m0-windows-installer
+      - main
+  workflow_dispatch:
+
+# Match Graph Studio's rolling-release workflow: cancel superseded builds.
+concurrency:
+  group: reportmaker-windows-rolling-release
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+      - name: Install pinned app and packaging dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -e ".[desktop]"
+          python -m pip install -r packaging/windows/requirements-build.txt
+      - name: Freeze self-contained Windows application
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMaker --hidden-import=PySide6.QtWebEngineWidgets --hidden-import=PySide6.QtWebEngineCore packaging/windows/launcher.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+          if (!(Test-Path "dist/ReportMaker/ReportMaker.exe")) { throw "Frozen exe not found" }
+      - name: Test bundled Qt WebEngine offline
+        shell: pwsh
+        run: |
+          $test = Start-Process -FilePath "$PWD\dist\ReportMaker\ReportMaker.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($test.ExitCode -ne 0) { throw "Frozen WebEngine about:blank self-test failed: $($test.ExitCode)" }
+      - name: Verify resizable, collapsible and persisted panes without network
+        shell: pwsh
+        run: |
+          $test = Start-Process -FilePath "$PWD\dist\ReportMaker\ReportMaker.exe" -ArgumentList "--layout-self-test" -Wait -PassThru
+          if ($test.ExitCode -ne 0) { throw "Offline Windows layout smoke test failed: $($test.ExitCode)" }
+      - name: Locate or install Inno Setup
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $compiler) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          }
+      - name: Build per-user Windows installer
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $compiler) { throw "ISCC.exe not found" }
+          New-Item -ItemType Directory -Force "dist-installer" | Out-Null
+          & $compiler "packaging/windows/ReportMaker.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compiler failed" }
+          if (!(Test-Path "dist-installer/ReportMaker-M0-Setup.exe")) { throw "Installer not found" }
+      - name: Produce installer SHA-256
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Algorithm SHA256 "dist-installer/ReportMaker-M0-Setup.exe").Hash.ToLowerInvariant()
+          "$hash  ReportMaker-M0-Setup.exe" | Out-File -FilePath "dist-installer/SHA256SUMS.txt" -Encoding ascii
+      - name: Publish rolling Windows M0 prerelease
+        # Like Graph Studio: publish only after building and passing all smoke gates.
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "reportmaker-windows-m0"
+          $repo = $env:GITHUB_REPOSITORY
+          $setup = Join-Path $PWD "dist-installer/ReportMaker-M0-Setup.exe"
+          $sums = Join-Path $PWD "dist-installer/SHA256SUMS.txt"
+          if (!(Test-Path $setup) -or !(Test-Path $sums)) {
+            throw "Installer or SHA-256 file missing; refusing to publish."
+          }
+          $notesPath = Join-Path $env:RUNNER_TEMP "reportmaker-release-notes.md"
+          $notes = @"
+          Rolling **Windows M0 development preview** from ReportMaker.
+          This is NOT a production release or the full report editor.
+          Source commit: $env:GITHUB_SHA
+          Build: $env:GITHUB_RUN_ID
+          Source branch: $env:GITHUB_REF_NAME
+
+          Contents: ReportMaker-M0-Setup.exe, SHA256SUMS.txt.
+          The installer is unsigned; interactive ChatGPT login and use on an
+          end-user Windows desktop require separate manual acceptance.
+          No Python, Git or AI API keys are needed to run this installer.
+          "@
+          Set-Content -Path $notesPath -Value $notes -Encoding utf8
+
+          gh release view $tag --repo $repo *> $null
+          $exists = ($LASTEXITCODE -eq 0)
+          if ($exists) {
+            gh api --method PATCH "repos/$repo/git/refs/tags/$tag" -f "sha=$env:GITHUB_SHA" -F "force=true"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update rolling release tag" }
+            gh release edit $tag --repo $repo --title "ReportMaker - Windows M0 Preview" --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update rolling release metadata" }
+          }
+          else {
+            gh release create $tag --repo $repo --target $env:GITHUB_SHA --title "ReportMaker - Windows M0 Preview" --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create rolling prerelease" }
+          }
+
+          gh release upload $tag $setup $sums --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload installer to GitHub Releases" }
+          $assets = @(gh release view $tag --repo $repo --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0 -or
+              $assets -notcontains "ReportMaker-M0-Setup.exe" -or
+              $assets -notcontains "SHA256SUMS.txt") {
+            throw "Rolling release asset verification failed."
+          }
+          Write-Host "Installer published to https://github.com/$repo/releases/tag/$tag"
+
+  purge-legacy-storage:
+    # Separate least-privilege cleanup job; no temporary installer artifact storage.
+    # Runs only after the rolling release has been published successfully.
+    needs: installer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Remove legacy ReportMaker installer artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "reportmaker-windows-m0" --repo "$GITHUB_REPOSITORY" >/dev/null
+          old_ids="$(mktemp)"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+            --jq '.artifacts[]? | select(.name | startswith("ReportMaker-Windows-M0-Setup-")) | .id' \
+            > "$old_ids"
+          total=0
+          while IFS= read -r id; do
+            [ -n "$id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            total=$((total + 1))
+          done < "$old_ids"
+          echo "Deleted $total legacy ReportMaker Actions installer artifacts."
