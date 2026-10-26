@@ -12,7 +12,7 @@ Status: source implementation in \`feature/m4-editable-docx-pdf-export\`. Hosted
 ## Editable Word / DOCX
 - Exports real Word Title, heading paragraphs, editable body paragraphs, tabular \`w:tbl\` cells, inline photos/captions and manual page breaks. Nested modules retain original mixed block order; Conclusions are always final.
 - Summary entries are generated from the canonical outline and include Word \`PAGEREF\` fields and bookmarks for each section. DOCX fields are marked to be updated on opening, so **Word must update fields after it has repaginated** to display correct page numbers. The initial generated file uses a \`?\` field placeholder rather than inventing static numbers. In desktop Word, select all with Ctrl+A, press F9, and choose to update all fields if prompted. Recheck after editing or printing. This is a genuine dynamic Word field, not a promise that page numbers are known before Word lays out the document.
-- No corporate branding or arbitrary DOCX template import in M4; these are reserved for M6. Word page breaks and photo locations are requested at the proper content position, but final layout depends on Word and fonts.
+- Company-branded header/footer layout remains an **open M4 acceptance/design task** (original M4 roadmap), not a completed feature or silently removed requirement. Arbitrary DOCX template import and visual template designer are M6. Word page breaks and photo locations are requested at their content positions, but final layout depends on Word and fonts.
 
 ## Local PDF
 - Uses ReportLab to paginate the **same prepared export projection**, not an external Word or LibreOffice dependency. Rebuilds Summary with multipass page references based on final ReportLab pagination; page footers display current page numbers.
