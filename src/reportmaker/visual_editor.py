@@ -146,6 +146,7 @@ class VisualReportEditor:
         self.dirty = False
         self._loading = False
         self._block_pending = False
+        self._info_pending = False
         self._edit_block_id: str | None = None
         self._module_id: str | None = None
         self._build(left, center)
@@ -252,6 +253,7 @@ class VisualReportEditor:
             control = QLineEdit()
             control.setObjectName("report_" + key)
             self.info[key] = control
+            control.textEdited.connect(self._set_info_pending)
             form.addRow(label, control)
         self.dates = {}
         for key, label in (("created", "Creation date"), ("start", "Intervention start"),
@@ -260,6 +262,7 @@ class VisualReportEditor:
             widget.setCalendarPopup(True)
             widget.setDisplayFormat("yyyy-MM-dd")
             self.dates[key] = widget
+            widget.dateChanged.connect(self._set_info_pending)
             form.addRow(label, widget)
         self.types = {}
         types_row = QWidget()
@@ -269,6 +272,7 @@ class VisualReportEditor:
                            ("extraordinary_maintenance", "Extra maintenance"), ("other", "Other")):
             check = QCheckBox(label)
             self.types[key] = check
+            check.toggled.connect(self._set_info_pending)
             types_layout.addWidget(check)
         form.addRow("Intervention types", types_row)
         self.origin_label = QLabel()
@@ -309,7 +313,7 @@ class VisualReportEditor:
         QMessageBox.warning(self.owner, title, str(error))
 
     def _change(self, operation):
-        if not self._flush_block():
+        if not self._flush_block() or not self._flush_info():
             return False
         try:
             operation()
@@ -464,6 +468,13 @@ class VisualReportEditor:
     def _set_pending(self, *_args):
         if not self._loading:
             self._block_pending = True
+
+    def _set_info_pending(self, *_args):
+        if not self._loading:
+            self._info_pending = True
+
+    def _flush_info(self):
+        return not self._info_pending or self.apply_info()
 
     def _flush_block(self):
         return not self._block_pending or self.apply_block()
@@ -664,6 +675,7 @@ class VisualReportEditor:
             self.dates[key].setDate(QDate(value.year, value.month, value.day))
         for key, checkbox in self.types.items():
             checkbox.setChecked(key in report.intervention_types)
+        self._info_pending = False
         linked = report.customer_id is not None
         self.origin_label.setText("Frozen database snapshot" if linked else "Manual report snapshot")
         for key in ("customer", "site", "machine"):
@@ -712,6 +724,7 @@ class VisualReportEditor:
             self._warn("Invalid report information", exc)
             return False
         self.dirty = True
+        self._info_pending = False
         self.refresh()
         return True
 
@@ -802,8 +815,6 @@ class VisualReportEditor:
         def draw(module, title, level):
             sections.append("<h%d>%s</h%d>" % (min(level, 6), escape(title), min(level, 6)))
             for block in module.blocks:
-                if isinstance(block, NestedModuleBlock):
-                    continue  # Render at its exact position below.
                 if isinstance(block, ParagraphBlock):
                     sections.append("<p>%s</p>" % escape(block.text.original).replace("\n", "<br/>"))
                 elif isinstance(block, HeadingBlock):
@@ -843,7 +854,7 @@ class VisualReportEditor:
         self.preview.viewport().update()
 
     def _confirm_discard(self):
-        if not self._flush_block():
+        if not self._flush_block() or not self._flush_info():
             return False
         if not self.dirty:
             return True
@@ -870,6 +881,7 @@ class VisualReportEditor:
         self._module_id = None
         self._edit_block_id = None
         self._block_pending = False
+        self._info_pending = False
         self.refresh()
 
     def open_from_path(self, path):
@@ -893,7 +905,7 @@ class VisualReportEditor:
             self.open_from_path(path)
 
     def save_to_path(self, path):
-        if not self._flush_block():
+        if not self._flush_block() or not self._flush_info():
             return False
         try:
             saved = save_project(ReportProject(self.editor.report, self.assets), path)
