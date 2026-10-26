@@ -18,3 +18,9 @@ Rejected architecture patterns:
 - Claiming embedded login or Windows installer compatibility without Windows testing.
 
 For future changes add a dated entry with evidence, failed alternatives, ADR reference and regression test link.
+
+2026-10-26 — Windows installer decision (ADR-0004): production users must not install Python, Git or use PowerShell. M0 distribution uses an unsigned, per-user Inno Setup installer wrapping an onedir PyInstaller build; GitHub Actions performs an offline Qt WebEngine smoke test. Actual ChatGPT login and installer acceptance remain human Windows tests.
+
+2026-10-26 — M0 layout correction: Windows field test proved that QtWebEngineView loaded ChatGPT but only consumed a narrow portion of the right panel. Require explicit vertical stretch for browser, compact status, resizable/collapsible/maximizable panels, persistent layout preferences, and offline UI geometry regression checks. No browser automation or sensitive site data in tests.
+
+2026-10-26 — Distribution correction: user requested stopping GitHub Actions artifact storage and matching RoadPilot Graph Studio. ReportMaker Windows installer now publishes a rolling GitHub prerelease (`reportmaker-windows-m0`) with installer/checksum and exact commit notes; superseded runs are cancelled, and a post-publication job removes only legacy ReportMaker installer Actions artifacts. No customer/CAD content is included. See ADR-0004 and the Windows distribution regression test.

@@ -18,6 +18,11 @@ jobs:
         run: python -m pip install -e ".[desktop]"
       - name: Verify PySide6 and Qt WebEngine import on Windows
         run: python -c "from reportmaker.ui import MainWindow; print('Windows desktop import OK')"
+      - name: Exercise Qt pane sizing, collapse and restore offline
+        shell: pwsh
+        run: |
+          python -m reportmaker --layout-self-test
+          if ($LASTEXITCODE -ne 0) { throw "Qt layout smoke test failed" }
       - name: Verify invariant and core unit tests
         shell: pwsh
         run: |
