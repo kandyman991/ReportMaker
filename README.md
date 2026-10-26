@@ -3,7 +3,7 @@
 Windows-first modular technical report editor and Word document generator.
 
 ## Status
-M0 foundation prototype — NOT a production report generator. The document, customer database, editing, and export milestones remain unimplemented.
+M0 foundation is merged. M1 customer/site/machine SQLite storage and GUI are under review in [draft PR #5](https://github.com/kandyman991/ReportMaker/pull/5). This is NOT yet a production report generator: full report/project save/reopen, Word output and template editing remain unimplemented.
 
 ## Product workflow
 Select an existing customer/site/machine, choose intervention dates, compose arbitrarily ordered and nested modules containing text/photos/tables, finish with conclusions, and export editable DOCX (with optional PDF). Every translatable text element can carry any BCP-47-style language tag; export may be monolingual or multilingual. Templates may be imported from Word or designed visually.
@@ -24,7 +24,7 @@ On Windows 11 or supported Windows 10 x64 with Python 3.11+:
 2. Run: python -m pip install -e ".[desktop]"
 3. Run: python -m reportmaker
 
-The M0 shell contains a mock report module list, a scratchpad editor, clipboard-paste action, a full-height ChatGPT web panel and external-browser fallback. Drag pane dividers to resize, use the top Modules/Editor/ChatGPT toggles to collapse/reopen, maximize a pane from its header, and use Reset layout to restore defaults. Pane widths and visibility are saved locally between launches; scratchpad text is NOT saved. It is strictly a browser usability/Windows UI probe; saving report projects and DOCX generation arrive in later milestones.
+The M0 shell contains a mock report module list, a scratchpad editor, clipboard-paste action, a full-height ChatGPT web panel and external-browser fallback. In the M1 branch, the **Customers / Sites / Machines** toolbar action opens the local SQLite editor (see `docs/M1_CUSTOMER_DATABASE.md`). Drag pane dividers to resize, use the top Modules/Editor/ChatGPT toggles to collapse/reopen, maximize a pane from its header, and use Reset layout to restore defaults. Pane widths and visibility are saved locally between launches; scratchpad text is NOT saved. It is strictly a browser usability/Windows UI probe; saving report projects and DOCX generation arrive in later milestones.
 
 ## Verify the architecture/tests
 Run: python -m unittest discover -s tests -v

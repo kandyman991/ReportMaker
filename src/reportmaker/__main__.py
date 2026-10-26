@@ -32,6 +32,9 @@ def main() -> int:
     if "--layout-self-test" in sys.argv:
         from .layout_probe import run
         return run()
+    if "--customer-self-test" in sys.argv:
+        from .customer_probe import run
+        return run()
 
     try:
         from PySide6.QtWidgets import QApplication
