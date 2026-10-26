@@ -211,15 +211,17 @@ class CustomerStore:
         return dict(row)
 
     def list_customers(self, search: str = "") -> list[dict]:
-        term = f"%{search.strip()}%"
+        # LIKE wildcards from the user must match literally, not broaden searches.
+        escaped = search.strip().replace("!", "!!").replace("%", "!%").replace("_", "!_")
+        term = f"%{escaped}%"
         rows = self.connection.execute("""
             SELECT c.* FROM customers AS c WHERE
-              c.name LIKE ? OR c.code LIKE ? OR c.city LIKE ?
+              c.name LIKE ? ESCAPE '!' OR c.code LIKE ? ESCAPE '!' OR c.city LIKE ? ESCAPE '!'
               OR EXISTS (SELECT 1 FROM sites AS s
                   WHERE s.customer_id = c.id AND
-                  (s.name LIKE ? OR s.city LIKE ? OR s.address LIKE ?
+                  (s.name LIKE ? ESCAPE '!' OR s.city LIKE ? ESCAPE '!' OR s.address LIKE ? ESCAPE '!'
                    OR EXISTS (SELECT 1 FROM machines AS m WHERE m.site_id = s.id
-                       AND (m.name LIKE ? OR m.model LIKE ? OR m.serial_number LIKE ?))))
+                       AND (m.name LIKE ? ESCAPE '!' OR m.model LIKE ? ESCAPE '!' OR m.serial_number LIKE ? ESCAPE '!'))))
             ORDER BY c.name COLLATE NOCASE, c.id
         """, (term,) * 9).fetchall()
         return [dict(row) for row in rows]
@@ -239,8 +241,14 @@ class CustomerStore:
         ticket: str = "", technician: str = "", description: str = "",
     ) -> str:
         start = date.fromisoformat(start_date)
-        if end_date is not None and date.fromisoformat(end_date) < start:
-            raise ValueError("End date before start date")
+        if start_date != start.isoformat():
+            raise ValueError("Start date must use YYYY-MM-DD")
+        if end_date is not None:
+            end = date.fromisoformat(end_date)
+            if end_date != end.isoformat():
+                raise ValueError("End date must use YYYY-MM-DD")
+            if end < start:
+                raise ValueError("End date before start date")
         values = (_value(ticket, "ticket"), _value(technician, "technician"),
                   _value(description, "description"))
         identifier = uuid4().hex
@@ -319,8 +327,11 @@ class CustomerStore:
     def backup(self, destination: str | Path) -> Path:
         """Explicit local backup. Never overwrite an existing file."""
         target = Path(destination)
-        if str(self.path) == ":memory:" and str(target) == ":memory:":
-            raise ValueError("Backup must be a file")
+        # sqlite3.connect(":memory:") opens a transient DB, even when an empty
+        # file with that name was already created by open("xb"). Never report
+        # that empty file as a successful backup.
+        if str(target) == ":memory:":
+            raise ValueError("Backup destination must be a disk file")
         if target.absolute() == self.path.absolute():
             raise ValueError("Backup target cannot be source")
         target.parent.mkdir(parents=True, exist_ok=True)
