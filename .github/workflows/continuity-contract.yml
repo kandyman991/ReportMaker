@@ -1,0 +1,20 @@
+name: ReportMaker continuity contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  continuity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate curated checkpoint contract without downloading dependencies
+        run: python3 scripts/check_continuity.py
