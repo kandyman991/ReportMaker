@@ -303,13 +303,14 @@ class MainWindow(QMainWindow):
 
     def _open_customers(self) -> None:
         """Open local records on demand; do not mix them with browser storage."""
+        import sqlite3
         from PySide6.QtWidgets import QMessageBox
         from .customer_ui import CustomerManagerDialog
         from .storage import CustomerStore
         try:
             with CustomerStore() as store:
                 CustomerManagerDialog(store, self).exec()
-        except (OSError, RuntimeError, ValueError) as error:
+        except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
             QMessageBox.critical(self, "Customer database unavailable", str(error))
 
     def closeEvent(self, event) -> None:
