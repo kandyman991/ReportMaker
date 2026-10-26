@@ -37,6 +37,21 @@ _Updated 2026-10-26. Maintainers edit this file at PR, milestone and chat-handof
 - Outstanding: native installed Windows manual acceptance, private backup restore verification and reconciliations with main's merged PR #6 document contract. No production data, installer, deployment or merge.
 - Next action: have an independent reviewer assess corrections at their exact commit, then (only with authorization) integrate this correction PR into PR #5's feature branch. Reconcile PR #5 with latest main separately before merging.
 
+## CP-DOC-REPORT-COMPOSITION — contract merged on main via PR #6
+- Source: user sketch and explicit clarifications on 2026-10-26.
+- Branch: `docs/report-structure-contract-20261026`, based on main `5188f8ff74f50753650cb5975713e9c7bc56576f`.
+- Scope: ADR-0006, canonical report composition specification, architecture/agent rules and handoff references. Requirements documentation **only**; not proof of application behavior.
+- Review: PR #6 was merged into `main` at `1981d802194bb2619e689533ac35dabde0f706da`; ADR-0006 is binding and retained in this reconciliation.
+- Tests: M1–M5 acceptance and regression cases specified in contract; code-level tests must be implemented as corresponding features land.
+- Next: retain M1 manual snapshots and implement later M2–M4 metadata, tree/summary and document-export acceptance gates without claiming those features exist yet.
+
+## CP-M1-INTEGRATION — PR #7 and main/PR #6
+- M1 parent after PR #7 merge: `685fd6bc884036d29e8ef2658c5dfc192864e8b8`; main reconciliation parent: `4f6cec7b51cfb1282923e3fa05c38d8d0d1f035b`. Next merge commit targets **PR #5 feature branch only**.
+- PR #7 closed and merged, resolving PR5-F01–F05; review and synthetic regressions: `docs/PR5_REVIEW.md`.
+- Windows M1 Qt + 20 unit tests PASS at PR #7 correction head `62dda31d689a5a208928da78053586f97fc3c981` [#40362467582](https://github.com/kandyman991/ReportMaker/actions/runs/40362467582). Windows M0 PASS on PR #5 post-PR7 head [#40363954099](https://github.com/kandyman991/ReportMaker/actions/runs/40363954099); new combined-head M1 run still needs verification.
+- PR #6 composition contract and ADR-0006 are retained with M1 docs. M1 supports manual customers/snapshots; multiselect intervention types, one-tree Summary, project persistence and export remain M2–M4 work.
+- Pending: exact-head Windows CI after reconciliation, independent review, native installed Windows forms/backup restore/DPI tests. Synthetic-only; no production data, install or merge into main.
+
 ## Checkpoint template for subsequent work
 ```text
 Checkpoint ID / date:

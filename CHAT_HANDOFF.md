@@ -29,6 +29,11 @@ _Last curated: 2026-10-26. This is an intentional checkpoint; it is **not** auto
 - Use hosted Windows Actions runners (`windows-latest`), no user-owned self-hosted machine requirement.
 - Direct rolling GitHub **prerelease** distribution; no `actions/upload-artifact`, no Actions cache storage. Keep developer/test releases separate from approved main builds in a later reviewable change.
 
+## Report composition clarification (2026-10-26; ADR-0006)
+Read `docs/REPORT_COMPOSITION_CONTRACT.md` before any M1 database, M2 model, M3 editor, M4 export or M5 language work. The user's sketch defines the report-info header (creation date, title, intervention from/to, optional ticket, type(s), personnel), a generated table of contents, and a titled module/submodule hierarchy. A report may select **multiple intervention types**. The contents and editor tree MUST derive from the same canonical hierarchy. Customer data may be selected from the database **or entered manually** with no master; each saved report captures a detached snapshot. Conclusions remain last. These are requirements, **not yet fully implemented features**. The original sketch was provided in chat; the public repo contains the textual contract, not the uploaded image.
+
+Historical documentation-review checkpoint: PR #6 merged into `main` at `1981d802194bb2619e689533ac35dabde0f706da`; `main` was verified at `4f6cec7b51cfb1282923e3fa05c38d8d0d1f035b` during M1 reconciliation.
+
 ## M1 entry
 Start after reading the records and verifying M0 PR #1 and #3 are integrated into main. Design local SQLite customer/site/machine schema/migrations and editable GUI. A report must capture a local immutable customer/site/machine snapshot; support work without a master customer entry. Define backup and privacy boundaries before persistent data. Work on an isolated M1 feature branch/PR from the correct *live* main commit; do not overwrite continuity records. Use fabricated test customers, never production information.
 
@@ -40,6 +45,13 @@ Start after reading the records and verifying M0 PR #1 and #3 are integrated int
 - M1 intentionally does NOT persist full report projects or export DOCX; M2 and M4 own those capabilities. No real customer data has been entered into tests, CI or GitHub.
 - Pending: independent code review; installed Windows manual acceptance including search/forms/history/backups, resize/DPI and app restart; decision on distributing a reviewed M1 prerelease installer. No merge or deployment authorized.
 - Rollback: leave draft PR unmerged; release/main unchanged. For local data restore only after closing app from a verified private backup. PR: https://github.com/kandyman991/ReportMaker/pull/5 .
+
+## PR #7 corrections and main/PR #6 reconciliation (2026-10-26)
+- PR #7's five corrections merged into PR #5's feature branch at `685fd6bc884036d29e8ef2658c5dfc192864e8b8`. PR #5 remains draft, unmerged.
+- Hosted Windows M0 CI on that head: [#40363954099](https://github.com/kandyman991/ReportMaker/actions/runs/40363954099) SUCCESS. PR #7 correction head `62dda31d689a5a208928da78053586f97fc3c981` passed Windows M1 Qt smoke including 20 synthetic unit tests [#40362467582](https://github.com/kandyman991/ReportMaker/actions/runs/40362467582). The latter was not run on the PR #5 merge SHA.
+- Latest main reconciliation parent: `4f6cec7b51cfb1282923e3fa05c38d8d0d1f035b` (including merged PR #6 and ADR-0006). The forthcoming merge commit preserves M1 implementation and both branches' curated checkpoints.
+- **Milestone boundary**: M1 manual snapshots do not imply multi-intervention metadata, unified tree/summary UI, or saved project functionality. Those remain M2–M4 deliverables.
+- Next: exact-new-head Windows CI and independent review, followed by installed Windows acceptance of search/forms/history/backup/keyboard. Never merge PR #5 to main, deploy, or publish an M1 installer without explicit authorization.
 
 ## Completion/checkpoint procedure
 Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or a chat handoff. Record exact commit, PR, CI/run, behavior tested, known gaps, next specific action, and rollback; add an ADR for any architectural deviation. Never merge a PR without user authorization. Review exact commit CI and verify GitHub state before claiming work complete.
