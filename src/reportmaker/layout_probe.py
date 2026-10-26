@@ -19,11 +19,10 @@ def run() -> int:
     app = QApplication.instance() or QApplication([])
     with TemporaryDirectory(prefix="reportmaker-layout-") as directory:
         settings_path = str(Path(directory) / "workspace.ini")
-        profile_dir = Path(directory) / "browser"
         w = MainWindow(
             load_website=False,
             settings=QSettings(settings_path, QSettings.Format.IniFormat),
-            browser_profile_root=profile_dir,
+            ephemeral_browser=True,
         )
         w.show()
         app.processEvents()
@@ -56,7 +55,7 @@ def run() -> int:
         reopened = MainWindow(
             load_website=False,
             settings=QSettings(settings_path, QSettings.Format.IniFormat),
-            browser_profile_root=profile_dir,
+            ephemeral_browser=True,
         )
         reopened.show()
         app.processEvents()

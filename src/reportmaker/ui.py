@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
         load_website: bool = True,
         settings: QSettings | None = None,
         browser_profile_root: Path | None = None,
+        ephemeral_browser: bool = False,
     ) -> None:
         super().__init__()
         self.setWindowTitle("ReportMaker — M0 Browser Compatibility Prototype")
@@ -56,7 +57,7 @@ class MainWindow(QMainWindow):
             name: _bool_setting(self.settings.value(f"workspace/{name}/visible", True))
             for name in PANEL_NAMES
         }
-        self._build_interface(browser_profile_root)
+        self._build_interface(browser_profile_root, ephemeral_browser)
         geometry = self.settings.value("workspace/window_geometry")
         if geometry is not None:
             self.restoreGeometry(geometry)
@@ -111,7 +112,7 @@ class MainWindow(QMainWindow):
         self.splitter.setCollapsible(self.splitter.indexOf(panel), True)
         return panel, layout
 
-    def _build_interface(self, browser_profile_root: Path | None) -> None:
+    def _build_interface(self, browser_profile_root: Path | None, ephemeral_browser: bool) -> None:
         toolbar = QToolBar("Workspace", self)
         toolbar.setObjectName("workspaceToolbar")
         toolbar.setMovable(False)
@@ -157,18 +158,23 @@ class MainWindow(QMainWindow):
         self.browser = QWebEngineView()
         self.browser.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.browser.setMinimumSize(0, 0)
-        self.profile = QWebEngineProfile("reportmaker-chatgpt", self)
-        root = browser_profile_root
-        if root is None:
-            root = Path(QStandardPaths.writableLocation(
-                QStandardPaths.StandardLocation.AppLocalDataLocation
-            )) / "browser"
-        root.mkdir(parents=True, exist_ok=True)
-        self.profile.setPersistentStoragePath(str(root / "storage"))
-        self.profile.setCachePath(str(root / "cache"))
-        self.profile.setPersistentCookiesPolicy(
-            QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies
-        )
+        if ephemeral_browser:
+            # Automated offline tests must not create persistent Chromium files:
+            # Windows holds LevelDB files open until the WebEngine process exits.
+            self.profile = QWebEngineProfile(self)
+        else:
+            self.profile = QWebEngineProfile("reportmaker-chatgpt", self)
+            root = browser_profile_root
+            if root is None:
+                root = Path(QStandardPaths.writableLocation(
+                    QStandardPaths.StandardLocation.AppLocalDataLocation
+                )) / "browser"
+            root.mkdir(parents=True, exist_ok=True)
+            self.profile.setPersistentStoragePath(str(root / "storage"))
+            self.profile.setCachePath(str(root / "cache"))
+            self.profile.setPersistentCookiesPolicy(
+                QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies
+            )
         self.browser_page = QWebEnginePage(self.profile, self.browser)
         self.browser.setPage(self.browser_page)
         # Critical regression fix: the browser takes ALL spare vertical space.
