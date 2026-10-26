@@ -9,12 +9,12 @@ import json
 from pathlib import Path
 import sqlite3
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-    QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
-    QVBoxLayout,
+    QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QTableWidget,
+    QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from .reference import manual_snapshot
@@ -70,6 +70,70 @@ class RecordForm(QDialog):
         self.accept()
 
 
+class ManualReferenceForm(QDialog):
+    """Full local one-off customer/site/machine entry, without a DB record."""
+
+    GROUPS = (
+        ("Customer", (
+            ("customer_name", "Name *"), ("customer_code", "Code"),
+            ("customer_address", "Address"), ("customer_postal_code", "Postal code"),
+            ("customer_city", "City"), ("customer_country", "Country"),
+            ("customer_contact", "Contact"), ("customer_email", "Email"),
+            ("customer_phone", "Phone"),
+        )),
+        ("Site", (
+            ("site_name", "Name"), ("site_address", "Address"),
+            ("site_postal_code", "Postal code"), ("site_city", "City"),
+            ("site_country", "Country"), ("site_contact", "Contact"),
+            ("site_email", "Email"), ("site_phone", "Phone"),
+        )),
+        ("Machine", (
+            ("machine_name", "Name"), ("machine_manufacturer", "Manufacturer"),
+            ("machine_model", "Model"), ("machine_serial", "Serial number"),
+            ("machine_asset_tag", "Asset tag"),
+        )),
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Manual customer/site/machine reference — no master record")
+        self.resize(620, 590)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("This is an unsaved reference preview, not a report."))
+        scroller = QScrollArea(self)
+        scroller.setWidgetResizable(True)
+        content = QWidget()
+        section_layout = QVBoxLayout(content)
+        self.controls: dict[str, QLineEdit] = {}
+        for section, items in self.GROUPS:
+            group = QGroupBox(section)
+            form = QFormLayout(group)
+            for key, label in items:
+                editor = QLineEdit(group)
+                editor.setMaxLength(10000)
+                form.addRow(label, editor)
+                self.controls[key] = editor
+            section_layout.addWidget(group)
+        scroller.setWidget(content)
+        layout.addWidget(scroller, 1)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+        )
+        buttons.accepted.connect(self._validate)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _validate(self):
+        if not self.controls["customer_name"].text().strip():
+            QMessageBox.warning(self, "Required value", "Enter a customer name.")
+            return
+        self.accept()
+
+    def snapshot(self):
+        values = {key: editor.text() for key, editor in self.controls.items()}
+        return manual_snapshot(values.pop("customer_name"), **values)
+
+
 class HistoryDialog(QDialog):
     def __init__(self, store: CustomerStore, machine_id: str, parent=None):
         super().__init__(parent)
@@ -89,7 +153,11 @@ class HistoryDialog(QDialog):
         self._refresh()
 
     def _refresh(self):
-        rows = self.store.list_interventions(self.machine_id)
+        try:
+            rows = self.store.list_interventions(self.machine_id)
+        except (LookupError, ValueError, sqlite3.Error, OSError) as error:
+            QMessageBox.warning(self, "Could not load machine history", str(error))
+            return
         self.history.setRowCount(len(rows))
         for index, entry in enumerate(rows):
             for column, key in enumerate(
@@ -155,7 +223,11 @@ class CustomerManagerDialog(QDialog):
         self.search = QLineEdit()
         self.search.setPlaceholderText(
             "Search customers, sites, machine names, models or serial numbers")
-        self.search.textChanged.connect(self.refresh)
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(250)
+        self._search_timer.timeout.connect(self.refresh)
+        self.search.textChanged.connect(lambda _text: self._search_timer.start())
         top.addWidget(QLabel("Search"))
         top.addWidget(self.search, 1)
         layout.addLayout(top)
@@ -184,21 +256,26 @@ class CustomerManagerDialog(QDialog):
         self.refresh()
 
     def refresh(self, *_args, selected: tuple[str, str] | None = None):
+        # Read *before* clearing current contents: on SQLite failure, preserve
+        # the existing tree, selection and user context.
+        hierarchy = self._safe(lambda: self.store.list_hierarchy(self.search.text()))
+        if hierarchy is None:
+            return
+        customers, sites, machines = hierarchy
         self.tree.clear()
         selected_item = None
-        customers = self.store.list_customers(self.search.text())
         for customer in customers:
             customer_item = self._item(None, "customers", customer,
                                        customer["name"], customer["city"],
                                        customer["code"])
             if selected == ("customers", customer["id"]):
                 selected_item = customer_item
-            for site in self.store.list_sites(customer["id"]):
+            for site in sites.get(customer["id"], ()):
                 site_item = self._item(customer_item, "sites", site,
                                        site["name"], site["city"], site["address"])
                 if selected == ("sites", site["id"]):
                     selected_item = site_item
-                for machine in self.store.list_machines(site["id"]):
+                for machine in machines.get(site["id"], ()):
                     machine_item = self._item(site_item, "machines", machine,
                                               machine["name"], machine["model"],
                                               machine["serial_number"])
@@ -265,30 +342,39 @@ class CustomerManagerDialog(QDialog):
         identifier = self._safe(lambda: self.store.create_customer(**dialog.values()))
         if identifier:
             self.search.clear()
+            self._search_timer.stop()
             self.refresh(selected=("customers", identifier))
 
     def add_site(self):
         if self._selected() is None:
             return
-        customer, _, _ = self._ancestors()
+        ancestors = self._safe(self._ancestors)
+        if ancestors is None:
+            return
+        customer, _, _ = ancestors
         dialog = RecordForm("sites", parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         identifier = self._safe(lambda: self.store.create_site(customer, **dialog.values()))
         if identifier:
             self.search.clear()
+            self._search_timer.stop()
             self.refresh(selected=("sites", identifier))
 
     def add_machine(self):
         if self._selected() is None or self._selected()[0] == "customers":
             return
-        _, site, _ = self._ancestors()
+        ancestors = self._safe(self._ancestors)
+        if ancestors is None:
+            return
+        _, site, _ = ancestors
         dialog = RecordForm("machines", parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         identifier = self._safe(lambda: self.store.create_machine(site, **dialog.values()))
         if identifier:
             self.search.clear()
+            self._search_timer.stop()
             self.refresh(selected=("machines", identifier))
 
     def edit_selected(self):
@@ -330,7 +416,10 @@ class CustomerManagerDialog(QDialog):
     def preview_reference(self):
         if self._selected() is None:
             return
-        customer, site, machine = self._ancestors()
+        ancestors = self._safe(self._ancestors)
+        if ancestors is None:
+            return
+        customer, site, machine = ancestors
         snapshot = self._safe(lambda: self.store.capture_snapshot(
             customer, site_id=site, machine_id=machine))
         if snapshot is None:
@@ -338,18 +427,13 @@ class CustomerManagerDialog(QDialog):
         self._show_snapshot(snapshot)
 
     def manual_reference(self):
-        """One-off customers are not silently inserted into the master database."""
-        name, accepted = QInputDialog.getText(
-            self, "Manual report reference", "Customer name (one-off):")
-        if not accepted or not name.strip():
+        """One-off details are previewed without creating master records."""
+        form = ManualReferenceForm(self)
+        if form.exec() != QDialog.DialogCode.Accepted:
             return
-        site, ok = QInputDialog.getText(self, "Manual reference", "Site (optional):")
-        if not ok:
-            return
-        machine, ok = QInputDialog.getText(self, "Manual reference", "Machine (optional):")
-        if not ok:
-            return
-        self._show_snapshot(manual_snapshot(name, site_name=site, machine_name=machine))
+        snapshot = self._safe(form.snapshot)
+        if snapshot is not None:
+            self._show_snapshot(snapshot)
 
     def _show_snapshot(self, snapshot):
         message = QMessageBox(self)

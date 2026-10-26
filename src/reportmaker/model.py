@@ -94,7 +94,7 @@ Block = ParagraphBlock | PhotoBlock | TableBlock | PageBreakBlock | NestedModule
 
 @dataclass
 class Report:
-    customer_id: str
+    customer_id: str | None
     start_date: date
     end_date: date
     primary_language: str
@@ -106,12 +106,17 @@ class Report:
     customer_snapshot: CustomerSnapshot | None = None
 
     def __post_init__(self) -> None:
-        if not self.customer_id.strip() and self.customer_snapshot is None:
+        if self.customer_id is not None and not isinstance(self.customer_id, str):
+            raise ValueError("Customer ID must be a string or None")
+        customer_id = self.customer_id or ""
+        if not customer_id.strip() and self.customer_snapshot is None:
             raise ValueError("A customer ID or a manual customer snapshot is required")
         if self.customer_snapshot is not None:
             source_id = self.customer_snapshot.customer_id or ""
-            if source_id != self.customer_id:
+            if source_id != customer_id:
                 raise ValueError("Report customer ID and captured reference disagree")
+            if customer_id and not customer_id.strip():
+                raise ValueError("Blank customer ID is not a valid registered reference")
         if self.start_date > self.end_date:
             raise ValueError("Intervention end date precedes start date")
         validate_language_tag(self.primary_language)

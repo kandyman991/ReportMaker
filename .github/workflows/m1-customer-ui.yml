@@ -2,6 +2,10 @@ name: M1 Windows customer UI smoke test
 
 on:
   pull_request:
+  # After M1 integration, keep validation on main without publishing artifacts.
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:

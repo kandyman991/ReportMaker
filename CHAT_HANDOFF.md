@@ -53,5 +53,11 @@ Start after reading the records and verifying M0 PR #1 and #3 are integrated int
 - **Milestone boundary**: M1 manual snapshots do not imply multi-intervention metadata, unified tree/summary UI, or saved project functionality. Those remain M2–M4 deliverables.
 - Next: exact-new-head Windows CI and independent review, followed by installed Windows acceptance of search/forms/history/backup/keyboard. Never merge PR #5 to main, deploy, or publish an M1 installer without explicit authorization.
 
+## M1 final review corrections — stacked PR #8 (2026-10-26)
+- [PR #8](https://github.com/kandyman991/ReportMaker/pull/8) targets `feature/m1-customer-site-machine-database` (PR #5) and began at `99e486fffd071a62aa0f0b4a9af40d1127f9f9a2`. Original review comment: [#5656102312](https://github.com/kandyman991/ReportMaker/pull/5#pullrequestreview-5656102312).
+- Release boundary: automatic M0 rolling installer updates on `main` are disabled. The manual-only M0 publisher is pinned to approved M0 source `1981d802194bb2619e689533ac35dabde0f706da`. M1 installation requires a separate approved workflow/release; M1 Windows smoke runs on PRs and on main, without release assets.
+- Data fixes: optional/null manual customer ID, complete customer/site postal-address copies with legacy snapshot compatibility, full manual one-off entry, bounded hierarchy search and Qt error handling. Only synthetic tests.
+- Review/safety: PR #8 remains isolated and unmerged; next verify exact-head Windows CI (25+ tests and Qt probe) and independent code review. No M1 deployment or PR #5 -> main merge was authorized; native interactive installed-Windows and backup restore acceptance still pending.
+
 ## Completion/checkpoint procedure
 Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or a chat handoff. Record exact commit, PR, CI/run, behavior tested, known gaps, next specific action, and rollback; add an ADR for any architectural deviation. Never merge a PR without user authorization. Review exact commit CI and verify GitHub state before claiming work complete.
