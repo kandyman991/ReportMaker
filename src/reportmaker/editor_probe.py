@@ -7,11 +7,13 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
 from PySide6.QtGui import QImage, QTextDocument
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from .engine import module_outline
 from .model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, PhotoBlock, TableBlock
 from .project_io import load_project
+from .reference import manual_snapshot
 from .ui import MainWindow
 
 
@@ -108,6 +110,109 @@ def run() -> int:
             assert path.read_bytes() == existing
             doc.types["other"].setChecked(False)
             assert doc.save_to_path(path)
+
+            # M3-F01: real typed information must survive history navigation.
+            doc._change(lambda: doc.editor.add_module(
+                Module(LocalizedText("en", "History sentinel"))))
+            assert len(doc.report.modules) == 2
+            doc.tabs.setCurrentIndex(1)  # Report Information
+            ticket = doc.info["ticket"]
+            ticket.setFocus()
+            QTest.keyClicks(ticket, "DRAFT-UNDO")
+            assert doc._info_pending
+            doc.undo()
+            # Undo applies to the just-flushed ticket edit, not the module.
+            assert doc.report.ticket == ""
+            assert ticket.text() == ""
+            assert len(doc.report.modules) == 2
+            doc.redo()
+            assert doc.report.ticket == "DRAFT-UNDO"
+            doc.undo()
+            assert doc.editor.can_redo
+            ticket.setFocus()
+            QTest.keyClicks(ticket, "DRAFT-REDO")
+            assert doc._info_pending
+            doc.redo()
+            # A new pending edit invalidates redo, but cannot be lost.
+            assert doc.report.ticket == "DRAFT-REDO"
+            assert not doc.editor.can_redo
+
+            # M3-F02: a pending *invalid* draft (even with dirty=False) can
+            # always be discarded when closing/opening/creating a project.
+            assert doc.save_to_path(path)
+            assert not doc.dirty
+            doc.types["other"].setChecked(True)
+            assert doc._info_pending
+            with patch.object(QMessageBox, "warning",
+                              side_effect=AssertionError("Discard must not validate")), \
+                 patch.object(QMessageBox, "question",
+                              return_value=QMessageBox.StandardButton.Discard) as question:
+                assert doc._confirm_discard()
+                assert question.call_count == 1
+            assert doc.report.other_intervention_detail == ""
+            doc._load_info()  # Discarded draft; reset widgets from current report.
+
+            # M3-F03: hidden supplementary data must not cross manual
+            # customer/site/machine identity changes.
+            doc.editor.apply(lambda report: setattr(report, "customer_snapshot",
+                manual_snapshot(
+                    "Old Example Customer", customer_address="Old Example Address",
+                    customer_email="old@example.invalid", site_name="Old Example Site",
+                    site_contact="Old Example Contact", machine_name="Old Machine",
+                    machine_serial="OLD-123")))
+            doc.dirty = True
+            doc.refresh()
+            doc.info["customer"].setText("New Example Customer")
+            doc._set_info_pending()
+            assert doc.apply_info()
+            snapshot = doc.report.customer_snapshot
+            assert snapshot.customer_name == "New Example Customer"
+            assert snapshot.customer_address == ""
+            assert snapshot.customer_email == ""
+            assert snapshot.site_contact == ""
+            assert snapshot.machine_serial == ""
+
+            doc.editor.apply(lambda report: setattr(report, "customer_snapshot",
+                manual_snapshot(
+                    "Keep Customer", customer_address="Preserved Address",
+                    site_name="Old Site", site_contact="Do not retain",
+                    machine_name="Old Machine", machine_serial="OLD-SERIAL")))
+            doc.refresh()
+            doc.info["site"].setText("New Site")
+            doc._set_info_pending()
+            assert doc.apply_info()
+            snapshot = doc.report.customer_snapshot
+            assert snapshot.customer_address == "Preserved Address"
+            assert snapshot.site_contact == ""
+            assert snapshot.machine_serial == ""
+
+            doc.editor.apply(lambda report: setattr(report, "customer_snapshot",
+                manual_snapshot(
+                    "Keep Customer", customer_address="Preserved Address",
+                    site_name="Keep Site", site_contact="Preserved Contact",
+                    machine_name="Old Machine", machine_serial="OLD-SERIAL")))
+            doc.refresh()
+            doc.info["machine"].setText("New Machine")
+            doc._set_info_pending()
+            assert doc.apply_info()
+            snapshot = doc.report.customer_snapshot
+            assert snapshot.site_contact == "Preserved Contact"
+            assert snapshot.machine_serial == ""
+            assert doc.save_to_path(path)
+            reopened = load_project(path)
+            assert reopened.report.customer_snapshot.machine_serial == ""
+            assert reopened.report.customer_snapshot.site_contact == "Preserved Contact"
+
+            # M3-F04: the preview must display the Other type's specification.
+            doc.types["other"].setChecked(True)
+            doc.info["other"].setText("Synthetic operator verification")
+            doc._set_info_pending()
+            assert doc.apply_info()
+            assert "Other intervention details: Synthetic operator verification" \
+                in doc.preview.toPlainText()
+            assert doc.save_to_path(path)
+            assert load_project(path).report.other_intervention_detail == \
+                "Synthetic operator verification"
         finally:
             doc.dirty = False
             window.close()
