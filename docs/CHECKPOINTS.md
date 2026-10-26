@@ -16,10 +16,18 @@ _Updated 2026-10-26. Maintainers edit this file at PR, milestone and chat-handof
 - Limitations: no report/project save/reopen, database, polished WYSIWYG editor, DOCX/PDF export yet. More interactive Windows acceptance remains pending, including persistence and resize use.
 - Next: verify PR #1 main merge and combined CI after reconciliation; begin M1 on a new main-based branch, retaining M0 usability acceptance items as explicit pending checks.
 
-## CP-M1 — Next milestone (not started)
-- Goal: local SQLite customers/sites/machines; names, addresses and contacts; serial numbers and history; safe migrations, local backups; report-level immutable snapshots; permit reports without customer master entry.
-- Constraints: no paid/automated AI, no private data upload, Windows host CI, release assets not Actions artifacts.
-- Execution: isolated M1 PR; synthetic migration/relationship/search tests plus Windows GUI acceptance. Add precise SHA, PR, test evidence and decision/risk summary here before closing the development chat.
+## CP-M1 — Customer/site/machine storage and GUI in draft PR #5
+- Checkpoint date: 2026-10-26.
+- Base: live main `5188f8ff74f50753650cb5975713e9c7bc56576f`. Feature: `feature/m1-customer-site-machine-database`. Verified executable-code commit: `9038a0d323516cb5d0ece7f4db63daf1565e4574`; later documentation commits may change current PR head.
+- PR: https://github.com/kandyman991/ReportMaker/pull/5 (draft, NO merge authorization).
+- Scope: SQLite schema v1, relationships + guarded CRUD, contacts/addresses/serials, intervention history, search, consistent read snapshots, manual unregistered customer references, write-once report references, verified local online SQLite backups, PySide6 Windows customer-management UI, local privacy boundaries, synthetic tests.
+- Architecture: existing M0 report module model, language tags, conclusion-last behavior, ChatGPT user-controlled browser, and manual clipboard boundaries unchanged. M1 reference snapshot is an independent data object. M2 is still responsible for saving full report projects.
+- **Verified CI on implementation commit:** M1 Windows Qt smoke #40360575549 SUCCESS; M0 Windows architecture/model #40360566811 SUCCESS; continuity #40360575080 SUCCESS. 17 unit tests passing; GUI smoke exercises synthetic hierarchy and search, and opening the existing shell without visiting ChatGPT. No Windows installer published from this PR.
+- Native Windows evidence: hosted Windows GUI test only. Installed end-user-PC form acceptance and restart/history/backup checks **not yet verified**.
+- Privacy: synthetic-only CI fixtures; data stored per-user locally, browser profile separate; no customer/CAD data, cookies or logins committed. GitHub repository is public.
+- Known gaps: report save/load/export M2–M4, CSV/JSON import/export, encrypted archives, fully interactive Windows acceptance and prerelease packaging. M0 manual acceptance remains open.
+- Next: independently review PR #5 at its exact live head and CI; perform manual Windows UI acceptance on a separately approved test build; consider M1 rolling prerelease only after review. **Do not merge without user authorization.**
+- Rollback: no main changes; close app before replacing local database from a verified private backup. See `docs/M1_CUSTOMER_DATABASE.md`.
 
 ## Checkpoint template for subsequent work
 ```text

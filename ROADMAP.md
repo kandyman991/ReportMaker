@@ -1,6 +1,6 @@
 # Roadmap
 
-## M0 — Foundation (implementation remains in draft PRs #1 and #3)
+## M0 — Foundation (PR #1 merged, incorporating PR #3; manual acceptance partial)
 - [x] Document immutable product constraints and architecture decisions.
 - [x] Define typed flexible module/report data model and pure-model tests.
 - [x] Create Windows-first application shell, ChatGPT browser spike, clipboard paste and external browser fallback.
@@ -13,8 +13,13 @@
 - [x] Add GitHub-backed curated handoff + mechanical state snapshot + continuity regression gates (continuity-only bootstrap).
 Exit: docs/tests green AND native Windows manual checklist completed. M0 is not complete solely because CI is green.
 
-## M1 — Customer database
-SQLite schema/migrations, customers/sites/machines, search, edit, history and report snapshots; backup/import/export policies.
+## M1 — Customer database (draft PR #5; not merged)
+- [x] Local SQLite schema v1/transactional migration, customers/sites/machines, search/edit, serials and machine intervention history.
+- [x] Write-once detached reference snapshots and one-off manual customer references.
+- [x] Local SQLite online backup, integrity check and documented import/export/privacy policy.
+- [x] Native PySide6 customer manager and hosted Windows offline Qt smoke gate, synthetic-only tests.
+- [ ] Independent code review, installed Windows interactive acceptance and M1 prerelease build strategy.
+- [ ] Full saved report/project integration is M2, not M1. JSON/CSV import remains a separate reviewed policy task.
 
 ## M2 — Project and module engine
 Ordered heterogeneous blocks, nested modules, photo assets, persistence, undo/redo, conclusion-last invariant, import/export project format.
