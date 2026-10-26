@@ -100,6 +100,35 @@ class CustomerStorageTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.store.backup(destination)
 
+    def test_search_treats_sql_like_wildcards_as_literal_text(self):
+        # Search terms are user text, not SQL patterns that reveal other records.
+        self.assertEqual(self.store.list_customers("%"), [])
+        self.assertEqual(self.store.list_customers("_"), [])
+        customer = self.store.create_customer("100% Demo_Test! Records")
+        for term in ("%", "_", "!", "Demo_", "100%", "Test!"):
+            self.assertEqual(
+                [row["id"] for row in self.store.list_customers(term)], [customer])
+
+    def test_history_requires_canonical_iso_dates(self):
+        # SQLite constraints/order compare the stored ISO text lexicographically.
+        for start, end in (("20261010", None),
+                           ("2026-W41-6", None),
+                           ("2026-10-10", "20261011")):
+            with self.subTest(start=start, end=end):
+                with self.assertRaises(ValueError):
+                    self.store.add_intervention(
+                        self.machine_id, start, end_date=end)
+        self.assertEqual(self.store.list_interventions(self.machine_id), [])
+        self.store.add_intervention(
+            self.machine_id, "2026-10-10", end_date="2026-10-11")
+        self.assertEqual(len(self.store.list_interventions(self.machine_id)), 1)
+
+    def test_backup_rejects_sqlite_memory_sentinel_as_output(self):
+        # Otherwise sqlite3.connect(":memory:") silently stores data only in
+        # RAM while the filesystem contains an empty, unusable 'backup'.
+        with self.assertRaises(ValueError):
+            self.store.backup(":memory:")
+
     def test_newer_schema_is_not_modified(self):
         future_path = Path(self.folder.name) / "future.sqlite3"
         with closing(sqlite3.connect(future_path)) as db:
