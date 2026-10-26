@@ -1,0 +1,80 @@
+name: Refresh ReportMaker chat handoff state
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+  issues: read
+  actions: read
+
+concurrency:
+  group: reportmaker-chat-handoff-state
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Refresh GitHub-only handoff/state.json
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const repoInfo = (await github.rest.repos.get({ owner, repo })).data;
+            const defaultBranch = repoInfo.default_branch;
+            const branch = (await github.rest.repos.getBranch({owner, repo, branch: defaultBranch})).data;
+            const commit = (await github.rest.repos.getCommit({owner, repo, ref: branch.commit.sha})).data;
+            const prs = (await github.paginate(github.rest.pulls.list, {
+              owner, repo, state:"open", sort:"updated", direction:"desc", per_page:100
+            })).slice(0,25);
+            const issuesAll = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state:"open", per_page:100
+            });
+            const issues = issuesAll.filter(item=>!item.pull_request).slice(0,25);
+            const runs = (await github.rest.actions.listWorkflowRunsForRepo({
+              owner, repo, per_page:20
+            })).data.workflow_runs.filter(run=>run.name!=="Refresh ReportMaker chat handoff state").slice(0,10);
+            const state = {
+              schema:"chat-handoff-state", schemaVersion:1, repository:repoInfo.full_name,
+              defaultBranch, generatedAt:new Date().toISOString(),
+              generatedByEvent:context.eventName,
+              instructions:[
+                "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
+                "Mechanical snapshot only; architecture decisions must come from curated documents.",
+                "Verify live PR head, base, CI and release before starting work."
+              ],
+              head:{sha:branch.commit.sha,message:commit.commit.message,htmlUrl:commit.html_url},
+              openPullRequests:prs.map(pr=>({
+                number:pr.number,title:pr.title,draft:pr.draft,
+                head:pr.head.ref,headSha:pr.head.sha,base:pr.base.ref,
+                updatedAt:pr.updated_at,htmlUrl:pr.html_url
+              })),
+              openIssues:issues.map(issue=>({
+                number:issue.number,title:issue.title,updatedAt:issue.updated_at,htmlUrl:issue.html_url
+              })),
+              recentWorkflowRuns:runs.map(run=>({
+                id:run.id,name:run.name,status:run.status,conclusion:run.conclusion,
+                branch:run.head_branch,headSha:run.head_sha,event:run.event,
+                updatedAt:run.updated_at,htmlUrl:run.html_url
+              }))
+            };
+            const path="handoff/state.json";
+            const content=Buffer.from(JSON.stringify(state,null,2)+"\n","utf8").toString("base64");
+            let sha;
+            try {
+              const prev=await github.rest.repos.getContent({owner,repo,path,ref:defaultBranch});
+              if(!Array.isArray(prev.data)) sha=prev.data.sha;
+            } catch(err) {
+              if(err.status!==404) throw err;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner,repo,path,branch:defaultBranch,sha,content,
+              message:"chore: refresh chat handoff state [skip ci]"
+            });
