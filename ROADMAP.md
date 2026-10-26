@@ -6,7 +6,8 @@
 - [x] Create Windows-first application shell, ChatGPT browser spike, clipboard paste and external browser fallback.
 - [x] Add Windows CI gates for core tests and syntax checking.
 - [ ] Interactive Windows compatibility acceptance: launch, resize, close/reopen, sign in if supported, reject/error handling, fallback, data location, clipboard and no browser-log leaks.
-- [ ] Package, install and uninstall smoke tests for actual Windows target.
+- [x] Add reproducible Windows installer build workflow (PyInstaller onedir + Inno Setup, self-test and artifact).
+- [ ] Install/uninstall and normal embedded browser sign-in acceptance on an actual Windows desktop.
 Exit: docs/tests green AND native Windows manual checklist completed. M0 is not complete solely because CI is green.
 
 ## M1 — Customer database

@@ -20,6 +20,12 @@ Manual — REQUIRED on actual Windows computer:
 - [ ] Manually copy a harmless text sample and click Paste as plain text; verify no automatic AI traffic.
 - [ ] Check writable profile location, profile isolation and that logs do not contain authentication details.
 - [ ] Verify clean app exit, no account control/network activity besides the embedded site, no reports/customer data uploaded.
-- [ ] Test packaging/installation/uninstall once installer exists. Not part of code-only CI.
+- [ ] Download M0 installer artifact from GitHub Actions; extract and run Setup.exe without Python, Git or PowerShell.
+- [ ] Installer does not prompt for administrator access on a normal per-user Windows desktop.
+- [ ] Start Menu shortcut starts the application; optional desktop shortcut works.
+- [ ] Installed binary contains Qt WebEngine resources; verify browser renders a real web page or shows fallback.
+- [ ] Uninstall removes installed application files and shortcuts but preserves user-local profile by design.
+- [ ] Verify Windows SmartScreen/signing state, source provenance, artifact SHA-256 and no credential leaks.
+- [ ] Perform normal login compatibility test with the *user* at the Windows desktop; packaged about:blank smoke-test is not this test.
 
 Keep results in a review comment with OS/Python version and observed behavior. Never save credentials or raw browser diagnostic captures.

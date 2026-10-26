@@ -18,3 +18,5 @@ Rejected architecture patterns:
 - Claiming embedded login or Windows installer compatibility without Windows testing.
 
 For future changes add a dated entry with evidence, failed alternatives, ADR reference and regression test link.
+
+2026-10-26 — Windows installer decision (ADR-0004): production users must not install Python, Git or use PowerShell. M0 distribution uses an unsigned, per-user Inno Setup installer wrapping an onedir PyInstaller build; GitHub Actions performs an offline Qt WebEngine smoke test. Actual ChatGPT login and installer acceptance remain human Windows tests.
