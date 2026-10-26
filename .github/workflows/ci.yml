@@ -25,6 +25,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Qt layout smoke test failed" }
       - name: Exercise M3 visual editor, project dialogs and preview offline
         run: python -m reportmaker --visual-editor-self-test
+      - name: Exercise M4 DOCX/PDF export through Qt offline
+        run: python -m reportmaker --export-self-test
       - name: Verify invariant and core unit tests
         shell: pwsh
         run: |
