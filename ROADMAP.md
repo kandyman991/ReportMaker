@@ -38,8 +38,13 @@ See `docs/M2_PROJECT_ENGINE.md`.
 - [ ] Independent technical review, exact-final-head CI, installed-Windows acceptance, keyboard accessibility and true WYSIWYG print/pagination validation.
 See `docs/M3_VISUAL_EDITOR.md`.
 
-## M4 — Word/PDF output
-Fully editable DOCX, rendering and pagination, image anchoring/captions, branded header/footer, table of contents and pagination regression fixtures.
+## M4 — Word/PDF output (draft PR #13; installed-PC acceptance pending)
+- [x] Source implementation of editable DOCX text/headings/tables/photos/captions and manual page breaks; generated canonical-hierarchy Summary with dynamic Word PAGEREF fields.
+- [x] Local multipass PDF pagination/TOC with current page footers; export from the same canonical plan, no Word/LibreOffice prerequisite.
+- [x] Native Qt export actions, atomic output replacement and synthetic export/Qt smoke regression gates.
+- [ ] Exact-current-head hosted Windows CI, independent export/security review and corrective PRs.
+- [ ] Installed Windows/Word/PDF manual acceptance; branded layout/template integration belongs to M6, full translation workflows to M5.
+See `docs/M4_EXPORT.md` and `docs/WINDOWS_ACCEPTANCE_M0_M4.md`.
 
 ## M5 — Open-ended languages
 User-added locales, per-block variants, stale markers, translations and separate/inline/section export styles. No paid AI translation integration.
