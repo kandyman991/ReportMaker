@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
         ephemeral_browser: bool = False,
     ) -> None:
         super().__init__()
-        self.setWindowTitle("ReportMaker — M0 Browser Compatibility Prototype")
+        self.setWindowTitle("ReportMaker — M1 Customer Database Preview")
         self.resize(1450, 850)
         self.settings = settings if settings is not None else QSettings("ReportMaker", "ReportMaker")
         self._notes: dict[str, str] = {}
@@ -127,6 +127,10 @@ class MainWindow(QMainWindow):
         reset = QAction("Reset layout", self)
         reset.triggered.connect(self.reset_layout)
         toolbar.addAction(reset)
+        customers = QAction("Customers / Sites / Machines", self)
+        customers.setObjectName("customerManagerAction")
+        customers.triggered.connect(self._open_customers)
+        toolbar.addAction(customers)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.splitter.setObjectName("workspaceSplitter")
@@ -198,7 +202,7 @@ class MainWindow(QMainWindow):
         self.modules.currentItemChanged.connect(self._on_module_change)
         self.modules.setCurrentRow(0)
         self.statusBar().showMessage(
-            "M0 preview — no saved reports, DOCX export, AI API or website automation."
+            "M1 local customers available; report editing/export not yet implemented. No AI API."
         )
 
     def _capture_widths(self, *_args) -> None:
@@ -296,6 +300,17 @@ class MainWindow(QMainWindow):
         text = QApplication.clipboard().text()
         if text:
             self.editor.insertPlainText(text)  # Never HTML or website automation.
+
+    def _open_customers(self) -> None:
+        """Open local records on demand; do not mix them with browser storage."""
+        from PySide6.QtWidgets import QMessageBox
+        from .customer_ui import CustomerManagerDialog
+        from .storage import CustomerStore
+        try:
+            with CustomerStore() as store:
+                CustomerManagerDialog(store, self).exec()
+        except (OSError, RuntimeError, ValueError) as error:
+            QMessageBox.critical(self, "Customer database unavailable", str(error))
 
     def closeEvent(self, event) -> None:
         self._capture_widths()
