@@ -61,3 +61,17 @@ Start after reading the records and verifying M0 PR #1 and #3 are integrated int
 
 ## Completion/checkpoint procedure
 Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or a chat handoff. Record exact commit, PR, CI/run, behavior tested, known gaps, next specific action, and rollback; add an ADR for any architectural deviation. Never merge a PR without user authorization. Review exact commit CI and verify GitHub state before claiming work complete.
+
+## M1 merged, M2 feature development checkpoint — 2026-10-26
+- M1 PR #5 merged into main at `933cb537ad259d709ea5f1f23b9e56433122e4cf`; the handoff-bot follow-up moved live main to `f9e8abdc94411cc52657eded1c37a0217f428053`. Main M0, M1 Windows and continuity workflows for the merge commit completed successfully. This supersedes earlier *historical* M1 draft status above.
+- M2 feature branch `feature/m2-project-module-engine` started from `f9e8abdc94411cc52657eded1c37a0217f428053`. Implementation includes canonical report metadata, modular/heterogeneous block commands and derived one-tree outline, local atomic `.rmproj` project bundles with hashed photo assets, schema validation and undo/redo. See `docs/M2_PROJECT_ENGINE.md`.
+- The model and project package are pure Python and do not integrate with the Windows scratchpad UI yet (M3). No web/AI automation, no customer uploads, no installer/deployment, no changes to main.
+- At this checkpoint exact-head CI, independent security/code review and native installed Windows acceptance are **pending**. Never claim Windows user acceptance merely from hosted CI.
+- Next: verify M2 branch exact SHA and Windows CI, review archive/validation safeguards, fix any findings in feature branch, and get explicit authorization before merge.
+
+
+## M2 review corrections — PR #10 stacked on PR #9 (2026-10-26)
+- Independent PR #9 review at `3daebbf53c81558664a9d6dac41e760425a19108` documented three blocking issues: orphan photo persistence (F01 High), invalid edits producing unopenable projects (F02 High), unsupported ZIP errors escaping input failure (F03 Medium). Review is COMMENTED and not approval.
+- Stacked correction PR #10: https://github.com/kandyman991/ReportMaker/pull/10 targeting `feature/m2-project-module-engine`. Feature branch `review/pr9-m2-safety-corrections`, **not** main. Corrects asset pruning, pure recursive serialization validation and strict ZIP compression errors, adds 8 synthetic tests and M2 recovery/version-policy documentation.
+- Verified M0 Windows core and **48 tests** at correction code/doc head `fbb2bf056333a512db601e7bdbc864ac1de11af7`, GitHub run #40377387550 SUCCESS; later documentation commits require exact-current-head validation. Review ledger: `docs/PR9_REVIEW.md`.
+- PR #10 and PR #9 remain **unmerged**, with no installed-PC acceptance or deployment. Next: independent bounded review of PR #10's exact head and CI, then explicit authorization if integration is desired.

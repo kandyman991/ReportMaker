@@ -13,7 +13,7 @@
 - [x] Add GitHub-backed curated handoff + mechanical state snapshot + continuity regression gates (continuity-only bootstrap).
 Exit: docs/tests green AND native Windows manual checklist completed. M0 is not complete solely because CI is green.
 
-## M1 — Customer database (draft PR #5; not merged)
+## M1 — Customer database (PR #5 merged into main 2026-10-26; installed-PC acceptance remains pending)
 - [x] Local SQLite schema v1/transactional migration, customers/sites/machines, search/edit, serials and machine intervention history.
 - [x] Write-once detached reference snapshots and one-off manual customer references.
 - [x] Local SQLite online backup, integrity check and documented import/export/privacy policy.
@@ -21,8 +21,12 @@ Exit: docs/tests green AND native Windows manual checklist completed. M0 is not 
 - [ ] Independent code review, installed Windows interactive acceptance and M1 prerelease build strategy.
 - [ ] Full saved report/project integration is M2, not M1. JSON/CSV import remains a separate reviewed policy task.
 
-## M2 — Project and module engine
-Ordered heterogeneous blocks, nested modules, photo assets, persistence, undo/redo, conclusion-last invariant, import/export project format.
+## M2 — Project and module engine (feature branch under review)
+- [x] Canonical report metadata and mixed intervention types; ordered heterogeneous blocks, nested modules and derived summary projection.
+- [x] Standalone local project save/reopen, embedded hashed photo assets, schema versioning and fail-closed import.
+- [x] Transactional model editing with undo/redo, module duplication/reordering and conclusion-last validation.
+- [ ] Exact-head CI and independent review; installed Windows save/reopen and editor UX acceptance remain pending.
+See `docs/M2_PROJECT_ENGINE.md`.
 
 ## M3 — Visual editor
 Module tree, freely ordered drag/drop content, photo/text/table editing, resizable panes, visual document preview and accessibility.

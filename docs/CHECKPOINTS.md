@@ -74,3 +74,23 @@ Known failures and deferred tasks:
 Merge/deployment authorization:
 Next reproducible action:
 ```
+
+## CP-M2-START — project/module engine on isolated feature branch
+- Date: 2026-10-26. Base main: `f9e8abdc94411cc52657eded1c37a0217f428053` (after M1 merge + handoff bot).
+- Branch: `feature/m2-project-module-engine`. First engine commit `c7663807d2e00635ac395d91a793938518630d97`; project bundle commit `bed6a61eac776674b747e273fc47fe5b0fbccbc8`; synthetic M2 tests commit `e363c98b7470b9cce5bd136effd6b887dfc6afe6`; later documentation commits may move HEAD.
+- Binding contracts: ADR-0006 and `docs/REPORT_COMPOSITION_CONTRACT.md`. Metadata includes creation date, title, multi-select types/Other, personnel, snapshots, languages. Blocks remain freely ordered/nested. One canonical hierarchy derives editor navigation and automatic Summary; Conclusions remain last.
+- M2 implementation: pure command engine with undo/redo; version-1 project ZIP manifest with locally embedded photo data and verified digests; atomic replacement; fail-closed schema/corruption handling. No DOCX/PDF, M3 visual editor, AI API, external upload or user production data.
+- Test evidence: `tests/test_m2_project.py` is synthetic-only; exact final branch CI outcome and native Windows acceptance must be verified **after** this checkpoint. Prior M1 merged-main workflows were successful; do not substitute them for M2.
+- Privacy/deployment: no production files, credentials, website cookies, native install or public installer. No merge authorization.
+- Next: open M2 draft PR, verify exact-head Windows CI and independent review, correct findings before seeking merge authorization. Documented format limits in `docs/M2_PROJECT_ENGINE.md`.
+
+
+## CP-M2-R1 — isolated corrections for PR #9 review findings (2026-10-26)
+- Original reviewed PR9 head: `3daebbf53c81558664a9d6dac41e760425a19108`; independent review https://github.com/kandyman991/ReportMaker/pull/9#pullrequestreview-5656832565 (COMMENTED, **not approval**).
+- PR9-F01 High: unreferenced media packaged invisibly -> serialize only reachable assets; keep in-memory bytes for undo and shared references; legacy v1 orphan imports scrub on resave.
+- PR9-F02 High: edit may save invalid metadata/translated text -> pure, comprehensive metadata and nested localized validation at edit and save boundaries, with no post-construction silent default restoration.
+- PR9-F03 Medium: malformed unsupported ZIP compression may raise other exception -> compression/encryption allowlist and controlled corruption errors.
+- Stacked correction PR #10 https://github.com/kandyman991/ReportMaker/pull/10; branch `review/pr9-m2-safety-corrections` targets PR #9 feature branch, not main. Review ledger `docs/PR9_REVIEW.md`; package compatibility/backup policy `docs/M2_PROJECT_ENGINE.md`.
+- Verified hosted Windows core run #40377387550 SUCCESS and 48 tests at exact head `fbb2bf056333a512db601e7bdbc864ac1de11af7` before later docs-only commits. The initial malicious ZIP fixture failure #40377228870 was corrected and is not a production test failure.
+- Synthetic fixtures only, no customer data, no installer/production changes. M1 main remains untouched.
+- Open: independent targeted correction review; final exact SHA/CI recheck; manual installed-Windows acceptance; M3 UI Save/Open and private opt-in backup decision. **No merge, release or deploy without user authorization.**
