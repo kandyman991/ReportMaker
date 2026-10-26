@@ -131,7 +131,7 @@ jobs:
           Write-Host "Installer published to https://github.com/$repo/releases/tag/$tag"
 
   purge-legacy-storage:
-    # Separate, least-privilege job. Never uses actions/upload-artifact.
+    # Separate least-privilege cleanup job; no temporary installer artifact storage.
     # Runs only after the rolling release has been published successfully.
     needs: installer
     runs-on: ubuntu-latest
