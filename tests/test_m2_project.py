@@ -224,5 +224,56 @@ class M2ProjectTests(unittest.TestCase):
                 load_project(link)
 
 
+    def test_conclusions_cannot_hide_intervention_submodules(self):
+        project = example()
+        editor = ProjectEditor(project.report)
+        before = module_outline(editor.report)
+        with self.assertRaises(ValueError):
+            editor.add_module(Module(loc("Forbidden")), parent_id=editor.report.conclusion.id)
+        self.assertEqual(module_outline(editor.report), before)
+        forbidden = NestedModuleBlock(Module(loc("Hidden intervention")))
+        with self.assertRaises(ValueError):
+            editor.add_block(editor.report.conclusion.id, forbidden)
+        self.assertEqual(module_outline(editor.report), before)
+
+    def test_malformed_snapshot_and_duplicate_json_keys_rejected(self):
+        save_project(example(), self.path)
+        with ZipFile(self.path) as bundle:
+            raw = bundle.read("manifest.json")
+            photo = bundle.read("assets/photo-1")
+
+        tampered = json.loads(raw)
+        tampered["report"]["customer_snapshot"]["customer_city"] = ["not text"]
+        with ZipFile(self.path, "w", ZIP_DEFLATED) as bundle:
+            bundle.writestr("manifest.json", json.dumps(tampered))
+            bundle.writestr("assets/photo-1", photo)
+        with self.assertRaises(ValueError):
+            load_project(self.path)
+
+        # Duplicate field names are ambiguous and must fail closed.
+        duplicated = b'{"format":"reportmaker.project",' + raw[1:]
+        with ZipFile(self.path, "w", ZIP_DEFLATED) as bundle:
+            bundle.writestr("manifest.json", duplicated)
+            bundle.writestr("assets/photo-1", photo)
+        with self.assertRaises(ValueError):
+            load_project(self.path)
+
+    def test_database_snapshot_remains_frozen_in_reopened_project(self):
+        from reportmaker.storage import CustomerStore
+        db_path = Path(self.tmp.name) / "customers.sqlite3"
+        with CustomerStore(db_path) as store:
+            customer_id = store.create_customer("Original Synthetic Co")
+            snapshot = store.capture_snapshot(customer_id)
+            project = example()
+            project.report.customer_id = customer_id
+            project.report.customer_snapshot = snapshot
+            save_project(project, self.path)
+            store.update("customers", customer_id, name="Renamed Master Record")
+        reopened = load_project(self.path)
+        self.assertEqual(reopened.report.customer_id, customer_id)
+        self.assertEqual(reopened.report.customer_snapshot.customer_name, "Original Synthetic Co")
+
+
+
 if __name__ == "__main__":
     unittest.main()
