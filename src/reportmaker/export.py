@@ -301,7 +301,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
     )
     from reportlab.platypus.tableofcontents import TableOfContents
     from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfbase.ttfonts import TTFont, TTFError
 
     body_font, bold_font = "Helvetica", "Helvetica-Bold"
     # Embed a local system Unicode font where present. No font/user data is
@@ -319,7 +319,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
                 pdfmetrics.registerFont(TTFont("RM-Bold", str(bold)))
                 body_font, bold_font = "RM-Body", "RM-Bold"
                 break
-            except (ValueError, OSError):
+            except (ValueError, OSError, TTFError):
                 continue
 
     class ReportPDF(BaseDocTemplate):
