@@ -61,3 +61,10 @@ Start after reading the records and verifying M0 PR #1 and #3 are integrated int
 
 ## Completion/checkpoint procedure
 Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or a chat handoff. Record exact commit, PR, CI/run, behavior tested, known gaps, next specific action, and rollback; add an ADR for any architectural deviation. Never merge a PR without user authorization. Review exact commit CI and verify GitHub state before claiming work complete.
+
+## M1 merged, M2 feature development checkpoint — 2026-10-26
+- M1 PR #5 merged into main at `933cb537ad259d709ea5f1f23b9e56433122e4cf`; the handoff-bot follow-up moved live main to `f9e8abdc94411cc52657eded1c37a0217f428053`. Main M0, M1 Windows and continuity workflows for the merge commit completed successfully. This supersedes earlier *historical* M1 draft status above.
+- M2 feature branch `feature/m2-project-module-engine` started from `f9e8abdc94411cc52657eded1c37a0217f428053`. Implementation includes canonical report metadata, modular/heterogeneous block commands and derived one-tree outline, local atomic `.rmproj` project bundles with hashed photo assets, schema validation and undo/redo. See `docs/M2_PROJECT_ENGINE.md`.
+- The model and project package are pure Python and do not integrate with the Windows scratchpad UI yet (M3). No web/AI automation, no customer uploads, no installer/deployment, no changes to main.
+- At this checkpoint exact-head CI, independent security/code review and native installed Windows acceptance are **pending**. Never claim Windows user acceptance merely from hosted CI.
+- Next: verify M2 branch exact SHA and Windows CI, review archive/validation safeguards, fix any findings in feature branch, and get explicit authorization before merge.
