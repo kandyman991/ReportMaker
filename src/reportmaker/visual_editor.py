@@ -29,7 +29,7 @@ from .model import (
     ParagraphBlock, PhotoBlock, Report, TableBlock,
 )
 from .project_io import MAX_ASSET, ReportProject, default_projects_directory, load_project, save_project
-from .reference import manual_snapshot
+from .reference import CustomerSnapshot, manual_snapshot
 
 
 def new_report() -> ReportProject:
@@ -73,6 +73,35 @@ def module_insert_index(report: Report, target_id: str, after: bool) -> tuple[st
                     return module.id, index + int(after)
                 stack.append(block.module)
     raise LookupError("Drop target not found")
+
+
+def revised_manual_snapshot(
+    previous: CustomerSnapshot, customer: str, site: str, machine: str,
+) -> CustomerSnapshot:
+    """Never associate hidden customer/site/machine details with a new identity.
+
+    The form edits visible names only. Keep supplementary snapshot fields when
+    their parent identity is unchanged; reset dependent details on a rename.
+    """
+    customer, site, machine = customer.strip(), site.strip(), machine.strip()
+    if customer != previous.customer_name:
+        keep_prefixes = ()
+    elif site != previous.site_name:
+        keep_prefixes = ("customer_",)
+    elif machine != previous.machine_name:
+        keep_prefixes = ("customer_", "site_")
+    else:
+        keep_prefixes = ("customer_", "site_", "machine_")
+    details = {
+        part.name: getattr(previous, part.name)
+        for part in fields(previous)
+        if part.name not in ("customer_name", "customer_id", "site_name", "site_id",
+                            "machine_name", "machine_id", "captured_at", "schema_version")
+        and part.name.startswith(keep_prefixes)
+    }
+    return manual_snapshot(
+        customer, site_name=site, machine_name=machine, **details,
+    )
 
 
 class ModuleTree(QTreeWidget):
@@ -732,15 +761,10 @@ class VisualReportEditor:
                 target.created_date = dates["created"]
                 target.start_date, target.end_date = dates["start"], dates["end"]
                 if target.customer_id is None:
-                    previous = target.customer_snapshot
-                    # Preserve manually entered supplementary snapshot fields.
-                    details = {f.name: getattr(previous, f.name) for f in fields(previous)
-                               if f.name not in ("customer_name", "customer_id", "site_id",
-                                                 "machine_id", "captured_at", "schema_version",
-                                                 "site_name", "machine_name")}
-                    target.customer_snapshot = manual_snapshot(
-                        values["customer"], site_name=values["site"],
-                        machine_name=values["machine"], **details)
+                    target.customer_snapshot = revised_manual_snapshot(
+                        target.customer_snapshot,
+                        values["customer"], values["site"], values["machine"],
+                    )
             self.editor.apply(change)
         except (ValueError, TypeError) as exc:
             self._warn("Invalid report information", exc)
@@ -826,7 +850,10 @@ class VisualReportEditor:
                              ("Intervention", report.start_date.isoformat() + " – " + report.end_date.isoformat()),
                              ("Ticket", report.ticket),
                              ("Personnel", ", ".join(report.technicians)),
-                             ("Types", ", ".join(report.intervention_types))):
+                             ("Types", ", ".join(report.intervention_types)),
+                             ("Other intervention details",
+                              report.other_intervention_detail
+                              if "other" in report.intervention_types else "")):
             if value:
                 sections.append("<p><b>%s:</b> %s</p>" % (label, escape(value)))
         sections.append("<h2>Summary</h2>")
@@ -876,9 +903,9 @@ class VisualReportEditor:
         self.preview.viewport().update()
 
     def _confirm_discard(self):
-        if not self._flush_block() or not self._flush_info():
-            return False
-        if not self.dirty:
+        # Discard must remain available even if the pending form is invalid.
+        # Only the Save branch validates/commits draft edits.
+        if not (self.dirty or self._block_pending or self._info_pending):
             return True
         choice = QMessageBox.question(
             self.owner, "Unsaved project",
@@ -970,14 +997,15 @@ class VisualReportEditor:
         return self._confirm_discard()
 
     def undo(self):
-        if not self._flush_block():
+        # Preserve pending Report Information before any history navigation.
+        if not self._flush_block() or not self._flush_info():
             return
         if self.editor.undo():
             self.dirty = True
             self.refresh()
 
     def redo(self):
-        if not self._flush_block():
+        if not self._flush_block() or not self._flush_info():
             return
         if self.editor.redo():
             self.dirty = True
