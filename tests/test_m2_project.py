@@ -275,5 +275,22 @@ class M2ProjectTests(unittest.TestCase):
 
 
 
+    def test_nested_module_wrapper_id_survives_move_between_parents(self):
+        editor = ProjectEditor(example().report)
+        original_parent = editor.report.modules[0]
+        original_wrapper = original_parent.blocks[1]
+        child_id, wrapper_id = original_wrapper.module.id, original_wrapper.id
+        destination = Module(loc("Destination"))
+        editor.add_module(destination)
+        editor.move_module(child_id, parent_id=destination.id)
+        moved_wrapper = editor.report.modules[1].blocks[0]
+        self.assertEqual(moved_wrapper.id, wrapper_id)
+        self.assertEqual(moved_wrapper.module.id, child_id)
+        self.assertEqual(moved_wrapper.module.blocks[1].asset_id, "photo-1")
+        self.assertTrue(editor.undo())
+        self.assertEqual(editor.report.modules[0].blocks[1].id, wrapper_id)
+
+
+
 if __name__ == "__main__":
     unittest.main()
