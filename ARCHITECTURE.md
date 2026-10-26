@@ -1,9 +1,9 @@
 # ReportMaker architecture contract — v1 (2026-10-26)
 
 ## User-facing workflow (binding requirements)
-1. Search/select customer from a local customer database. Customer may own multiple sites and each site multiple machines. Record an immutable snapshot of customer/site/machine details in each saved report.
-2. Enter intervention start/end dates, optional ticket, technician(s) and report language configuration.
-3. Add, delete, duplicate, nest and reorder any number of intervention modules.
+1. Search/select a customer from the local customer database **or manually enter customer/site/machine details without a master database record**. Customers may own multiple sites and machines. Record a report-local snapshot in both modes so subsequent edits to master data never rewrite older reports.
+2. Enter report creation date, editable title, intervention start/end dates, optional ticket, technician(s), **multiple simultaneously selected intervention types** (supervision, ordinary maintenance, extraordinary maintenance, and/or Other with specification), and report language configuration.
+3. Add, delete, duplicate, nest and reorder any number of intervention modules. The module tree and automatically generated Summary/table of contents are **two derived views of the same canonical hierarchy**, never two independently persisted lists.
 4. Each module has a localized title and arbitrary ordered content blocks: paragraphs, headings, photos with local asset references and optional captions, tables, manual page breaks, and nested modules. Blocks can alternate freely; no mandatory photo gallery position.
 5. A dedicated, final Conclusions section supports free text and optional recommendations. It must appear after all intervention modules in export.
 6. Save/edit/reopen reports as structured local projects independently from exported documents.
@@ -26,7 +26,7 @@ User-controlled ordinary website at https://chatgpt.com inside a resizable Qt We
 M0 provides model types and a Windows shell/browser compatibility probe; it is not a production customer database, final editor or document exporter. Architecture remains binding across later milestones.
 
 ## Data model invariants
-- Report contains customer_id plus intervention date range with start <= end; reference snapshot planned for M1.
+- Report has an optional customer_id (null for manual one-off entries), a frozen customer/site/machine reference snapshot and intervention date range with start <= end. Report title, creation date, personnel and all selected intervention categories are report metadata.
 - Primary writing language and requested language codes are validated as nonempty tags; never fixed to Italian/English.
 - Modules contain ordered block arrays, with optional nested module blocks and localized text/captions. IDs are stable.
 - Conclusions are stored separately and are last in logical and export order.
@@ -34,3 +34,6 @@ M0 provides model types and a Windows shell/browser compatibility probe; it is n
 - Translation provenance/stale state must survive round trips once persistence is implemented.
 
 See docs/adr and docs/ARCHITECTURE_MEMORY.md for decisions and rationale.
+
+## Agreed report composition details (ADR-0006)
+See [docs/REPORT_COMPOSITION_CONTRACT.md](docs/REPORT_COMPOSITION_CONTRACT.md) and [ADR-0006](docs/adr/0006-report-composition.md) for the user-supplied sketch's header fields, multi-type interventions, database/manual customer selection, summary derived from the shared module model, hierarchy numbering and milestone-specific regression gates. This is a binding **requirement**, not a claim that the editor/exporter is already implemented.

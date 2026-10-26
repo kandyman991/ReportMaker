@@ -21,6 +21,14 @@ _Updated 2026-10-26. Maintainers edit this file at PR, milestone and chat-handof
 - Constraints: no paid/automated AI, no private data upload, Windows host CI, release assets not Actions artifacts.
 - Execution: isolated M1 PR; synthetic migration/relationship/search tests plus Windows GUI acceptance. Add precise SHA, PR, test evidence and decision/risk summary here before closing the development chat.
 
+## CP-DOC-REPORT-COMPOSITION — requirements preservation (proposed)
+- Source: user sketch and explicit clarifications on 2026-10-26.
+- Branch: `docs/report-structure-contract-20261026`, based on main `5188f8ff74f50753650cb5975713e9c7bc56576f`.
+- Scope: ADR-0006, canonical report composition specification, architecture/agent rules and handoff references. Requirements documentation **only**; not proof of application behavior.
+- Review: open documentation PR and verify its exact head SHA/CI before merge. No merge authorized. Existing M1 PR #5 remains independent.
+- Tests: M1–M5 acceptance and regression cases specified in contract; code-level tests must be implemented as corresponding features land.
+- Next: review this contract, and rebase/integrate into M1 and later milestone work only after explicit approval. No private customer information stored.
+
 ## Checkpoint template for subsequent work
 ```text
 Checkpoint ID / date:
