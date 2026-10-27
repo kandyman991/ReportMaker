@@ -172,6 +172,15 @@ class TemplateImportTests(unittest.TestCase):
             for kind, destination in (("docx", word), ("pdf", pdf)):
                 export_project(synthetic_project(), destination, format=kind, style=style)
             self.assertEqual(source.read_bytes(), original)
+            dotx = root / "synthetic-letterhead.dotx"
+            dotx.write_bytes(original)
+            mutate_package(dotx, lambda parts: [
+                (name, payload.replace(
+                    b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+                    b"application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"
+                ) if name == "[Content_Types].xml" else payload)
+                for name, payload in parts])
+            self.assertEqual(import_word_template(dotx).template, layout)
             generated = Document(word).sections[0]
             self.assertEqual(generated.header.paragraphs[0].text, layout.header_text)
             self.assertTrue(generated.footer.paragraphs[0].text.startswith(layout.footer_text))
@@ -200,6 +209,14 @@ class TemplateImportTests(unittest.TestCase):
                     with self.assertRaises(TemplateError):
                         save_template(bad, target)
                     self.assertEqual(load_template(target), safe)
+            too_long_doc = root / "too-long.docx"
+            excessive = Document()
+            excessive.sections[0].footer.paragraphs[0].text = (
+                "Synthetic " * (MAX_HEADER_FOOTER_CHARS // 10 + 1))
+            excessive.save(too_long_doc)
+            with self.assertRaisesRegex(TemplateError,
+                                        f"Footer text exceeds the {MAX_HEADER_FOOTER_CHARS}-character limit"):
+                import_word_template(too_long_doc)
             for invalid in ("\x00", "\r", "\x1b"):
                 with self.assertRaisesRegex(TemplateError, "Header text contains unsupported"):
                     validate_template(replace(safe, header_text=invalid))
