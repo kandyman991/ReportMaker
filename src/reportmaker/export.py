@@ -91,13 +91,14 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
                        style.normal_font, style.normal_size_pt)
 
 
-def _photo_dimensions(image: bytes) -> tuple[float, float]:
-    """Natural 96-dpi size downscaled to A4, with no forced enlargement."""
+def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
+                      max_height_cm: float = PHOTO_MAX_HEIGHT_CM) -> tuple[float, float]:
+    """Natural 96-dpi size, never larger than the selected printable page."""
     from PIL import Image
     with Image.open(BytesIO(image)) as im:
         width, height = im.size
-    scale = min(2.54 / 96.0, PHOTO_MAX_WIDTH_CM / width,
-                PHOTO_MAX_HEIGHT_CM / height)
+    scale = min(2.54 / 96.0, max_width_cm / width,
+                max_height_cm / height)
     return width * scale, height * scale
 
 
@@ -489,7 +490,13 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
                 for j, value in enumerate(row):
                     table.cell(i, j).text = value
         elif item.kind == "photo":
-            photo_w, photo_h = _photo_dimensions(item.image)
+            photo_w, photo_h = _photo_dimensions(
+                item.image, max_width_cm=min(
+                    PHOTO_MAX_WIDTH_CM,
+                    style.page_width_cm - style.left_margin_cm - style.right_margin_cm - 1),
+                max_height_cm=min(
+                    PHOTO_MAX_HEIGHT_CM,
+                    style.page_height_cm - style.top_margin_cm - style.bottom_margin_cm - 1))
             picture = document.add_paragraph()
             picture.paragraph_format.keep_together = True
             picture.paragraph_format.keep_with_next = bool(item.text)
@@ -701,7 +708,13 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
             ]))
             story.extend([tbl, Spacer(1, 8)])
         elif item.kind == "photo":
-            photo_w, photo_h = _photo_dimensions(item.image)
+            photo_w, photo_h = _photo_dimensions(
+                item.image, max_width_cm=min(
+                    PHOTO_MAX_WIDTH_CM,
+                    style.page_width_cm - style.left_margin_cm - style.right_margin_cm - 1),
+                max_height_cm=min(
+                    PHOTO_MAX_HEIGHT_CM,
+                    style.page_height_cm - style.top_margin_cm - style.bottom_margin_cm - 1))
             image = Image(BytesIO(item.image), width=photo_w*cm,
                           height=photo_h*cm)
             if item.text:
