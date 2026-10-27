@@ -31,6 +31,10 @@ def run() -> int:
         window.show()
         app.processEvents()
         doc = window.document
+        # Catch accidental blocking alert dialogs in CI instead of hanging indefinitely.
+        unforeseen_warning = patch.object(QMessageBox, "warning",
+                                         side_effect=AssertionError("Unexpected Qt warning during rich-editor smoke"))
+        unforeseen_warning.start()
         try:
             # RC1 installed-Windows finding: native dark theme used near-black
             # report text over a near-black QTextBrowser background.
@@ -328,6 +332,7 @@ def run() -> int:
             assert legacy.read_bytes() == original_v1
             assert load_project(upgraded).loaded_version == 4
         finally:
+            unforeseen_warning.stop()
             doc.dirty = False
             window.close()
             app.processEvents()
