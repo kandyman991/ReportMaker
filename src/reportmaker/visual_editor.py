@@ -671,21 +671,30 @@ class VisualReportEditor:
         # QTextCursor positions are UTF-16 offsets on both Qt text surfaces.
         page_field = self.page.fields.get((module_id, block_id, "text"))
         selection = None
+        source_text = None
         if page_field is not None:
             cursor = page_field.textCursor()
             if cursor.hasSelection():
                 selection = (cursor.selectionStart(), cursor.selectionEnd())
+                source_text = page_field.toPlainText()
         if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         self._module_id = module_id
         self._edit_block_id = block_id
         self.refresh()
+        # Flushing an unapplied block-editor draft can replace the page text.
+        # Never map a selection from the discarded/older page onto different
+        # canonical text: that could silently format the wrong characters.
         if selection is not None:
-            cursor = self.text_edit.textCursor()
-            last = self.text_edit.document().characterCount() - 1
-            cursor.setPosition(min(selection[0], last))
-            cursor.setPosition(min(selection[1], last), QTextCursor.MoveMode.KeepAnchor)
-            self.text_edit.setTextCursor(cursor)
+            if self.text_edit.toPlainText() == source_text:
+                cursor = self.text_edit.textCursor()
+                last = self.text_edit.document().characterCount() - 1
+                cursor.setPosition(min(selection[0], last))
+                cursor.setPosition(min(selection[1], last), QTextCursor.MoveMode.KeepAnchor)
+                self.text_edit.setTextCursor(cursor)
+            else:
+                self.block_hint.setText(
+                    "Text changed while opening Style. Select the text again before formatting.")
         # A user might have compressed the upper splitter all the way down.
         # The ribbon now remains accessible independently; reveal the editor
         # too, so the selection and formatting result can be inspected.
