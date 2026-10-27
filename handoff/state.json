@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-27T14:22:17.678Z",
+  "generatedAt": "2026-10-27T16:11:15.735Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,11 +11,41 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "cba931308618169a1bb6490c5f27bcf0e1942e37",
-    "message": "Merge pull request #34 from kandyman991/fix/rc2-draft-release-verification\n\nCorrect RC2 draft-release verification and preserve published prerelease",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/cba931308618169a1bb6490c5f27bcf0e1942e37"
+    "sha": "b5c98873c3426f92fa7db0e3e84f632e9705aa4c",
+    "message": "Merge pull request #40 from kandyman991/fix/issue-36-block-label-refresh\n\nfix: refresh applied paragraph and heading block labels immediately (#36)",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/b5c98873c3426f92fa7db0e3e84f632e9705aa4c"
   },
   "openPullRequests": [
+    {
+      "number": 39,
+      "title": "fix: accept bounded multiline Word headers and footers (closes #35)",
+      "draft": true,
+      "head": "fix/issue-35-template-header-footer-length",
+      "headSha": "8e56b922ac093c37547ecacbe3a2fc152aa23c87",
+      "base": "main",
+      "updatedAt": "2026-10-27T16:11:09Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/39"
+    },
+    {
+      "number": 42,
+      "title": "fix: keep Word-style text formatting ribbon visible (#38)",
+      "draft": true,
+      "head": "fix/issue-38-visible-formatting-ribbon",
+      "headSha": "7960ce23d1e18d452852fadf71cc1da3d7f27b6a",
+      "base": "main",
+      "updatedAt": "2026-10-27T16:03:43Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/42"
+    },
+    {
+      "number": 41,
+      "title": "feat: non-modal project thumbnail gallery and safe drop-position insertion (#37)",
+      "draft": true,
+      "head": "feature/issue-37-project-photo-gallery",
+      "headSha": "09fcc58a7102612d827a77383eeae4335cab8444",
+      "base": "main",
+      "updatedAt": "2026-10-27T15:53:01Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/41"
+    },
     {
       "number": 21,
       "title": "Windows v0.5.0 release candidate: installed acceptance and M0 historical fallback",
@@ -28,6 +58,24 @@
     }
   ],
   "openIssues": [
+    {
+      "number": 38,
+      "title": "RC2 Windows: Word-style font and paragraph formatting ribbon not visible in report editor",
+      "updatedAt": "2026-10-27T14:43:30Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/38"
+    },
+    {
+      "number": 37,
+      "title": "RC2 UX: resizable thumbnail gallery with drag-and-drop photo insertion into report",
+      "updatedAt": "2026-10-27T14:41:05Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/37"
+    },
+    {
+      "number": 35,
+      "title": "RC2 Windows: Word template import fails when header/footer exceeds 120 characters",
+      "updatedAt": "2026-10-27T14:33:02Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/35"
+    },
     {
       "number": 24,
       "title": "Windows acceptance: import DOCX/DOTX page template with page setup, letterhead header/footer and reusable assets",
@@ -49,114 +97,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40520426731,
+      "id": 40538402502,
+      "name": "M0 architecture and model gates",
+      "status": "pending",
+      "conclusion": null,
+      "branch": "fix/issue-35-template-header-footer-length",
+      "headSha": "8e56b922ac093c37547ecacbe3a2fc152aa23c87",
+      "event": "push",
+      "updatedAt": "2026-10-27T16:11:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538402502"
+    },
+    {
+      "id": 40538399028,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "cba931308618169a1bb6490c5f27bcf0e1942e37",
+      "headSha": "b5c98873c3426f92fa7db0e3e84f632e9705aa4c",
       "event": "push",
-      "updatedAt": "2026-10-27T14:22:07Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520426731"
+      "updatedAt": "2026-10-27T16:11:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538399028"
     },
     {
-      "id": 40520426650,
+      "id": 40538398981,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "cba931308618169a1bb6490c5f27bcf0e1942e37",
+      "headSha": "b5c98873c3426f92fa7db0e3e84f632e9705aa4c",
       "event": "push",
-      "updatedAt": "2026-10-27T14:22:07Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520426650"
+      "updatedAt": "2026-10-27T16:11:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538398981"
     },
     {
-      "id": 40520426634,
+      "id": 40538398886,
       "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
+      "status": "in_progress",
+      "conclusion": null,
       "branch": "main",
-      "headSha": "cba931308618169a1bb6490c5f27bcf0e1942e37",
+      "headSha": "b5c98873c3426f92fa7db0e3e84f632e9705aa4c",
       "event": "push",
-      "updatedAt": "2026-10-27T14:22:11Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520426634"
+      "updatedAt": "2026-10-27T16:11:11Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538398886"
     },
     {
-      "id": 40520159929,
+      "id": 40538382415,
       "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/rc2-draft-release-verification",
-      "headSha": "82b86ca752b0d20d146f27c795476e87a4359e70",
+      "status": "pending",
+      "conclusion": null,
+      "branch": "fix/issue-35-template-header-footer-length",
+      "headSha": "13ee3dd1c05bff4a70b18c520691f16cd4a0cccb",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T14:21:38Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520159929"
+      "updatedAt": "2026-10-27T16:11:03Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538382415"
     },
     {
-      "id": 40520159921,
+      "id": 40538382399,
       "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/rc2-draft-release-verification",
-      "headSha": "82b86ca752b0d20d146f27c795476e87a4359e70",
+      "status": "pending",
+      "conclusion": null,
+      "branch": "fix/issue-35-template-header-footer-length",
+      "headSha": "13ee3dd1c05bff4a70b18c520691f16cd4a0cccb",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T14:21:33Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520159921"
+      "updatedAt": "2026-10-27T16:11:03Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538382399"
     },
     {
-      "id": 40520159852,
+      "id": 40538382272,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "fix/rc2-draft-release-verification",
-      "headSha": "82b86ca752b0d20d146f27c795476e87a4359e70",
+      "branch": "fix/issue-35-template-header-footer-length",
+      "headSha": "13ee3dd1c05bff4a70b18c520691f16cd4a0cccb",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T14:20:28Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520159852"
+      "updatedAt": "2026-10-27T16:11:09Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538382272"
     },
     {
-      "id": 40520079280,
+      "id": 40538372050,
       "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "fix/issue-35-template-header-footer-length",
+      "headSha": "13ee3dd1c05bff4a70b18c520691f16cd4a0cccb",
+      "event": "push",
+      "updatedAt": "2026-10-27T16:11:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538372050"
+    },
+    {
+      "id": 40538350033,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "fix/issue-35-template-header-footer-length",
+      "headSha": "5350f012bcafa1f2f5a73211bd2c64fefd469b83",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T16:11:04Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538350033"
+    },
+    {
+      "id": 40538349958,
+      "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "fix/rc2-draft-release-verification",
-      "headSha": "82b86ca752b0d20d146f27c795476e87a4359e70",
-      "event": "push",
-      "updatedAt": "2026-10-27T14:21:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520079280"
-    },
-    {
-      "id": 40520068452,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "fix/rc2-draft-release-verification",
-      "headSha": "cb2bf4c657b6a6cf5c5cec97e7778fea8875258e",
-      "event": "push",
-      "updatedAt": "2026-10-27T14:19:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520068452"
-    },
-    {
-      "id": 40520012799,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "fix/rc2-draft-release-verification",
-      "headSha": "e0f54859d4fbd647e72c27adce60141b49030227",
-      "event": "push",
-      "updatedAt": "2026-10-27T14:19:50Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40520012799"
-    },
-    {
-      "id": 40519948565,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "fix/rc2-draft-release-verification",
-      "headSha": "a416ceaf35be40904c7e8dfebfda344435e8e2cd",
-      "event": "push",
-      "updatedAt": "2026-10-27T14:19:28Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40519948565"
+      "branch": "fix/issue-35-template-header-footer-length",
+      "headSha": "5350f012bcafa1f2f5a73211bd2c64fefd469b83",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T16:10:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40538349958"
     }
   ]
 }

@@ -502,6 +502,36 @@ class VisualReportEditor:
         finally:
             self._loading = False
 
+    @staticmethod
+    def _block_label(block):
+        """Render the list label from canonical source, never from draft widgets."""
+        if isinstance(block, NestedModuleBlock):
+            return "Submodule: " + block.module.title.original
+        name = type(block).__name__.replace("Block", "")
+        if isinstance(block, (HeadingBlock, ParagraphBlock)):
+            name += ": " + block.text.original[:75].replace("\n", " ")
+        elif isinstance(block, PhotoBlock):
+            name += ": " + (block.caption.original if block.caption else block.asset_id)
+        elif isinstance(block, TableBlock):
+            name += ": %d rows" % len(block.rows)
+        return name
+
+    def _sync_block_labels(self):
+        """Update visible labels without changing selection, focus or editor drafts.
+
+        A full refresh here would clear the list and reload the editing widgets.
+        That disrupts selection-change handlers and loses the active text cursor.
+        """
+        module = self._selected_module()
+        if module is None:
+            return
+        labels = {block.id: self._block_label(block) for block in module.blocks}
+        for index in range(self.blocks.count()):
+            item = self.blocks.item(index)
+            label = labels.get(item.data(Qt.ItemDataRole.UserRole))
+            if label is not None and item.text() != label:
+                item.setText(label)
+
     def _refresh_blocks(self):
         module = self._selected_module()
         if module is None:
@@ -510,17 +540,7 @@ class VisualReportEditor:
         old_id = self._edit_block_id
         self.blocks.clear()
         for block in module.blocks:
-            if isinstance(block, NestedModuleBlock):
-                name = "Submodule: " + block.module.title.original
-            else:
-                name = type(block).__name__.replace("Block", "")
-                if isinstance(block, (HeadingBlock, ParagraphBlock)):
-                    name += ": " + block.text.original[:75].replace("\n", " ")
-                elif isinstance(block, PhotoBlock):
-                    name += ": " + (block.caption.original if block.caption else block.asset_id)
-                elif isinstance(block, TableBlock):
-                    name += ": %d rows" % len(block.rows)
-            item = QListWidgetItem(name)
+            item = QListWidgetItem(self._block_label(block))
             item.setData(Qt.ItemDataRole.UserRole, block.id)
             self.blocks.addItem(item)
         item = next((self.blocks.item(i) for i in range(self.blocks.count())
@@ -595,6 +615,8 @@ class VisualReportEditor:
     def _set_pending(self, *_args):
         if not self._loading:
             self._block_pending = True
+            self.block_hint.setText(
+                "Unapplied block changes — click Apply block changes to update the report.")
 
     def _set_info_pending(self, *_args):
         if not self._loading:
@@ -729,7 +751,12 @@ class VisualReportEditor:
             return False
         self._block_pending = False
         self.dirty = True
-        # Caller may be handling a selection change; avoid rebuilding the list here.
+        # Use the canonical model for every list label after a successful commit,
+        # including other page edits flushed above. Do NOT rebuild the list:
+        # Apply may run inside a selection-change callback, and rebuilding the
+        # block editor here would move the focus/caret and discard draft widgets.
+        self._sync_block_labels()
+        self.block_hint.setText("Block changes applied. Save the project to keep them.")
         self._render_preview()
         self.owner.setWindowTitle(self.owner.windowTitle().rstrip(" *") + " *")
         return True
