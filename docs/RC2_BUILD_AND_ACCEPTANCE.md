@@ -11,8 +11,10 @@ merging the packaging PR does not silently change the application source.
 
 - Separate `.github/workflows/windows-rc2.yml`, leaving the
   historical M0-only `.github/workflows/windows-installer.yml` unchanged.
-- Once merged into `main`, the RC2 workflow triggers on the initial
-  workflow-file push (or a deliberate manual workflow_dispatch from main).
+- The initial workflow-file merge automatically triggered the RC2 build on
+  `main` as run [40518468145](https://github.com/kandyman991/ReportMaker/actions/runs/40518468145).
+  Subsequent maintenance changes do **not** rebuild or overwrite a published
+  immutable RC2 tag: only a deliberate manual workflow_dispatch from main.
   No release job on pull requests, forks or non-main branches.
 - Check out **both** the current `main` configuration and the immutable pinned
   source, and verify the source SHA and that no application/legacy packaging
@@ -58,3 +60,25 @@ The active Word template is an **application-wide preference**, not stored in
 the .rmproj file: verify the selected customer letterhead before each export.
 The editable page is not an exact Word pagination clone. Customer documents,
 original photographs and browser profiles must never be uploaded to GitHub.
+
+## Initial RC2 evidence / draft inspection correction
+
+- Initial automatic Windows build run **40518468145**: pinned source verification,
+  full synthetic suite, PyInstaller freeze, all five frozen-executable probes,
+  Inno compilation and local SHA-256 verification **PASSED**. Its final publish
+  step **FAILED** because it called GitHub's public release-by-tag REST endpoint
+  for a **draft**, which returns HTTP 404; the draft and two uploaded assets
+  were intact. The workflow run stays red as audit history (not a build failure).
+- Verified the uploaded draft through authenticated `gh release view`:
+  `ReportMaker-0.5.0-rc.2-Setup.exe` (165381076 bytes) and
+  `SHA256SUMS.txt` (100 bytes). Downloaded the manifest and checked it exactly
+  matched the SHA-256 from the Windows run:
+  `2365407baaf793b45988eb562fc57e96abcd87c39f62138993ff1f5a7f19a822`.
+  The existing draft was then promoted to a public RC2 **prerelease**, no
+  replacement build or overwrite needed.
+- Follow-up code corrects the draft inspection to use authenticated
+  `gh release view ... --json assets,isDraft,isPrerelease` and verifies public
+  release status the same way. The one-time automatic push trigger is removed
+  now that RC2 exists, preventing a new red build when this fix merges.
+- Native installed-Windows/real DOCX/Word/PDF acceptance remains deferred until
+  the user tests the RC2 asset. This release is not stable production.
