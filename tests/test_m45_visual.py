@@ -203,5 +203,45 @@ class M45QtCompositionTests(unittest.TestCase):
         self.assertNotEqual(result.size(), QImage.fromData(original).size())
 
 
+    def test_canvas_draw_arrow_cancel_and_dialog_undo_redo(self):
+        try:
+            from PySide6.QtCore import Qt, QPoint
+            from PySide6.QtTest import QTest
+            from PySide6.QtWidgets import QApplication
+            from reportmaker.photo_editor import PictureEditorDialog
+        except ImportError:
+            self.skipTest("Desktop Qt is not installed")
+        app = QApplication.instance() or QApplication([])
+        buffer = BytesIO()
+        Image.new("RGB", (480, 320), (34, 75, 112)).save(buffer, format="PNG")
+        original = buffer.getvalue()
+        source_visual = PhotoVisual()
+        dialog = PictureEditorDialog(None, original, source_visual, "it")
+        dialog.show()
+        app.processEvents()
+        dialog.tool_choice.setCurrentIndex(dialog.tool_choice.findData("arrow"))
+        canvas = dialog.canvas
+        r = canvas._display_rect
+        self.assertGreater(r.width(), 100)
+        a = QPoint(int(r.left() + r.width() * .2),
+                   int(r.top() + r.height() * .2))
+        b = QPoint(int(r.left() + r.width() * .7),
+                   int(r.top() + r.height() * .65))
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=a)
+        QTest.mouseMove(canvas, b)
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=b)
+        self.assertEqual([m.kind for m in dialog.visual.marks], ["arrow"])
+        self.assertEqual(source_visual, PhotoVisual())
+        self.assertGreater(dialog.visual.marks[0].x2,
+                           dialog.visual.marks[0].x)
+        dialog.undo()
+        self.assertEqual(dialog.visual.marks, [])
+        dialog.redo()
+        self.assertEqual(len(dialog.visual.marks), 1)
+        dialog.reject()
+        self.assertEqual(source_visual, PhotoVisual())
+        self.assertEqual(buffer.getvalue(), original)
+
+
 if __name__ == "__main__":
     unittest.main()
