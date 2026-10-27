@@ -19,7 +19,7 @@ from .project_io import (
 )
 
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
-MAX_DECODE_PIXELS = 36_000_000
+MAX_DECODE_PIXELS = 60_000_000  # accept common 48 MP phone HEIC originals
 MAX_ICC_BYTES = 1024 * 1024
 # maximum long edge, JPEG/WebP encoder quality
 PRESETS = {"compact": (1600, 75), "balanced": (2500, 88),
