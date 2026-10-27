@@ -11,13 +11,15 @@ import unittest
 
 from docx import Document
 from docx.shared import Cm, Pt
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from PIL import Image
 from pypdf import PdfReader
 
 from reportmaker.export import ExportStyle, export_project
 from reportmaker.template_import import (
     DocumentTemplate, TemplateError, import_word_template, load_template,
-    save_template, validate_template,
+    save_template, validate_template, MAX_HEADER_FOOTER_CHARS,
 )
 from test_m4_export import synthetic_project
 
@@ -108,6 +110,126 @@ class TemplateImportTests(unittest.TestCase):
             self.assertAlmostEqual(float(pdf_pages[0].mediabox.width), 18*72/2.54, delta=2)
             self.assertAlmostEqual(float(pdf_pages[0].mediabox.height), 25*72/2.54, delta=2)
             self.assertIn("Lab use only", pdf_pages[0].extract_text())
+
+    def test_long_multiline_letterhead_fields_and_export_roundtrip(self):
+        """Both >120-char fields and a cached Word PAGE value survive safely."""
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "synthetic-letterhead.docx"
+            doc = Document()
+            sec = doc.sections[0]
+            sec.top_margin = Cm(3.5)
+            sec.bottom_margin = Cm(3.0)
+            sec.footer_distance = Cm(.7)
+            header_line = "SYNTHETIC SERVICE LAB | " + "Regional Office " * 8
+            footer_line = "Example Street 12, Fictional City | " + "Support Desk " * 9
+            self.assertGreater(len(header_line), 120)
+            self.assertGreater(len(footer_line), 120)
+            sec.header.paragraphs[0].text = header_line
+            sec.header.add_paragraph("Synthetic engineering department")
+            footer = sec.footer.paragraphs[0]
+            footer.add_run(footer_line)
+            footer.add_run().add_break()
+            footer.add_run("Phone: 000 000 000")
+            sec.footer.add_paragraph("Test contact only")
+            # Word PAGE field cached display value must never become static 9999.
+            def field_run(kind):
+                run = sec.footer.paragraphs[-1].add_run()
+                char = OxmlElement("w:fldChar")
+                char.set(qn("w:fldCharType"), kind)
+                run._r.append(char)
+            sec.footer.paragraphs[-1].add_run(" | Page ")
+            field_run("begin")
+            instruction = sec.footer.paragraphs[-1].add_run()
+            field = OxmlElement("w:instrText")
+            field.text = " PAGE "
+            instruction._r.append(field)
+            field_run("separate")
+            sec.footer.paragraphs[-1].add_run("9999")
+            field_run("end")
+            doc.save(source)
+            original = source.read_bytes()
+
+            result = import_word_template(source)
+            layout = result.template
+            self.assertEqual(layout.header_text, header_line + "\nSynthetic engineering department")
+            self.assertEqual(layout.footer_text, footer_line +
+                             "\nPhone: 000 000 000\nTest contact only | Page ")
+            self.assertNotIn("9999", layout.footer_text)
+            self.assertTrue(any("Dynamic" in w for w in result.warnings))
+            saved = root / "roundtrip.rmtemplate"
+            save_template(layout, saved)
+            self.assertEqual(load_template(saved), layout)
+            style = ExportStyle(
+                layout.header_text, layout.footer_text, layout.logo,
+                layout.page_width_cm, layout.page_height_cm,
+                layout.left_margin_cm, layout.right_margin_cm,
+                layout.top_margin_cm, layout.bottom_margin_cm,
+                layout.header_distance_cm, layout.footer_distance_cm,
+                layout.normal_font, layout.normal_size_pt,
+                layout.heading_font, layout.heading_size_pt)
+            word, pdf = root / "report.docx", root / "report.pdf"
+            for kind, destination in (("docx", word), ("pdf", pdf)):
+                export_project(synthetic_project(), destination, format=kind, style=style)
+            self.assertEqual(source.read_bytes(), original)
+            generated = Document(word).sections[0]
+            self.assertEqual(generated.header.paragraphs[0].text, layout.header_text)
+            self.assertTrue(generated.footer.paragraphs[0].text.startswith(layout.footer_text))
+            text = PdfReader(pdf).pages[0].extract_text()
+            self.assertIn("SYNTHETIC SERVICE LAB", text)
+            self.assertIn("Support Desk", text)
+            self.assertIn("Phone: 000 000 000", text)
+            self.assertIn("Page 1", text)
+
+    def test_field_limits_and_control_characters_are_explicit(self):
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            target = root / "bounded.rmtemplate"
+            safe = DocumentTemplate(
+                header_text="H" * MAX_HEADER_FOOTER_CHARS,
+                footer_text="F" * MAX_HEADER_FOOTER_CHARS)
+            save_template(safe, target)
+            self.assertEqual(load_template(target), safe)
+            for field in ("header_text", "footer_text"):
+                bad = replace(safe, **{field: "Z" * (MAX_HEADER_FOOTER_CHARS + 1)})
+                with self.subTest(field=field):
+                    with self.assertRaisesRegex(TemplateError,
+                                                f"{field.split('_')[0].title()} text exceeds "
+                                                f"the {MAX_HEADER_FOOTER_CHARS}-character limit"):
+                        validate_template(bad)
+                    with self.assertRaises(TemplateError):
+                        save_template(bad, target)
+                    self.assertEqual(load_template(target), safe)
+            for invalid in ("\x00", "\r", "\x1b"):
+                with self.assertRaisesRegex(TemplateError, "Header text contains unsupported"):
+                    validate_template(replace(safe, header_text=invalid))
+            self.assertEqual(validate_template(
+                replace(DocumentTemplate(), footer_text="first\nsecond\tthird")
+            ).footer_text, "first\nsecond\tthird")
+
+    def test_layout_dialog_edits_multiline_text_without_truncating(self):
+        try:
+            from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QPlainTextEdit
+            from reportmaker.template_dialog import edit_template_layout
+        except ImportError:
+            self.skipTest("Qt desktop dependencies absent")
+        app = QApplication.instance() or QApplication([])
+        original = DocumentTemplate(
+            header_text="Regional Office " * 9,
+            footer_text="Synthetic Support Office " * 8)
+        def accept_with_change(dialog):
+            header = dialog.findChild(QPlainTextEdit, "template_header_text")
+            footer = dialog.findChild(QPlainTextEdit, "template_footer_text")
+            self.assertEqual(header.toPlainText(), original.header_text)
+            self.assertEqual(footer.toPlainText(), original.footer_text)
+            header.setPlainText(original.header_text + "\nSecond line")
+            actions = dialog.findChild(QDialogButtonBox)
+            actions.accepted.emit()
+            return QDialog.DialogCode.Accepted
+        with patch.object(QDialog, "exec", accept_with_change):
+            edited = edit_template_layout(None, original)
+        self.assertEqual(edited.header_text, original.header_text + "\nSecond line")
+        self.assertEqual(edited.footer_text, original.footer_text)
 
     def test_dotx_main_type_is_normalized_only_in_memory(self):
         with TemporaryDirectory() as folder:
@@ -235,7 +357,7 @@ class TemplateImportTests(unittest.TestCase):
             for update in (
                 {"page_width_cm": 0},
                 {"left_margin_cm": 7, "right_margin_cm": 7, "page_width_cm": 15},
-                {"header_text": "\nHTML injection"},
+                {"header_text": "\x00HTML injection"},
                 {"normal_size_pt": float("nan")},
                 {"heading_size_pt": 120},
                 {"logo": b"not an image"},
