@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-27T05:44:20.010Z",
+  "generatedAt": "2026-10-27T06:54:38.771Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "5342e765efd7a80f34a6540fcad30ab8d9e7e3a7",
-    "message": "Merge PR #15 M4 branding and DOCX/PDF layout completion into main\n\nM4: optional local export branding, repeated DOCX/PDF headers/footers, bounded photo layout and synthetic regression gates.\n\nTargeted independent source review recommended integration at 31b55b060b0427943052243d9ea4d8027d0d701c. Installed Windows and desktop Word acceptance remain pending.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/5342e765efd7a80f34a6540fcad30ab8d9e7e3a7"
+    "sha": "87745a62260392a867dbed69f6d9dd15db6114c5",
+    "message": "Merge M4.5 architecture and first media-container/HEIC implementation into main\n\nIncludes PR #17 M4.5.1 foundation and PR #18 targeted safety fixes. Exact combined-head hosted Windows CI passed. User authorized merging all three stacked PRs before a later collective review. M4.5 visual annotations and internal review comments remain future work. Installed-Windows M0–M4 acceptance and installer approval remain pending.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/87745a62260392a867dbed69f6d9dd15db6114c5"
   },
   "openPullRequests": [],
   "openIssues": [
@@ -26,114 +26,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40457008192,
-      "name": "ReportMaker continuity contract",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "5342e765efd7a80f34a6540fcad30ab8d9e7e3a7",
-      "event": "push",
-      "updatedAt": "2026-10-27T05:44:17Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40457008192"
-    },
-    {
-      "id": 40457008156,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "5342e765efd7a80f34a6540fcad30ab8d9e7e3a7",
-      "event": "push",
-      "updatedAt": "2026-10-27T05:44:16Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40457008156"
-    },
-    {
-      "id": 40457008137,
+      "id": 40463897349,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "5342e765efd7a80f34a6540fcad30ab8d9e7e3a7",
+      "headSha": "87745a62260392a867dbed69f6d9dd15db6114c5",
       "event": "push",
-      "updatedAt": "2026-10-27T05:44:17Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40457008137"
+      "updatedAt": "2026-10-27T06:54:36Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463897349"
     },
     {
-      "id": 40448061782,
+      "id": 40463897323,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "87745a62260392a867dbed69f6d9dd15db6114c5",
+      "event": "push",
+      "updatedAt": "2026-10-27T06:54:35Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463897323"
+    },
+    {
+      "id": 40463897258,
       "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m4-branding-layout-completion",
-      "headSha": "31b55b060b0427943052243d9ea4d8027d0d701c",
-      "event": "pull_request",
-      "updatedAt": "2026-10-27T04:08:24Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40448061782"
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "87745a62260392a867dbed69f6d9dd15db6114c5",
+      "event": "push",
+      "updatedAt": "2026-10-27T06:54:35Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463897258"
     },
     {
-      "id": 40448061769,
+      "id": 40463738102,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/m4-branding-layout-completion",
-      "headSha": "31b55b060b0427943052243d9ea4d8027d0d701c",
+      "branch": "docs/m45-media-workspace-contract",
+      "headSha": "90eccad5f68b57d26ea146b1ff66a14deff535c9",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T04:09:14Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40448061769"
+      "updatedAt": "2026-10-27T06:53:58Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463738102"
     },
     {
-      "id": 40448061763,
+      "id": 40463737616,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/m4-branding-layout-completion",
-      "headSha": "31b55b060b0427943052243d9ea4d8027d0d701c",
+      "branch": "docs/m45-media-workspace-contract",
+      "headSha": "90eccad5f68b57d26ea146b1ff66a14deff535c9",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T04:09:10Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40448061763"
+      "updatedAt": "2026-10-27T06:54:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463737616"
     },
     {
-      "id": 40448057955,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m4-branding-layout-completion",
-      "headSha": "31b55b060b0427943052243d9ea4d8027d0d701c",
-      "event": "push",
-      "updatedAt": "2026-10-27T04:09:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40448057955"
-    },
-    {
-      "id": 40448053082,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m4-branding-layout-completion",
-      "headSha": "fa4de0a4dc90f65efdedbfa6dd8586c17a460317",
-      "event": "push",
-      "updatedAt": "2026-10-27T04:09:22Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40448053082"
-    },
-    {
-      "id": 40447991803,
+      "id": 40463737593,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/m4-branding-layout-completion",
-      "headSha": "d2bb14e278d7a28682be0e9a0bb9a3acdbbf9f8e",
+      "branch": "docs/m45-media-workspace-contract",
+      "headSha": "90eccad5f68b57d26ea146b1ff66a14deff535c9",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T04:07:40Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40447991803"
+      "updatedAt": "2026-10-27T06:53:03Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463737593"
     },
     {
-      "id": 40447991766,
+      "id": 40463733570,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "docs/m45-media-workspace-contract",
+      "headSha": "90eccad5f68b57d26ea146b1ff66a14deff535c9",
+      "event": "push",
+      "updatedAt": "2026-10-27T06:53:56Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463733570"
+    },
+    {
+      "id": 40463466363,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/m4-branding-layout-completion",
-      "headSha": "d2bb14e278d7a28682be0e9a0bb9a3acdbbf9f8e",
+      "branch": "feature/m45-media-container-import",
+      "headSha": "ae5c247e5031a44f3f3042facbf23252399aabd0",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T04:08:26Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40447991766"
+      "updatedAt": "2026-10-27T06:51:03Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463466363"
+    },
+    {
+      "id": 40463466328,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/m45-media-container-import",
+      "headSha": "ae5c247e5031a44f3f3042facbf23252399aabd0",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T06:51:15Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463466328"
+    },
+    {
+      "id": 40463461332,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/m45-media-container-import",
+      "headSha": "ae5c247e5031a44f3f3042facbf23252399aabd0",
+      "event": "push",
+      "updatedAt": "2026-10-27T06:51:02Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40463461332"
     }
   ]
 }
