@@ -58,9 +58,23 @@ def run() -> int:
             # Qt normalizes HTML and may omit the inline body style from toHtml().
             # The actual viewport-pixel assertion below is the reliable contract.
             app.processEvents()
+            assert doc.page_tabs.tabText(0) == "Editable page"
+            doc.page_tabs.setCurrentIndex(1)  # original read-only pixel contrast check
+            app.processEvents()
             captured = doc.preview.viewport().grab().toImage()
             paper = captured.pixelColor(captured.width() - 5, captured.height() - 5)
             assert min(paper.red(), paper.green(), paper.blue()) >= 230, paper.name()
+            doc.page_tabs.setCurrentIndex(0)
+            first_module = doc.report.modules[0]
+            page_key = (first_module.id, first_module.blocks[0].id, "text")
+            direct_edit = doc.page.fields[page_key]
+            direct_edit.insertPlainText("Edited directly on the page")
+            assert doc.page.pending
+            doc.owner.findChild(QPushButton, "applyPageEdits").click()
+            assert doc.report.modules[0].blocks[0].text.original == "Edited directly on the page"
+            assert "Edited directly on the page" in doc.preview.toPlainText()
+            doc.undo()
+            assert doc.report.modules[0].blocks[0].text.original == ""
             report = doc.report
             parent_id = report.modules[0].id
             nested = Module(LocalizedText("en", "Nested synthetic inspection"), [

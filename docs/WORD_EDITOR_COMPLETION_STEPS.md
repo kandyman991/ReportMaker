@@ -11,13 +11,16 @@ The report/project canonical hierarchy and language provenance stay authoritativ
 - [x] Correct continuous decimal and alphabetic numbering with resets and cross-block continuation.
 - [x] PDF-level tests inspect graphics operators and extracted text.
 - [x] Hosted Windows exact-code-head CI success for 1ff7d6544e251f9f43b9743afe833172eed4eaff: M0 run 40496286608; M1 run 40496285234. 97 passing tests.
-- [ ] Independent correction review, then user-authorized merge into PR #25, then combined exact-head CI.
+- [x] Independent code-only review (GitHub disallows self-approval), authorized PR #28 merge into PR #25 at 5b34d499fe1389a2b1b9fe66d3e425c120cc9866; combined Windows M0 #40497310164 and M1 #40497310288 SUCCESS.
 
 ## Step 2 — Direct editable document page (new staged PR)
-- [ ] Page selection and local text/heading/table/caption editing mapped to canonical block IDs; structural module/TOC regions protected and separately controlled.
-- [ ] Source-language and stale-translation semantics preserved; changes applied with command-engine Undo/Redo and Save/Open.
-- [ ] Clipboard is plain-text/untrusted, structural drag/drop guarded, photo placement preserved, DOCX/PDF derives from canonical content.
-- [ ] Synthetic GUI tests for layout, selection, editing, undo, printing, save/reopen and TOC synchronization.
+- [x] Native continuous paper page with direct local text/heading/table-cell/caption editing mapped to canonical block IDs; module/TOC structural regions protected. Style in ribbon selects canonical block.
+- [x] One validated ProjectEditor command, source-language translation staleness, Undo/Redo, Save/Open preserved.
+- [x] Plain-text-only clipboard; page file/HTML/structural drag/drop disabled, photo placements untouched, DOCX/PDF derive from canonical model.
+- [x] Synthetic Qt GUI/model tests for selection, edit, rollback, undo, save/reopen, TOC synchronization and DOCX/PDF export; original offscreen preview smoke retained.
+- [ ] Installed Windows mouse/keyboard, high-DPI, real Word/PDF and multi-page visual acceptance (not represented by Qt offscreen tests). See EDITABLE_PAGE_CONTRACT.md.
+- [x] Implementation in staged draft PR #29, code SHA 0d08f351bb5a4c5bc430562a8c8aa9cd4710a9a6; exact Windows M0 #40499581827 and M1 #40499582022 SUCCESS; local 102 tests + offline GUI smoke PASS.
+- [ ] Independent review of PR #29 and approval before integration into PR #25.
 
 ## Step 3 — Safe local DOCX/DOTX template import (new staged PR)
 - [ ] Bounded OOXML ZIP and relationships inspection; no external content fetching, macros, embedded scripts or silent template data transmission.
