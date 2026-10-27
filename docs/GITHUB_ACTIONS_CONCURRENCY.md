@@ -21,8 +21,13 @@ concurrency:
 This uses supported GitHub Actions contexts and expressions. The workflow name
 separates M0, M1 and continuity checks; the event name separates push, PR and
 manual checks; a PR number separates independent PRs; a pushed ref separates
-branches. The newest matching validation cancels the older running or pending
-validation only **within the same group**.
+branches. When another validation run enters the same group, GitHub replaces
+an existing pending run and, for push/PR events, cancels any in-progress run
+in that group. This is **not a guarantee that the highest commit SHA or newest
+commit always wins**: GitHub processes waiting runs based on when they begin
+waiting on the group, not dispatch or commit chronology. An older commit's run
+may enter the group later and cancel validation for a newer commit. See the
+[official GitHub concurrency documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 
 A manual `workflow_dispatch` uses its own `github.run_id`, and cancellation
 is disabled for manual dispatch. User-requested test runs are never superseded
@@ -30,9 +35,9 @@ by another run under this policy.
 
 | Events | Result |
 | --- | --- |
-| PR #25 updated twice during development | Earlier #25 run of the *same* workflow is cancelled, latest runs |
+| PR #25 updated twice during development | A later-queued run of the *same* workflow cancels an existing pending/running run; commit order is not guaranteed |
 | PR #25 and PR #26, even if stacked | Neither cancels the other |
-| Two pushes to one branch | Latest push supersedes previous push of the same workflow |
+| Two pushes to one branch | A later-queued run supersedes an existing run of the same workflow; the surviving run is not necessarily for the newer commit |
 | Push and PR checks originating from the same branch | Kept separate to preserve required PR validation |
 | M0 and M1 jobs on the same PR | Kept separate to preserve both test families |
 | Two manually triggered runs | Both retained under independent run IDs |
@@ -51,8 +56,13 @@ shared-state writer requires a separate safety review.
 `tests/test_workflow_concurrency.py` checks that all three validators retain
 their triggers, have workflow-scoped groups, isolate manual runs and leave the
 two writer/publisher groups intact. All application and Windows GUI checks
-remain unchanged. Confirm exact-head GitHub-hosted Windows CI before merging;
-an installed Windows PC test is not needed for this CI-only change.
+remain unchanged. **Before merging, read the PR's live head SHA and confirm all
+required checks have completed successfully for that exact SHA**, not merely
+that a successful run is visible for the branch or concurrency group. Recheck
+if the PR head changes; if a run for the current head was cancelled, trigger
+fresh validation for that head and verify it succeeds. GitHub concurrency does
+not guarantee that the newest commit's checks survive scheduling races. An
+installed Windows PC test is not needed for this CI-only change.
 
 GitHub still displays historical failed and cancelled runs: this reduces future
 redundant work, but does not erase old failures. GitHub concurrency controls
