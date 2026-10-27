@@ -51,7 +51,17 @@ class SchemaRegression(unittest.TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory) / 'project.rmproj'
             save_project(synthetic_project(), path)
-            _rewrite_manifest(path, lambda m: m.update(version=2))
+            def downgrade(m):
+                m["version"] = 2
+                def remove_rich(module):
+                    for block in module["blocks"]:
+                        if block["kind"] in ("paragraph", "heading"):
+                            block.pop("rich", None)
+                        if block["kind"] == "module":
+                            remove_rich(block["module"])
+                for module in m["report"]["modules"] + [m["report"]["conclusion"]]:
+                    remove_rich(module)
+            _rewrite_manifest(path, downgrade)
             with self.assertRaisesRegex(ValueError, 'Legacy photo'):
                 load_project(path)
 
