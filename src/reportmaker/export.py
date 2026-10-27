@@ -20,6 +20,7 @@ from .model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock, ParagraphBlock,
     PhotoBlock, PhotoVisual, TableBlock,
 )
+from .rich_text import RichFormatting, ParagraphStyle, style_at, validate_rich
 from .project_io import MAX_ASSET, ReportProject
 
 
@@ -89,6 +90,7 @@ class RenderItem:
     key: str = ""
     rows: tuple[tuple[str, ...], ...] = ()
     image: bytes = b""
+    rich: RichFormatting | None = None
 
 
 @dataclass(frozen=True)
@@ -167,9 +169,9 @@ def prepare_export(project: ReportProject) -> ExportPlan:
             if isinstance(block, NestedModuleBlock):
                 add_module(block.module)
             elif isinstance(block, ParagraphBlock):
-                items.append(RenderItem("paragraph", block.text.original))
+                items.append(RenderItem("paragraph", block.text.original, rich=block.rich))
             elif isinstance(block, HeadingBlock):
-                items.append(RenderItem("heading", block.text.original, block.level))
+                items.append(RenderItem("heading", block.text.original, block.level, rich=block.rich))
             elif isinstance(block, TableBlock):
                 items.append(RenderItem(
                     "table", rows=tuple(tuple(cell.original for cell in row)
@@ -262,6 +264,57 @@ def _word_bookmark(paragraph, module_id: str, number: int) -> str:
     return key
 
 
+def _rich_lines(value: str, rich: RichFormatting | None):
+    rich = rich if rich is not None else RichFormatting()
+    validate_rich(rich, value)
+    by_start = {item.start: item for item in rich.paragraphs}
+    start = 0
+    for line in value.split("\n"):
+        right = start + len(line)
+        boundaries = {start, right}
+        for r in rich.runs:
+            if r.start < right and r.end > start:
+                boundaries.add(max(start, r.start))
+                boundaries.add(min(right, r.end))
+        sorted_edges = sorted(boundaries)
+        parts = [(value[left:end], style_at(rich, left))
+                 for left, end in zip(sorted_edges, sorted_edges[1:])]
+        yield parts, by_start.get(start, ParagraphStyle(start))
+        start = right + 1
+
+
+def _rich_pdf_markup(parts, fallback_bold=False):
+    result = []
+    for value, rich in parts:
+        content = escape(value)
+        if rich:
+            if rich.bold or fallback_bold:
+                content = "<b>" + content + "</b>"
+            if rich.italic:
+                content = "<i>" + content + "</i>"
+            if rich.underline:
+                content = "<u>" + content + "</u>"
+            if rich.strike:
+                content = "<strike>" + content + "</strike>"
+            if rich.baseline != "normal":
+                content = "<" + rich.baseline + ">" + content + "</" + rich.baseline + ">"
+            attrs = []
+            if rich.color:
+                attrs.append('color="' + rich.color + '"')
+            if rich.size:
+                attrs.append('size="' + str(rich.size) + '"')
+            if attrs:
+                content = "<font " + " ".join(attrs) + ">" + content + "</font>"
+            if rich.highlight:
+                # ReportLab Paragraph has no standard arbitrary background color
+                # per inline run. Emphasize highlighted text with a visible box.
+                content = '<font backcolor="' + rich.highlight + '">' + content + "</font>"
+        elif fallback_bold:
+            content = "<b>" + content + "</b>"
+        result.append(content)
+    return "".join(result)
+
+
 def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     from docx import Document
     from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
@@ -323,18 +376,61 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
             if entry.depth >= 9:
                 paragraph.paragraph_format.left_indent = Cm(min(entry.depth, 12) * .4)
             _word_bookmark(paragraph, item.key, bookmark_numbers[item.key])
-        elif item.kind == "paragraph":
-            paragraph = document.add_paragraph()
-            parts = item.text.split("\n")
-            for i, part in enumerate(parts):
-                if i:
-                    paragraph.add_run().add_break()
-                paragraph.add_run(part)
-        elif item.kind == "heading":
-            paragraph = document.add_paragraph()
-            run = paragraph.add_run(item.text)
-            run.bold = True
-            run.font.size = Pt(max(10, 16 - item.depth))
+        elif item.kind in ("paragraph", "heading"):
+            from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
+            from docx.shared import RGBColor
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn
+            numbered = 0
+            for parts, fmt in _rich_lines(item.text, item.rich):
+                if fmt.list_kind == "decimal":
+                    numbered += 1
+                else:
+                    numbered = 0
+                style_name = ("List Bullet" if fmt.list_kind == "bullet" else
+                              "List Number" if fmt.list_kind != "none" else None)
+                p = document.add_paragraph(style=style_name)
+                p.alignment = {
+                    "left": WD_ALIGN_PARAGRAPH.LEFT,
+                    "right": WD_ALIGN_PARAGRAPH.RIGHT,
+                    "center": WD_ALIGN_PARAGRAPH.CENTER,
+                    "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
+                }[fmt.align]
+                p.paragraph_format.left_indent = Cm(fmt.indent * 0.6)
+                p.paragraph_format.line_spacing = fmt.line_height
+                if fmt.shading:
+                    shade = OxmlElement("w:shd")
+                    shade.set(qn("w:fill"), fmt.shading.lstrip("#"))
+                    p._p.get_or_add_pPr().append(shade)
+                if fmt.border:
+                    border = OxmlElement("w:pBdr")
+                    edge = OxmlElement("w:bottom")
+                    edge.set(qn("w:val"), "single")
+                    edge.set(qn("w:sz"), "6")
+                    border.append(edge)
+                    p._p.get_or_add_pPr().append(border)
+                for part, info in parts:
+                    run = p.add_run(part)
+                    if item.kind == "heading":
+                        run.bold = True
+                        run.font.size = Pt(max(10, 16 - item.depth))
+                    if info is not None:
+                        if info.family:
+                            run.font.name = info.family
+                        if info.size:
+                            run.font.size = Pt(info.size)
+                        run.bold = info.bold or item.kind == "heading"
+                        run.italic = info.italic
+                        run.underline = info.underline
+                        run.font.strike = info.strike
+                        run.font.superscript = info.baseline == "super"
+                        run.font.subscript = info.baseline == "sub"
+                        if info.color:
+                            run.font.color.rgb = RGBColor.from_string(info.color[1:])
+                        if info.highlight:
+                            shading = OxmlElement("w:shd")
+                            shading.set(qn("w:fill"), info.highlight[1:])
+                            run._r.get_or_add_rPr().append(shading)
         elif item.kind == "table":
             if not item.rows:
                 continue
@@ -498,13 +594,28 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
             paragraph = Paragraph(label, heading_styles[level])
             paragraph._rm_entry = (level, item.text, _bookmark_key(item.key))
             story.append(paragraph)
-        elif item.kind == "paragraph":
-            story.append(Paragraph(escape(item.text).replace("\n", "<br/>"),
-                                   normal))
-        elif item.kind == "heading":
-            pstyle = heading_styles[min(max(item.depth, 1), 8)]
-            # A block heading is not a module and must not enter the Summary.
-            story.append(Paragraph(escape(item.text), pstyle))
+        elif item.kind in ("paragraph", "heading"):
+            from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+            from reportlab.lib.styles import ParagraphStyle
+            for index, (parts, fmt) in enumerate(_rich_lines(item.text, item.rich)):
+                base = (heading_styles[min(max(item.depth, 1), 8)]
+                        if item.kind == "heading" else normal)
+                pstyle = ParagraphStyle("Rich-%s-%d-%d" % (item.kind, len(story), index),
+                    parent=base, alignment={
+                        "left": TA_LEFT, "center": TA_CENTER,
+                        "right": TA_RIGHT, "justify": TA_JUSTIFY,
+                    }[fmt.align], leftIndent=base.leftIndent + fmt.indent * 15,
+                    leading=base.leading * fmt.line_height,
+                    backColor=fmt.shading or None)
+                if fmt.list_kind == "bullet":
+                    marker = "&#8226; "
+                elif fmt.list_kind != "none":
+                    marker = "1. "  # export numeric lists as editable paragraphs
+                else:
+                    marker = ""
+                story.append(Paragraph(marker +
+                    _rich_pdf_markup(parts, item.kind == "heading") or " ",
+                    pstyle))
         elif item.kind == "table":
             width = max((len(row) for row in item.rows), default=0)
             if not item.rows or width == 0:
