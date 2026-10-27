@@ -19,6 +19,8 @@ The report/project canonical hierarchy and language provenance stay authoritativ
 - [x] Plain-text-only clipboard; page file/HTML/structural drag/drop disabled, photo placements untouched, DOCX/PDF derive from canonical model.
 - [x] Synthetic Qt GUI/model tests for selection, edit, rollback, undo, save/reopen, TOC synchronization and DOCX/PDF export; original offscreen preview smoke retained.
 - [ ] Installed Windows mouse/keyboard, high-DPI, real Word/PDF and multi-page visual acceptance (not represented by Qt offscreen tests). See EDITABLE_PAGE_CONTRACT.md.
+- [x] Implementation in staged draft PR #29, code SHA 0d08f351bb5a4c5bc430562a8c8aa9cd4710a9a6; exact Windows M0 #40499581827 and M1 #40499582022 SUCCESS; local 102 tests + offline GUI smoke PASS.
+- [ ] Independent review of PR #29 and approval before integration into PR #25.
 
 ## Step 3 — Safe local DOCX/DOTX template import (new staged PR)
 - [ ] Bounded OOXML ZIP and relationships inspection; no external content fetching, macros, embedded scripts or silent template data transmission.

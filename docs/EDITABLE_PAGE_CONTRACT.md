@@ -1,6 +1,6 @@
 # Direct editable document-page surface — Step 2
 
-Status: staged implementation for independent review. This is **not** a native
+Status: [draft PR #29](https://github.com/kandyman991/ReportMaker/pull/29) staged on PR #25 for independent review. This is **not** a native
 installed-Windows acceptance, production installer, or merge into main.
 
 ## User interaction
