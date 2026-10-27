@@ -15,6 +15,7 @@ from pypdf import PdfReader
 
 from reportmaker.engine import module_outline
 from reportmaker.export import ExportError, export_project, prepare_export
+from reportmaker.project_io import MAX_ASSET
 from reportmaker.model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, Report, TableBlock,
@@ -145,6 +146,48 @@ class M4ExportTests(unittest.TestCase):
                 with self.assertRaises(ExportError):
                     export_project(project, output, format="unknown")
                 self.assertEqual(output.read_bytes(), b"original user document")
+            self.assertFalse(list(Path(directory).glob(".reportmaker-export-*")))
+
+    def test_pdf_toc_escapes_literal_module_titles_and_unicode_metadata(self):
+        project = synthetic_project()
+        project.report.modules[0].title.update_original("Valve <on> & motor")
+        project.report.customer_snapshot = manual_snapshot("Клиент Тест")
+        with TemporaryDirectory() as directory:
+            pdf = Path(directory) / "literal-titles.pdf"
+            export_project(project, pdf, format="pdf")
+            pages = [page.extract_text() for page in PdfReader(pdf).pages]
+            # The first page is the generated Summary, not the body heading.
+            self.assertIn("Valve <on> & motor", pages[0])
+            self.assertIn("Valve <on> & motor", "\\n".join(pages[1:]))
+            # The selected Segoe UI/DejaVu font must also cover metadata.
+            from os import environ
+            installed_fonts = (
+                (Path(environ.get("WINDIR", "C:/Windows")) / "Fonts" / "segoeui.ttf").is_file()
+                or Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf").is_file()
+            )
+            if installed_fonts:
+                self.assertIn("Клиент Тест", pages[0])
+
+    def test_oversized_photo_rejected_before_decoder_and_no_clobber(self):
+        project = synthetic_project()
+        project.assets["synthetic"] = b"x" * (MAX_ASSET + 1)
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "existing.docx"
+            target.write_bytes(b"saved output")
+            with self.assertRaisesRegex(ExportError, "asset size limit"):
+                export_project(project, target, format="docx")
+            self.assertEqual(target.read_bytes(), b"saved output")
+
+    def test_pdf_oversized_table_cell_produces_user_error_without_clobber(self):
+        project = synthetic_project()
+        project.report.modules[0].blocks.append(
+            TableBlock([[loc("Too tall\\n" * 350)]]))
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "existing.pdf"
+            target.write_bytes(b"saved output")
+            with self.assertRaisesRegex(ExportError, "does not fit"):
+                export_project(project, target, format="pdf")
+            self.assertEqual(target.read_bytes(), b"saved output")
             self.assertFalse(list(Path(directory).glob(".reportmaker-export-*")))
 
     def test_source_rmproj_does_not_mutate_and_cannot_be_output(self):
