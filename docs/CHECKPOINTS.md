@@ -117,3 +117,19 @@ Next reproducible action:
 - No browser integration changes, real customer data, release, installer or deployment. Actual installed Windows mouse drag/drop, responsive DPI, image rendering, dialogs and full UI acceptance still outstanding.
 - Next: independently review PR #12 at exact head; verify hosted Windows CI; only after explicit user authorization integrate PR #12 into PR #11 and repeat final combined-head review. **Do not merge either PR without authorization.**
 
+
+
+## CP-M4-DRAFT — editable DOCX / PDF export, PR #13 (2026-10-26)
+- Parent main SHA: `bb5f716974818f72fefb446820980cc09698e7f2`. Branch `feature/m4-editable-docx-pdf-export`, draft PR [#13](https://github.com/kandyman991/ReportMaker/pull/13) -> main. Implementation bookmark/font revision `adc84667d30c75c1dec3ba7786aecaf125db393f` (later docs may advance branch HEAD).
+- Requirements: `ARCHITECTURE.md`, ADR-0006, `docs/REPORT_COMPOSITION_CONTRACT.md`. Export consumes source/canonical ordered modules; tree/summary are the same `module_outline`; conclusion last; multi-type and detached customer report snapshots unchanged; `.rmproj` remains canonical.
+- Implementation: editable DOCX Word title/paragraph/heading/table/inline picture/caption/page break; visible auto-derived section contents with Word PAGEREF fields to refresh after Word pagination; local PDF built from same projection with multipass TOC/page footer; source-only M4 export, M5 language review deferred. Qt Save As actions with atomic replace and guarded pending edits. See `docs/M4_EXPORT.md`.
+- Tests: `tests/test_m4_export.py` and offline Qt `--export-self-test`. Hosted Windows M4 export + preexisting M0–M3 core tests, M1 GUI regression and continuity **PASS** at exact implementation commit `438fab02fa6982429227e418957e5ef3ac613342`: [core #40410579198](https://github.com/kandyman991/ReportMaker/actions/runs/40410579198), [M1 #40410579254](https://github.com/kandyman991/ReportMaker/actions/runs/40410579254), [continuity #40410579187](https://github.com/kandyman991/ReportMaker/actions/runs/40410579187). Subsequent checkpoint-only commits can advance branch HEAD; verify the resulting live head and CI before review.
+- Installed native Windows: **NOT done**. Required consolidate M0–M4 checklist and actual desktop Word/PDF validation in `docs/WINDOWS_ACCEPTANCE_M0_M4.md`; no installer or prerelease published.
+- Privacy: synthetic fixtures only, local asset bytes, no browser/AI/report uploads; M0 rolling prerelease stays pinned. Next: exact-head CI and independent review before seeking merge approval. **NO MERGE/RELEASE AUTHORIZATION.**
+
+
+## CP-M4-R1 — independent review corrections for PR #13 (2026-10-27)
+- Reviewed PR #13 head `77f12e217c612e03b75db1b66873fce1f55ee5dc` against `main`, with verified successful hosted Windows workflows #40410962651, #40410962767 and #40410962905. The project source was not merged.
+- Four findings PR13-F01..F04 documented in `docs/PR13_REVIEW.md`: literal PDF Summary title loss, Unicode customer metadata font, unhandled oversized-table PDF LayoutError, and missing per-photo export byte bound.
+- Stacked branch `review/pr13-m4-export-corrections` targets the M4 feature branch, not main. Corrective source/tests and synthetic regressions committed for independent review; check live final head and Windows CI after this documentation update.
+- Native installed-Windows M0–M4 acceptance remains pending; Word field refresh, company-branded header/footer/layout work and installer approval are still open. No merge or prerelease publication authorized.
