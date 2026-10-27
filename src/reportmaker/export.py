@@ -571,6 +571,9 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                 text_x = style.left_margin_cm*cm
                 if style.logo:
                     logo_w, logo_h = _logo_dimensions(style.logo)
+                    if logo_h > style.top_margin_cm - style.header_distance_cm - .2:
+                        raise ExportError("Header logo does not fit the PDF top margin; "
+                                          "increase the top margin or move the header upward")
                     canvas.drawImage(ImageReader(BytesIO(style.logo)),
                                      text_x, style.page_height_cm*cm - (style.header_distance_cm + .2)*cm - logo_h*cm,
                                      width=logo_w*cm, height=logo_h*cm,
