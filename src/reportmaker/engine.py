@@ -10,6 +10,7 @@ from typing import Callable
 import re
 from uuid import uuid4
 
+from .rich_text import validate_rich
 from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, Report, TableBlock, validate_photo_visual,
@@ -60,6 +61,7 @@ def validate_report_tree(report: Report) -> None:
             _check_id(block.id, seen_ids)
             if isinstance(block, (ParagraphBlock, HeadingBlock)):
                 validate_localized_text(block.text)
+                validate_rich(block.rich, block.text.original)
             if isinstance(block, HeadingBlock) and (not isinstance(block.level, int) or not 1 <= block.level <= 6):
                 raise ValueError("Heading level must be 1..6")
             if isinstance(block, PhotoBlock):
