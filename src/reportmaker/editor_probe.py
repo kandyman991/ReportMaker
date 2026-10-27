@@ -172,22 +172,24 @@ def run() -> int:
             source = root / "synthetic-external.jpg"
             PILImage.new("RGB", (100, 60), "blue").save(source)
             source_bytes = source.read_bytes()
-            def drive_picture_dialog(dialog):
-                if dialog.objectName() == "pictureImportComparisonDialog":
-                    assert dialog.findChild(QComboBox, "pictureComparisonSelector") is not None
-                    return QDialog.DialogCode.Accepted
-                import_button = dialog.findChild(QPushButton, "importProjectPicturesAction")
-                assert import_button is not None
-                import_button.click()
-                library = dialog.findChild(QListWidget, "projectPictureLibrary")
-                assert library is not None and library.count() == 1
+            def drive_comparison(dialog):
+                assert dialog.objectName() == "pictureImportComparisonDialog"
+                assert dialog.findChild(QComboBox, "pictureComparisonSelector") is not None
                 return QDialog.DialogCode.Accepted
             with patch.object(QFileDialog, "getOpenFileNames",
                               return_value=([str(source)], "")), \
                  patch.object(QMessageBox, "question",
                               return_value=QMessageBox.StandardButton.Yes), \
-                 patch.object(QDialog, "exec", drive_picture_dialog):
-                assert doc.manage_pictures()
+                 patch.object(QDialog, "exec", drive_comparison):
+                assert doc.manage_pictures()  # non-modal tool window, no exec()
+                gallery = doc._picture_gallery
+                assert gallery is not None and gallery.isVisible() and not gallery.isModal()
+                import_button = gallery.findChild(QPushButton, "importProjectPicturesAction")
+                assert import_button is not None
+                import_button.click()
+                library = gallery.findChild(QListWidget, "projectPictureLibrary")
+                assert library is not None and library.count() == 1
+                gallery.close()
             assert source.read_bytes() == source_bytes
             assert len(doc.media_library) == 1
             assert doc.dirty

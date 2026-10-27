@@ -13,12 +13,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import QDate, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QImage, QKeySequence, QPixmap, QTextCursor, QTextDocument
+from PySide6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPen, QPixmap, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
     QDialogButtonBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
-    QPlainTextEdit, QPushButton, QScrollArea, QSplitter, QTabWidget, QTableWidget,
+    QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSplitter, QTabWidget, QTableWidget,
     QTableWidgetItem, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
     QWidget,
 )
@@ -35,6 +35,7 @@ from .media_import import (PictureImportError, stage_pictures, commit_staged_pic
                            remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
+from .photo_gallery import PHOTO_MIME, ProjectPictureList, scaled_project_image
 from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
 from .rich_text import safe_html
 from .page_editor import EditableDocumentPage
@@ -160,9 +161,93 @@ class BlockList(QListWidget):
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
         self.setDropIndicatorShown(True)
-        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.photo_drop_resolver = lambda source, mime: None
+        self.photo_drop_context = lambda: (None, None)
+        self.on_picture_drop = None
+        self._photo_drop_index = None
+
+    def _index_at(self, position):
+        target = self.itemAt(position)
+        if target is None:
+            return self.count()
+        index = self.row(target)
+        if position.y() >= self.visualItemRect(target).center().y():
+            index += 1
+        return index
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(PHOTO_MIME):
+            if self.photo_drop_resolver(event.source(), event.mimeData()) is None:
+                event.ignore()
+                return
+            self._photo_drop_index = None
+            event.acceptProposedAction()
+        elif event.source() is self:
+            super().dragEnterEvent(event)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat(PHOTO_MIME):
+            if self.photo_drop_resolver(event.source(), event.mimeData()) is None:
+                self._photo_drop_index = None
+                self.viewport().update()
+                event.ignore()
+                return
+            self._photo_drop_index = self._index_at(event.position().toPoint())
+            self.viewport().update()
+            event.acceptProposedAction()
+        elif event.source() is self:
+            super().dragMoveEvent(event)
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._photo_drop_index = None
+        self.viewport().update()
+        super().dragLeaveEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._photo_drop_index is None:
+            return
+        index = self._photo_drop_index
+        if index < self.count():
+            y = self.visualItemRect(self.item(index)).top()
+        elif self.count():
+            y = self.visualItemRect(self.item(self.count() - 1)).bottom()
+        else:
+            y = 3
+        painter = QPainter(self.viewport())
+        painter.setPen(QPen(QColor("#1474c9"), 3))
+        painter.drawLine(3, y, self.viewport().width() - 3, y)
+        painter.end()
 
     def dropEvent(self, event):
+        if event.mimeData().hasFormat(PHOTO_MIME):
+            key = self.photo_drop_resolver(event.source(), event.mimeData())
+            self._photo_drop_index = None
+            self.viewport().update()
+            if key is None or self.on_picture_drop is None:
+                event.ignore()
+                return
+            index = self._index_at(event.position().toPoint())
+            # Freeze the owning module AND project generation at drop time.
+            # Qt runs this callback later, when selection/project may differ.
+            module_id, session_token = self.photo_drop_context()
+            if not module_id or not session_token:
+                event.ignore()
+                return
+            insert_photo = self.on_picture_drop
+            event.acceptProposedAction()
+            # Refresh replaces the target list; defer until Qt finishes dropping.
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: insert_photo(module_id, index, key, session_token))
+            return
+        if event.source() is not self:
+            event.ignore()
+            return
         source = self.currentItem()
         if source is None:
             event.ignore()
@@ -193,6 +278,10 @@ class VisualReportEditor:
         self._info_pending = False
         self._edit_block_id: str | None = None
         self._module_id: str | None = None
+        self._picture_gallery = None
+        self._picture_list = None
+        self._gallery_populate = None
+        self._photo_drag_token = uuid4().hex
         self._build(left, center)
         self.refresh()
 
@@ -241,6 +330,10 @@ class VisualReportEditor:
             content_buttons.addWidget(btn)
         top_layout.addLayout(content_buttons)
         self.blocks = BlockList()
+        self.blocks.photo_drop_resolver = self._resolve_project_photo_drag
+        self.blocks.photo_drop_context = lambda: (self._module_id, self._photo_drag_token)
+        self.blocks.on_picture_drop = lambda module, index, asset, session: (
+            self._insert_project_photo(module, index, asset, expected_token=session))
         self.blocks.currentItemChanged.connect(self._block_selected)
         self.blocks.moveRequested.connect(self._block_move)
         top_layout.addWidget(self.blocks, 2)
@@ -249,16 +342,18 @@ class VisualReportEditor:
         self.text_edit = SafeRichTextEdit()
         self.text_edit.setObjectName("blockTextEditor")
         self.text_edit.setAcceptRichText(False)
+        self.text_edit.setAcceptDrops(False)  # gallery drops are structural, not rich-text edits
         self.text_edit.textChanged.connect(self._set_pending)
         self.rich_ribbon = RichTextRibbon(self.text_edit)
         self.rich_ribbon.setObjectName("reportFontParagraphRibbon")
         for button in self.rich_ribbon.findChildren(QPushButton):
             if button.objectName() != "richShowMarks":
                 button.clicked.connect(self._set_pending)
-        # Keep the text-formatting ribbon outside the vertically resizable splitter.
+        # Rich-text formatting remains accessible even when the editor splitter collapses.
         body_layout.insertWidget(0, self.rich_ribbon)
         top_layout.addWidget(self.text_edit, 1)
         self.photo_caption = QLineEdit()
+        self.photo_caption.setAcceptDrops(False)
         self.photo_caption.setPlaceholderText("Photo caption")
         self.photo_caption.textEdited.connect(self._set_pending)
         top_layout.addWidget(self.photo_caption)
@@ -267,6 +362,8 @@ class VisualReportEditor:
         self.picture_edit.clicked.connect(self.edit_picture)
         top_layout.addWidget(self.picture_edit)
         self.table = QTableWidget()
+        self.table.setAcceptDrops(False)
+        self.table.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
         self.table.cellChanged.connect(self._set_pending)
         top_layout.addWidget(self.table, 1)
         table_controls = QHBoxLayout()
@@ -300,6 +397,8 @@ class VisualReportEditor:
         self.page_tabs.setObjectName("documentPageTabs")
         self.page = EditableDocumentPage()
         self.page.on_style_request = self._select_page_block
+        self.page.photo_drop_resolver = self._resolve_project_photo_drag
+        self.page.on_picture_drop = self._insert_project_photo
         page_container = QWidget()
         page_layout = QVBoxLayout(page_container)
         page_controls = QHBoxLayout()
@@ -781,10 +880,7 @@ class VisualReportEditor:
             return False
         self._block_pending = False
         self.dirty = True
-        # Use the canonical model for every list label after a successful commit,
-        # including other page edits flushed above. Do NOT rebuild the list:
-        # Apply may run inside a selection-change callback, and rebuilding the
-        # block editor here would move the focus/caret and discard draft widgets.
+        # Sync canonical labels in place: do not rebuild inside selection handlers.
         self._sync_block_labels()
         self.block_hint.setText("Block changes applied. Save the project to keep them.")
         self._render_preview()
@@ -830,18 +926,97 @@ class VisualReportEditor:
         self._add_block(PageBreakBlock())
 
     def add_photo(self):
-        """Insert an already imported picture, or import into the media library."""
+        """Open the non-modal project gallery for keyboard or mouse insertion."""
         self.manage_pictures()
+
+    def _resolve_project_photo_drag(self, source, mime):
+        """Accept exactly one project-owned asset ID from THIS gallery instance.
+
+        External files, URLs, text, HTML, stale gallery instances and forged
+        MIME from another drag source are never interpreted as report content.
+        """
+        if (source is not self._picture_list or
+                getattr(source, "session_token", None) != self._photo_drag_token or
+                mime is None or mime.formats() != [PHOTO_MIME]):
+            return None
+        raw = bytes(mime.data(PHOTO_MIME))
+        if not raw or len(raw) > 128:
+            return None
+        try:
+            key = raw.decode("utf-8")
+        except UnicodeError:
+            return None
+        if key not in self.media_library or key not in self.assets:
+            return None
+        return key
+
+    def _insert_project_photo(self, module_id, index, asset_id, *, expected_token=None):
+        """One validated canonical insertion, never a duplicate image asset.
+
+        A deferred Qt drop must never outlive its originating project session.
+        """
+        if expected_token is not None and expected_token != self._photo_drag_token:
+            return False
+        if (not isinstance(asset_id, str) or asset_id not in self.media_library
+                or asset_id not in self.assets):
+            return False
+        module_id = module_id or self._module_id
+        try:
+            module = find_module(self.report, module_id)
+        except (LookupError, TypeError):
+            return False
+        if index is None:
+            index = len(module.blocks)
+        if type(index) is not int or not 0 <= index <= len(module.blocks):
+            return False
+        # Respect uncommitted rich block, information and editable-page drafts.
+        # Fail without inserting if a conflicting draft cannot be resolved.
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            return False
+        if (expected_token is not None and expected_token != self._photo_drag_token):
+            return False
+        if asset_id not in self.media_library or asset_id not in self.assets:
+            return False
+        # Draft-resolution dialogs can run a nested Qt event loop. Revalidate
+        # the target against the current report before editing its structure.
+        try:
+            module = find_module(self.report, module_id)
+        except (LookupError, TypeError):
+            return False
+        if not 0 <= index <= len(module.blocks):
+            return False
+        picture = PhotoBlock(asset_id, LocalizedText(self.report.primary_language, ""))
+        try:
+            self.editor.add_block(module_id, picture, index=index)
+        except (ValueError, LookupError, TypeError) as exc:
+            self._warn("Cannot insert project picture", exc)
+            return False
+        self.dirty = True
+        self._module_id = module_id
+        self._edit_block_id = picture.id
+        self.refresh()
+        return True
 
     def manage_pictures(self):
         """Local project-owned picture container; no external paths persisted."""
         if not self._flush_block() or not self._flush_info():
             return False
+        if self._picture_gallery is not None:
+            if self._gallery_populate is not None:
+                self._gallery_populate()
+            self._picture_gallery.show()
+            self._picture_gallery.raise_()
+            self._picture_gallery.activateWindow()
+            return True
         dialog = QDialog(self.owner)
-        dialog.setWindowTitle("Project Pictures — optimized working copies")
-        dialog.resize(630, 540)
+        dialog.setObjectName("projectPictureGallery")
+        dialog.setModal(False)
+        dialog.setWindowTitle("Project Pictures — drag thumbnails into report")
+        dialog.resize(870, 720)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Pictures belong to this project; external originals stay unchanged."))
+        layout.addWidget(QLabel(
+            "All thumbnails are project-owned working copies. Drag onto a blue block-list "
+            "insertion marker or a page drop zone; original photos stay unchanged."))
         choices = QHBoxLayout()
         preset = QComboBox()
         preset.setObjectName("pictureImportPreset")
@@ -857,11 +1032,27 @@ class VisualReportEditor:
         choices.addWidget(preset)
         choices.addWidget(fmt)
         layout.addLayout(choices)
-        pictures = QListWidget()
-        pictures.setObjectName("projectPictureLibrary")
+        pictures = ProjectPictureList(
+            lambda key: key in self.media_library and key in self.assets,
+            lambda key: self.assets.get(key, b""),
+            self._photo_drag_token, dialog)
+        self._picture_list = pictures
+        zoom_row = QHBoxLayout()
+        zoom_row.addWidget(QLabel("Thumbnail size"))
+        zoom = QSlider(Qt.Orientation.Horizontal)
+        zoom.setObjectName("pictureThumbnailZoom")
+        zoom.setRange(72, 220)
+        zoom.setValue(132)
+        zoom.valueChanged.connect(pictures.set_thumbnail_size)
+        zoom_row.addWidget(zoom)
+        layout.addLayout(zoom_row)
         layout.addWidget(pictures, 1)
-        thumbnail = QLabel("Select a project picture to preview it.")
-        thumbnail.setMinimumHeight(200)
+        empty = QLabel("No project pictures yet. Choose Import pictures… to add some.")
+        empty.setObjectName("pictureGalleryEmptyState")
+        layout.addWidget(empty)
+        thumbnail = QLabel("Select a project picture to inspect it.")
+        thumbnail.setObjectName("pictureGalleryInspector")
+        thumbnail.setMinimumHeight(180)
         thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(thumbnail)
 
@@ -871,25 +1062,20 @@ class VisualReportEditor:
 
         def show_preview():
             key = selected_key()
-            image = QImage.fromData(self.assets.get(key, b"")) if key else QImage()
+            image = scaled_project_image(self.assets.get(key, b""), 660, 230) if key else QImage()
             if image.isNull():
-                thumbnail.setText("Select a project picture to preview it.")
+                thumbnail.setText("Select a project picture to inspect it.")
                 thumbnail.setPixmap(QPixmap())
             else:
-                thumbnail.setPixmap(QPixmap.fromImage(image.scaled(
-                    500, 210, Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation)))
+                thumbnail.setText("")
+                thumbnail.setPixmap(QPixmap.fromImage(image))
 
         pictures.currentItemChanged.connect(lambda *_: show_preview())
 
         def populate():
-            pictures.clear()
-            for key, name in sorted(self.media_library.items(), key=lambda p: p[1].lower()):
-                item = QListWidgetItem(name)
-                item.setData(Qt.ItemDataRole.UserRole, key)
-                pictures.addItem(item)
-            if pictures.count():
-                pictures.setCurrentRow(0)
+            pictures.populate(self.media_library)
+            empty.setVisible(pictures.count() == 0)
+            show_preview()
 
         buttons = QHBoxLayout()
         do_import = QPushButton("Import pictures…")
@@ -974,6 +1160,11 @@ class VisualReportEditor:
                                         output_format=fmt.currentData())
                 if not approve_staged(staged):
                     return
+                # The non-modal gallery allows ongoing report/page editing.
+                # Before a gallery mutation redraws the editor, explicitly
+                # commit/resolve drafts or keep both the draft and library intact.
+                if not self._flush_block() or not self._flush_info() or not self._flush_page():
+                    return
                 commit_staged_pictures(
                     ReportProject(self.report, self.assets, self.media_library), staged)
             except (PictureImportError, ValueError, OSError) as exc:
@@ -990,12 +1181,13 @@ class VisualReportEditor:
             if not self._module_id:
                 self._warn("Select a module", "Select a report module before inserting a picture.")
                 return
-            self._add_block(PhotoBlock(key, LocalizedText(self.report.primary_language, "")))
-            dialog.accept()
+            self._insert_project_photo(self._module_id, None, key)
 
         def delete_selected():
             key = selected_key()
             if key is None:
+                return
+            if not self._flush_block() or not self._flush_info() or not self._flush_page():
                 return
             try:
                 remove_library_picture(ReportProject(self.report, self.assets,
@@ -1010,9 +1202,11 @@ class VisualReportEditor:
         do_import.clicked.connect(import_selected)
         insert.clicked.connect(insert_selected)
         remove.clicked.connect(delete_selected)
-        close.clicked.connect(dialog.accept)
+        close.clicked.connect(dialog.close)
+        self._picture_gallery = dialog
+        self._gallery_populate = populate
         populate()
-        dialog.exec()
+        dialog.show()  # non-modal: report remains editable and drop zones active
         return True
 
     def edit_picture(self):
@@ -1355,6 +1549,11 @@ class VisualReportEditor:
             self.page.setToolTip("Selected page template is invalid: exports will be blocked")
         # Avoid dropping uncommitted direct page edits when the other pane redraws.
         if not self.page.pending:
+            # Each rendered structural zone keeps the generation of the
+            # project in which it was created, even after being superseded.
+            token = self._photo_drag_token
+            self.page.on_picture_drop = lambda module, index, asset, session=token: (
+                self._insert_project_photo(module, index, asset, expected_token=session))
             self.page.rebuild(report, self.assets)
 
     def _confirm_discard(self):
@@ -1378,6 +1577,15 @@ class VisualReportEditor:
             self._replace(new_report(), None)
 
     def _replace(self, project, path):
+        # A gallery belongs to exactly one open project. Invalidate the drag
+        # source and session token BEFORE adopting another project's assets.
+        if self._picture_gallery is not None:
+            self._picture_gallery.close()
+            self._picture_gallery.deleteLater()  # release cached thumbnails on project switch
+        self._picture_gallery = None
+        self._picture_list = None
+        self._gallery_populate = None
+        self._photo_drag_token = uuid4().hex
         self.editor = ProjectEditor(project.report)
         self.assets = dict(project.assets)
         self.media_library = dict(project.media_library)
