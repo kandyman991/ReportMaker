@@ -35,6 +35,8 @@ def create_sample(filename: Path):
     section.footer_distance = Cm(.7)
     doc.styles["Normal"].font.name = "Cambria"
     doc.styles["Normal"].font.size = Pt(12)
+    doc.styles["Heading 1"].font.name = "Cambria"
+    doc.styles["Heading 1"].font.size = Pt(17)
     header = section.header.paragraphs[0]
     header.add_run("SYNTHETIC COMPANY")
     stream = BytesIO()
@@ -70,6 +72,8 @@ class TemplateImportTests(unittest.TestCase):
             self.assertEqual(template.footer_text, "Lab use only")
             self.assertEqual(template.normal_font, "Cambria")
             self.assertEqual(template.normal_size_pt, 12)
+            self.assertEqual(template.heading_font, "Cambria")
+            self.assertEqual(template.heading_size_pt, 17)
             self.assertTrue(template.logo)
             self.assertTrue(any("body" in w.lower() for w in converted.warnings))
             stored = root / "layout.rmtemplate"
@@ -81,7 +85,8 @@ class TemplateImportTests(unittest.TestCase):
                 template.left_margin_cm, template.right_margin_cm,
                 template.top_margin_cm, template.bottom_margin_cm,
                 template.header_distance_cm, template.footer_distance_cm,
-                template.normal_font, template.normal_size_pt)
+                template.normal_font, template.normal_size_pt,
+                template.heading_font, template.heading_size_pt)
             project = synthetic_project()
             word, pdf = root / "output.docx", root / "output.pdf"
             export_project(project, word, format="docx", style=profile)
@@ -94,6 +99,7 @@ class TemplateImportTests(unittest.TestCase):
             self.assertAlmostEqual(sec.left_margin / Cm(1), 1.7, places=2)
             self.assertEqual(generated.styles["Normal"].font.name, "Cambria")
             self.assertEqual(generated.styles["Normal"].font.size.pt, 12)
+            self.assertEqual(generated.styles["Heading 1"].font.size.pt, 17)
             self.assertIn("SYNTHETIC COMPANY", sec.header.paragraphs[0].text)
             self.assertIn("Lab use only", sec.footer.paragraphs[0].text)
             self.assertNotIn("Untrusted source document body", "\n".join(p.text for p in generated.paragraphs))
@@ -167,6 +173,7 @@ class TemplateImportTests(unittest.TestCase):
                 {"left_margin_cm": 7, "right_margin_cm": 7, "page_width_cm": 15},
                 {"header_text": "\nHTML injection"},
                 {"normal_size_pt": float("nan")},
+                {"heading_size_pt": 120},
                 {"logo": b"not an image"},
             ):
                 with self.assertRaises((ValueError, TypeError)):
@@ -213,6 +220,8 @@ class TemplateImportTests(unittest.TestCase):
                 self.assertTrue(editor.import_document_template())
             active = editor._export_style()
             self.assertEqual(active.page_width_cm, 18)
+            self.assertEqual(active.heading_size_pt, 17)
+            self.assertEqual(editor.page.layout_template.page_width_cm, 18)
             self.assertIn("SYNTHETIC", active.company_name)
             self.assertEqual(load_template(out).page_width_cm, 18)
             self.assertTrue(editor.clear_document_template())
