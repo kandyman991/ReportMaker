@@ -205,7 +205,6 @@ class RichTextRibbon(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setWidgetResizable(False)
-        scroll.setMaximumHeight(102)
         inner = QWidget()
         vertical = QVBoxLayout(inner)
         vertical.setSpacing(3)
@@ -213,8 +212,33 @@ class RichTextRibbon(QWidget):
         first, second = QHBoxLayout(), QHBoxLayout()
         vertical.addLayout(first)
         vertical.addLayout(second)
-        scroll.setWidget(inner)
+        # Keep the ribbon outside the editor's splitter; navigation remains
+        # discoverable when the central pane is narrower than both tool rows.
+        header = QHBoxLayout()
+        title = QLabel("FONT  ·  PARAGRAPH")
+        title.setObjectName("richRibbonTitle")
+        header.addWidget(title)
+        header.addStretch(1)
+        hint = QLabel("More tools")
+        hint.setObjectName("richRibbonScrollHint")
+        header.addWidget(hint)
+        for symbol, direction, name in (
+            ("◀", -1, "richRibbonScrollLeft"),
+            ("▶", 1, "richRibbonScrollRight"),
+        ):
+            control = QToolButton()
+            control.setText(symbol)
+            control.setObjectName(name)
+            control.setToolTip("Scroll formatting tools horizontally")
+            control.setAccessibleName("Previous formatting tools" if direction < 0
+                                      else "Next formatting tools")
+            control.clicked.connect(
+                lambda _checked=False, step=direction: scroll.horizontalScrollBar().setValue(
+                    scroll.horizontalScrollBar().value() + step * 260))
+            header.addWidget(control)
+        container.addLayout(header)
         container.addWidget(scroll)
+        self.scroller = scroll
         self.setMinimumWidth(0)
         self.family = QFontComboBox()
         self.family.setObjectName("richFontFamily")
@@ -260,7 +284,18 @@ class RichTextRibbon(QWidget):
         self.button(second, "Shade", self.shade, "richShading")
         self.button(second, "Border", self.border, "richBorder")
         second.addStretch(1)
+        # Qt requires the child layout to be completely populated BEFORE
+        # setWidget(). In RC2 it was attached while both tool rows were empty,
+        # so the scroll area retained a zero/obsolete size and clipped controls.
         inner.adjustSize()
+        scroll.setWidget(inner)
+        # QScrollArea with a non-resizable content widget otherwise has a
+        # zero-height size hint on some Qt/Windows DPI and splitter layouts.
+        # Reserve the real height of both rows and the horizontal scrollbar.
+        scroll.setFixedHeight(inner.sizeHint().height() +
+                              scroll.horizontalScrollBar().sizeHint().height() +
+                              2 * scroll.frameWidth() + 4)
+        self.setMinimumHeight(container.sizeHint().height())
         self.editor.currentCharFormatChanged.connect(self.sync)
 
     def button(self, layout, label, callback, ident):
