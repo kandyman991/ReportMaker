@@ -28,6 +28,7 @@ def edit_template_layout(owner, source: DocumentTemplate,
             "Unsupported Word elements are NOT copied. Review before accepting:\n"
             + "\n".join("• " + item for item in warnings[:18])
             + ("\n• Further unsupported items omitted" if len(warnings) > 18 else ""))
+        summary.setTextFormat(Qt.TextFormat.PlainText)
         summary.setWordWrap(True)
         summary.setObjectName("templateImportWarnings")
         root.addWidget(summary)
