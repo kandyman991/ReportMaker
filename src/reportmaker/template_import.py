@@ -237,6 +237,10 @@ def import_word_template(path: str | Path) -> ImportResult:
                     logo = raw
                 else:
                     warnings.append("Additional header artwork is not imported")
+    if sec.header._element.xpath(".//wp:anchor") or sec.header._element.xpath(".//w:pict"):
+        warnings.append("Floating header artwork position is not imported (logo becomes inline)")
+    if sec.header._element.xpath(".//w:tbl") or sec.footer._element.xpath(".//w:tbl"):
+        warnings.append("Header/footer tables are not imported; rebuild them in the layout editor")
     if sec.footer._element.xpath(".//a:blip"):
         warnings.append("Footer artwork is not imported")
     if doc.element.body.xpath(".//a:blip"):
