@@ -270,13 +270,32 @@ class VisualReportEditor:
 
         preview_box = QWidget()
         preview_layout = QVBoxLayout(preview_box)
-        preview_layout.addWidget(QLabel("DOCUMENT PREVIEW — local, not a Word/PDF export"))
+        preview_header = QHBoxLayout()
+        preview_header.addWidget(QLabel("DOCUMENT PREVIEW — readable local layout, not final Word/PDF pagination"))
+        preview_header.addStretch(1)
+        zoom_out = QPushButton("A−")
+        zoom_out.setObjectName("previewZoomOut")
+        zoom_in = QPushButton("A+")
+        zoom_in.setObjectName("previewZoomIn")
+        preview_header.addWidget(zoom_out)
+        preview_header.addWidget(zoom_in)
+        preview_layout.addLayout(preview_header)
         self.preview = QTextBrowser()
         self.preview.setObjectName("documentPreview")
         self.preview.setOpenExternalLinks(False)
+        # QTextBrowser inherits the app dark palette; HTML had dark text but no
+        # background, making the entire report illegible on dark-mode Windows.
+        # Make the preview a white paper surface independent of the theme.
+        self.preview.setStyleSheet(
+            "QTextBrowser#documentPreview { background-color: #ffffff; "
+            "color: #202124; border: 1px solid #a9afb7; "
+            "selection-background-color: #c2dcff; selection-color: #101820; }")
+        self.preview.setMinimumHeight(175)
+        zoom_out.clicked.connect(lambda: self.preview.zoomOut(1))
+        zoom_in.clicked.connect(lambda: self.preview.zoomIn(1))
         preview_layout.addWidget(self.preview)
         vertical.addWidget(preview_box)
-        vertical.setSizes([470, 290])
+        vertical.setSizes([420, 420])
         self.tabs.addTab(body, "Content & Preview")
 
         info_outer = QScrollArea()
@@ -1063,7 +1082,8 @@ class VisualReportEditor:
 
     def _render_preview(self):
         report = self.report
-        sections = ["<html><body style='font-family:sans-serif;color:#252525'>",
+        sections = ["<html><body style='font-family:sans-serif; color:#202124; "
+                    "background-color:#ffffff; margin:18px'>",
                     "<h1>%s</h1>" % escape(report.title.original)]
         snapshot = report.customer_snapshot
         for label, value in (("Customer", snapshot.customer_name if snapshot else ""),
