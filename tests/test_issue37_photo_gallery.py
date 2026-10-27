@@ -321,5 +321,58 @@ class ProjectGalleryTests(unittest.TestCase):
         self.assertFalse(self.editor._insert_project_photo(None, 0, keys[0]))
 
 
+    def test_queued_drops_keep_original_module_and_reject_replaced_projects(self):
+        from copy import deepcopy
+        from PySide6.QtCore import QPointF
+        from reportmaker.project_io import ReportProject
+
+        keys = self.add_images(1)
+        original_module = self.editor.report.modules[0].id
+        another = Module(LocalizedText("en", "Unrelated module"))
+        self.editor.editor.add_module(another)
+        self.editor.refresh()
+        gallery, pictures = self.open_gallery()
+
+        # The Qt drop is accepted now, but its model transaction is queued.
+        # Switching the selected module must not redirect that transaction.
+        event = FakeDragEvent(pictures, self.mime_for(keys[0]), QPointF(5, 5))
+        self.editor.blocks.dropEvent(event)
+        self.assertTrue(event.accepted)
+        self.editor._module_id = another.id
+        self.app.processEvents()
+        first = self.editor.report.modules[0]
+        second = self.editor.report.modules[1]
+        self.assertEqual(len([b for b in first.blocks if isinstance(b, PhotoBlock)]), 1)
+        self.assertEqual(len(second.blocks), 0)
+
+        # Reopening a copy of the SAME project preserves module and asset IDs.
+        # A stale, queued drop must still be rejected by the generation token.
+        self.editor._module_id = original_module
+        self.editor.refresh()
+        self.editor.blocks.dropEvent(FakeDragEvent(
+            pictures, self.mime_for(keys[0]), QPointF(5, 5)))
+        snapshot = ReportProject(deepcopy(self.editor.report),
+                                 dict(self.editor.assets),
+                                 dict(self.editor.media_library))
+        before = len(snapshot.report.modules[0].blocks)
+        self.editor._replace(snapshot, None)
+        self.app.processEvents()
+        self.assertEqual(len(self.editor.report.modules[0].blocks), before)
+
+        # Page structural zones must have the same protection. Their delayed
+        # callbacks retain the token of the rendered zone, not a live lookup.
+        new_gallery, source = self.open_gallery()
+        zone = next(z for z in self.editor.page.findChildren(PictureDropZone)
+                    if z.module_id == original_module and z.index == 0)
+        zone.dropEvent(FakeDragEvent(source, self.mime_for(keys[0])))
+        snapshot = ReportProject(deepcopy(self.editor.report),
+                                 dict(self.editor.assets),
+                                 dict(self.editor.media_library))
+        before = len(snapshot.report.modules[0].blocks)
+        self.editor._replace(snapshot, None)
+        self.app.processEvents()
+        self.assertEqual(len(self.editor.report.modules[0].blocks), before)
+
+
 if __name__ == "__main__":
     unittest.main()
