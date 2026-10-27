@@ -183,10 +183,11 @@ class M45VisualModelTests(unittest.TestCase):
 class M45QtCompositionTests(unittest.TestCase):
     def test_transforms_and_annotations_render_without_mutating_image(self):
         try:
-            from PySide6.QtGui import QImage
+            from PySide6.QtGui import QImage, QGuiApplication
             from reportmaker.photo_editor import render_photo
         except ImportError:
             self.skipTest("Desktop Qt is not installed")
+        app = QGuiApplication.instance() or QGuiApplication([])
         raw = BytesIO()
         Image.new("RGB", (420, 240), (20, 60, 90)).save(raw, format="PNG")
         original = raw.getvalue()
