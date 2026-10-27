@@ -59,7 +59,7 @@ class M45MediaContainerTests(unittest.TestCase):
         self.assertEqual(restored.media_library, {identifier: "source"})
         with ZipFile(self.dest) as bundle:
             manifest = json.loads(bundle.read("manifest.json"))
-            self.assertEqual(manifest["version"], 3)
+            self.assertEqual(manifest["version"], 4)
             self.assertEqual(manifest["media_library"], [
                 {"id": identifier, "name": "source", "format": "JPEG",
                  "width": 340, "height": 240}])
@@ -151,6 +151,8 @@ class M45MediaContainerTests(unittest.TestCase):
         # version number changed: historical photo blocks had no visual key.
         def strip_visuals(module):
             for block in module["blocks"]:
+                if block["kind"] in ("paragraph", "heading"):
+                    block.pop("rich", None)
                 if block["kind"] == "photo":
                     block.pop("visual", None)
                 elif block["kind"] == "module":
@@ -172,7 +174,7 @@ class M45MediaContainerTests(unittest.TestCase):
         self.assertEqual(self.dest.read_bytes(), original)
         newer = self.root / "migrated.rmproj"
         save_project(loaded, newer)
-        self.assertEqual(json.loads(ZipFile(newer).read("manifest.json"))["version"], 3)
+        self.assertEqual(json.loads(ZipFile(newer).read("manifest.json"))["version"], 4)
 
     def test_v2_rejects_undeclared_media_and_bad_library_entries(self):
         source = self.root / "source.jpg"
