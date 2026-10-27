@@ -1,0 +1,113 @@
+"""Pure, document-layout-independent inline and paragraph typography.
+
+LocalizedText.original remains the *only* source of report wording. Formatting
+ranges index Unicode code points in that source; no HTML, remote URL, font file,
+or parallel text copy is stored in a portable project.
+"""
+from dataclasses import dataclass, field
+from re import fullmatch
+from math import isfinite
+
+ALIGNMENTS = ("left", "center", "right", "justify")
+LIST_KINDS = ("none", "bullet", "decimal", "lower-alpha", "upper-alpha")
+BASELINES = ("normal", "super", "sub")
+MAX_RUNS = 4096
+MAX_PARAGRAPHS = 1024
+
+
+@dataclass
+class TextRun:
+    start: int
+    end: int
+    family: str = ""
+    size: float = 0.0
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    strike: bool = False
+    baseline: str = "normal"
+    color: str = ""
+    highlight: str = ""
+
+
+@dataclass
+class ParagraphStyle:
+    start: int
+    align: str = "left"
+    indent: int = 0
+    list_kind: str = "none"
+    line_height: float = 1.0
+    shading: str = ""
+    border: bool = False
+
+
+@dataclass
+class RichFormatting:
+    runs: list[TextRun] = field(default_factory=list)
+    paragraphs: list[ParagraphStyle] = field(default_factory=list)
+
+
+def _color(value):
+    return isinstance(value, str) and (not value or fullmatch(r"#[0-9a-fA-F]{6}", value))
+
+
+def validate_rich(value: RichFormatting, text: str):
+    if not isinstance(value, RichFormatting) or not isinstance(text, str):
+        raise ValueError("Invalid rich text record")
+    if (not isinstance(value.runs, list) or len(value.runs) > MAX_RUNS
+        or not isinstance(value.paragraphs, list) or len(value.paragraphs) > MAX_PARAGRAPHS):
+        raise ValueError("Too many rich formatting records")
+    prev = 0
+    for item in value.runs:
+        if (not isinstance(item, TextRun) or type(item.start) is not int
+            or type(item.end) is not int or not 0 <= item.start < item.end <= len(text)
+            or item.start < prev or not isinstance(item.family, str)
+            or len(item.family) > 96 or any(ord(c) < 32 for c in item.family)
+            or type(item.size) not in (float, int)
+            or not isfinite(item.size) or (item.size != 0 and not 6 <= item.size <= 96)
+            or any(type(getattr(item, k)) is not bool
+                   for k in ("bold", "italic", "underline", "strike"))
+            or item.baseline not in BASELINES
+            or not _color(item.color) or not _color(item.highlight)):
+            raise ValueError("Invalid text formatting range")
+        prev = item.end
+    paragraph_starts = {0}
+    paragraph_starts.update(i + 1 for i, c in enumerate(text) if c == "\n")
+    seen = set()
+    for item in value.paragraphs:
+        if (not isinstance(item, ParagraphStyle) or type(item.start) is not int
+            or item.start not in paragraph_starts or item.start in seen
+            or item.align not in ALIGNMENTS
+            or type(item.indent) is not int or not 0 <= item.indent <= 12
+            or item.list_kind not in LIST_KINDS
+            or type(item.line_height) not in (int, float)
+            or not isfinite(item.line_height) or not 1 <= item.line_height <= 3
+            or not _color(item.shading) or type(item.border) is not bool):
+            raise ValueError("Invalid paragraph formatting")
+        seen.add(item.start)
+
+
+def format_to_dict(value: RichFormatting, text: str) -> dict:
+    validate_rich(value, text)
+    return {
+        "runs": [vars(run).copy() for run in value.runs],
+        "paragraphs": [vars(para).copy() for para in value.paragraphs],
+    }
+
+
+def format_from_dict(raw: object, text: str) -> RichFormatting:
+    def shape(record, names):
+        if not isinstance(record, dict) or set(record) != set(names):
+            raise ValueError("Unsupported rich formatting fields")
+        return record
+    obj = shape(raw, ("runs", "paragraphs"))
+    if (not isinstance(obj["runs"], list) or len(obj["runs"]) > MAX_RUNS
+        or not isinstance(obj["paragraphs"], list) or len(obj["paragraphs"]) > MAX_PARAGRAPHS):
+        raise ValueError("Invalid rich formatting collection")
+    out = RichFormatting(
+        [TextRun(**shape(x, TextRun.__dataclass_fields__)) for x in obj["runs"]],
+        [ParagraphStyle(**shape(x, ParagraphStyle.__dataclass_fields__))
+         for x in obj["paragraphs"]],
+    )
+    validate_rich(out, text)
+    return out
