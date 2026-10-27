@@ -32,6 +32,16 @@ def run() -> int:
         app.processEvents()
         doc = window.document
         try:
+            # RC1 installed-Windows finding: native dark theme used near-black
+            # report text over a near-black QTextBrowser background.
+            assert "background-color: #ffffff" in doc.preview.styleSheet()
+            assert doc.preview.findChild(QPushButton, "previewZoomIn") is None  # sibling controls
+            assert doc.owner.findChild(QPushButton, "previewZoomIn") is not None
+            assert "background-color:#ffffff" in doc.preview.toHtml().replace(" ", "")
+            app.processEvents()
+            captured = doc.preview.viewport().grab().toImage()
+            paper = captured.pixelColor(captured.width() - 5, captured.height() - 5)
+            assert min(paper.red(), paper.green(), paper.blue()) >= 230, paper.name()
             report = doc.report
             parent_id = report.modules[0].id
             nested = Module(LocalizedText("en", "Nested synthetic inspection"), [
