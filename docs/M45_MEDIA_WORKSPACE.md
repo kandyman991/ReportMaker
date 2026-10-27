@@ -1,6 +1,14 @@
 # M4.5 — Picture Manager, local HEIC conversion and editable image layers
 
-Status: **User-approved feature requirements, documentation PR only.** No M4.5 implementation, code CI evidence, installed-Windows acceptance or installer approval is implied. Source: 2026-10-27 project discussion. Binding architecture proposal: [ADR-0008](adr/0008-m45-media-workspace.md).
+Status: **User-approved feature requirements with a separate M4.5.1 implementation PR under review**. PR #16 records the design; stacked draft PR #17 implements the first media container, offline HEIC conversion and basic Qt Pictures UI. M4.5.2–.4 (annotation layers, private comment editing and composed annotation exports) remain unimplemented. Installed-Windows acceptance and installer approval remain pending. Binding architecture: [ADR-0008](adr/0008-m45-media-workspace.md).
+
+## M4.5.1 implementation checkpoint (draft PR #17)
+
+- New version-2 `.rmproj` metadata stores explicit picture-library members while preserving logical photo reuse and existing source report hierarchy. Old v1 projects open; a later Save writes v2. Legacy orphan v1 assets continue to be discarded; v2 undeclared hidden assets fail closed.
+- Local offline HEIC/HEIF decoding via desktop-packaged `pillow-heif`; standard input image types also convert into independent project JPEG/PNG/WebP working copies with safe bounds, selected image-quality presets and metadata removal. No original external file is overwritten or required when reopening.
+- Native **Pictures** dialog allows batch selection, preset/format choice, import-size confirmation, library preview, insertion into a module and removal of unused library images. The first UI slice does **not yet provide a visual original-vs-converted comparison**, photo annotations, review pins or a whole-image crop editor; those are subsequent gates.
+- DOCX/PDF exporter no longer inflates every JPEG into PNG; it continues to recompress/normalize output locally and atomically. Full annotated-image export remains pending.
+- Synthetic unit tests cover v1 migration, v2 strict asset membership, source preservation, portable library persistence, reuse, alpha, invalid input and HEIC, plus an offline Qt Pictures smoke regression. Hosted Windows CI must be checked at PR #17's **exact final head** before any approval claim.
 
 ## User workflow
 
