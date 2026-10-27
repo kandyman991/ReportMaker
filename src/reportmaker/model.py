@@ -9,6 +9,7 @@ from re import fullmatch
 from uuid import uuid4
 
 from .reference import CustomerSnapshot
+from .rich_text import RichFormatting
 
 
 def validate_language_tag(language: str) -> str:
@@ -158,6 +159,7 @@ def validate_report_metadata(report: Report) -> None:
 class ParagraphBlock:
     text: LocalizedText
     id: str = field(default_factory=lambda: uuid4().hex)
+    rich: RichFormatting = field(default_factory=RichFormatting)
 
 
 # A photograph's source bytes are project-owned and never modified by the editor.
@@ -260,6 +262,7 @@ class HeadingBlock:
     text: LocalizedText
     level: int = 2
     id: str = field(default_factory=lambda: uuid4().hex)
+    rich: RichFormatting = field(default_factory=RichFormatting)
 
 
 @dataclass
