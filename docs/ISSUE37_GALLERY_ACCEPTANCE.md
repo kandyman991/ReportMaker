@@ -1,6 +1,6 @@
 # RC2 issue #37 — Project photo gallery Windows acceptance
 
-Draft correction: PR #41 (https://github.com/kandyman991/ReportMaker/pull/41) against merged main. The published RC2 installer is unchanged. This change needs an independent review and authorized follow-up installer before closing issue #37.
+Reviewed code integration: PR #41 (https://github.com/kandyman991/ReportMaker/pull/41) against main. The published RC2 installer is unchanged. This change needs an independent review and authorized follow-up installer before closing issue #37.
 
 ## User workflow
 
@@ -15,7 +15,7 @@ Draft correction: PR #41 (https://github.com/kandyman991/ReportMaker/pull/41) ag
 
 ## Automated checks
 
-Synthetic Qt regression: tests/test_issue37_photo_gallery.py. It covers gallery visibility and zoom, lazy icon cache memory, source ID-only MIME, exact list placement, nested page insertion, asset reuse, Save/Open, Undo/Redo, draft conflicts and malicious/stale drag rejection. Editor-probe native Windows smoke now exercises the nonmodal gallery and the separate approval comparison dialog. Check exact-current-commit hosted M0, M1 and continuity workflows before review; code tests do not imply installed-PC acceptance.
+Synthetic Qt regression: tests/test_issue37_photo_gallery.py. It covers gallery visibility and zoom, lazy icon cache memory, source ID-only MIME, exact list placement, nested page insertion, asset reuse, Save/Open, Undo/Redo, draft conflicts and malicious/stale drag rejection, including deferred Qt callback races. Editor-probe native Windows smoke now exercises the nonmodal gallery and the separate approval comparison dialog. Check exact-current-commit hosted M0, M1 and continuity workflows before review; code tests do not imply installed-PC acceptance.
 
 ## Installed Windows checklist — pending
 
@@ -26,4 +26,4 @@ Synthetic Qt regression: tests/test_issue37_photo_gallery.py. It covers gallery 
 5. Test simultaneous pending block/page drafts and conflict Cancel; then explicit resolution, Undo/Redo, .rmproj Save/Open and DOCX/PDF visual order.
 6. Verify unchanged local original HEIC/JPEG hashes, in-use photo removal rejection and no customer photographs or screenshots added to public repo.
 
-Do not merge, publish, promote or close issue #37 based only on synthetic hosted checks.
+Do not publish, promote or close issue #37 based only on synthetic hosted checks. Code integration requires independent review, final-head CI and explicit user authorization.
