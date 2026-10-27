@@ -9,11 +9,13 @@ from tempfile import TemporaryDirectory
 import unittest
 from zipfile import ZipFile, ZIP_DEFLATED
 
-from PIL import Image
+from PIL import Image, ImageCms
+from unittest.mock import patch
+from reportmaker.engine import ProjectEditor
 
 from reportmaker.media_import import (
     PictureImportError, convert_picture, import_picture, import_pictures,
-    remove_library_picture,
+    stage_pictures, commit_staged_pictures, remove_library_picture,
 )
 from reportmaker.model import LocalizedText, PhotoBlock
 from reportmaker.project_io import ReportProject, load_project, save_project
@@ -58,7 +60,9 @@ class M45MediaContainerTests(unittest.TestCase):
         with ZipFile(self.dest) as bundle:
             manifest = json.loads(bundle.read("manifest.json"))
             self.assertEqual(manifest["version"], 2)
-            self.assertEqual(manifest["media_library"], [{"id": identifier, "name": "source"}])
+            self.assertEqual(manifest["media_library"], [
+                {"id": identifier, "name": "source", "format": "JPEG",
+                 "width": 340, "height": 240}])
             self.assertEqual(set(bundle.namelist()),
                 {"manifest.json", "assets/photo-1", "assets/" + identifier})
             self.assertNotIn(str(source), bundle.read("manifest.json").decode())
@@ -94,8 +98,10 @@ class M45MediaContainerTests(unittest.TestCase):
         self.assertIn(key, restored.media_library)
         restored.report.modules[0].blocks = restored.report.modules[0].blocks[:-2]
         remove_library_picture(restored, key)
-        self.assertNotIn(key, restored.assets)
+        self.assertIn(key, restored.assets)  # transient Undo cache, never serialized
         self.assertNotIn(key, restored.media_library)
+        save_project(restored, self.dest)
+        self.assertNotIn(key, load_project(self.dest).assets)
 
     def test_batch_import_is_atomic_if_one_source_invalid(self):
         valid = self.root / "valid.jpg"
@@ -150,6 +156,10 @@ class M45MediaContainerTests(unittest.TestCase):
         self.assertEqual(loaded.media_library, {})
         self.assertEqual(loaded.assets, self.project.assets)
         self.assertEqual(self.dest.read_bytes(), original)
+        self.assertEqual(loaded.loaded_version, 1)
+        with self.assertRaisesRegex(ValueError, "Save As"):
+            save_project(loaded, self.dest)
+        self.assertEqual(self.dest.read_bytes(), original)
         newer = self.root / "migrated.rmproj"
         save_project(loaded, newer)
         self.assertEqual(json.loads(ZipFile(newer).read("manifest.json"))["version"], 2)
@@ -178,6 +188,77 @@ class M45MediaContainerTests(unittest.TestCase):
                         archive.writestr(name, blob)
                 with self.assertRaises(ValueError):
                     load_project(self.dest)
+
+    def test_deleted_library_bytes_retained_only_for_undo(self):
+        source = self.root / "undo.jpg"
+        sample(source)
+        key = import_picture(self.project, source)
+        editor = ProjectEditor(self.project.report)
+        block = PhotoBlock(key, LocalizedText("it", "Synthetic"))
+        editor.add_block(editor.report.modules[0].id, block)
+        editor.remove_block(editor.report.modules[0].id, block.id)
+        self.project.report = editor.report
+        remove_library_picture(self.project, key)
+        self.assertNotIn(key, self.project.media_library)
+        self.assertIn(key, self.project.assets)
+        save_project(self.project, self.dest)
+        self.assertNotIn(key, load_project(self.dest).assets)
+        self.assertTrue(editor.undo())
+        self.project.report = editor.report
+        save_project(self.project, self.dest)
+        self.assertEqual(load_project(self.dest).assets[key], self.project.assets[key])
+
+    def test_staged_bytes_are_committed_without_reopening_original(self):
+        source = self.root / "staged.jpg"
+        original = sample(source)
+        with patch("reportmaker.media_import.convert_picture", wraps=convert_picture) as decode:
+            staged = stage_pictures([source])
+            self.assertEqual(decode.call_count, 1)
+            self.assertTrue(staged[0].photo.source_preview.startswith(b"\\x89PNG"))
+            approved = staged[0].photo.data
+            source.write_bytes(b"replaced after preview; not an image")
+            keys = commit_staged_pictures(self.project, staged)
+            self.assertEqual(decode.call_count, 1)
+        self.assertNotEqual(source.read_bytes(), original)
+        self.assertEqual(self.project.assets[keys[0]], approved)
+        save_project(self.project, self.dest)
+        self.assertEqual(load_project(self.dest).assets[keys[0]], approved)
+
+    def test_bad_icc_conversion_returns_controlled_error(self):
+        source = self.root / "icc.jpg"
+        source_image = Image.new("RGB", (44, 35), "blue")
+        profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+        source_image.save(source, icc_profile=profile)
+        before = source.read_bytes()
+        with patch.object(ImageCms, "profileToProfile",
+                          side_effect=ImageCms.PyCMSError("Synthetic profile mismatch")):
+            with self.assertRaisesRegex(PictureImportError, "color profile"):
+                import_picture(self.project, source)
+        self.assertEqual(self.project.media_library, {})
+        self.assertEqual(source.read_bytes(), before)
+
+    def test_image_metadata_is_validated_against_decoded_content(self):
+        source = self.root / "meta.jpg"
+        sample(source)
+        key = import_picture(self.project, source)
+        save_project(self.project, self.dest)
+        with ZipFile(self.dest) as archive:
+            manifest = json.loads(archive.read("manifest.json"))
+            blobs = {n: archive.read(n) for n in archive.namelist()
+                     if n.startswith("assets/")}
+        for field, value in (("width", 345), ("height", True),
+                             ("format", "PNG"), ("width", 0)):
+            with self.subTest(field=field, value=value):
+                corrupted = deepcopy(manifest)
+                corrupted["media_library"][0][field] = value
+                with ZipFile(self.dest, "w", ZIP_DEFLATED) as archive:
+                    archive.writestr("manifest.json", json.dumps(corrupted))
+                    for name, blob in blobs.items():
+                        archive.writestr(name, blob)
+                before = self.dest.read_bytes()
+                with self.assertRaises(ValueError):
+                    load_project(self.dest)
+                self.assertEqual(self.dest.read_bytes(), before)
 
     def test_synthetic_heic_decoder_when_available(self):
         try:
