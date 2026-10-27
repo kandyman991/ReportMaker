@@ -131,6 +131,33 @@ class RibbonVisibilityTests(unittest.TestCase):
                          "Valve 😀 test")
         self.assertTrue(any(run.bold for run in loaded.report.modules[0].blocks[0].rich.runs))
 
+    def test_page_style_drops_stale_selection_after_block_draft_commit(self):
+        """A selection in old page text must not style a new block draft."""
+        from PySide6.QtGui import QTextCursor
+        from PySide6.QtWidgets import QPushButton
+
+        controller = self.controller
+        controller.editor.apply(lambda report:
+            report.modules[0].blocks[0].text.update_original("Valve check"))
+        controller.refresh()
+        module = controller.report.modules[0]
+        block_id = module.blocks[0].id
+        field = controller.page.fields[(module.id, block_id, "text")]
+        cursor = field.textCursor()
+        cursor.setPosition(0)
+        cursor.setPosition(5, QTextCursor.MoveMode.KeepAnchor)
+        field.setTextCursor(cursor)
+        self.assertEqual(cursor.selectedText(), "Valve")
+
+        # This unapplied draft supersedes page text when Style first flushes
+        # the block editor. Reusing page offsets would select "Other" instead.
+        controller.text_edit.setPlainText("Other draft content")
+        self.assertTrue(controller._block_pending)
+        controller.page.findChild(QPushButton, "pageStyle_" + block_id).click()
+        self.assertEqual(controller.text_edit.toPlainText(), "Other draft content")
+        self.assertFalse(controller.text_edit.textCursor().hasSelection())
+        self.assertIn("Select the text again", controller.block_hint.text())
+
     def test_horizontal_navigation_reaches_hidden_tools(self):
         from PySide6.QtWidgets import QToolButton
         ribbon = self.controller.rich_ribbon
