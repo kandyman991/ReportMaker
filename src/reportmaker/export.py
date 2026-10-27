@@ -20,7 +20,7 @@ from .model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock, ParagraphBlock,
     PhotoBlock, TableBlock,
 )
-from .project_io import ReportProject
+from .project_io import MAX_ASSET, ReportProject
 
 
 class ExportError(ValueError):
@@ -59,6 +59,8 @@ def _image_bytes(payload: bytes) -> bytes:
     from PIL import Image, ImageOps, UnidentifiedImageError
     if not isinstance(payload, bytes) or not payload:
         raise ExportError("Referenced photograph is missing")
+    if len(payload) > MAX_ASSET:
+        raise ExportError("Referenced photograph exceeds the project asset size limit")
     try:
         with Image.open(BytesIO(payload)) as im:
             if im.width < 1 or im.height < 1 or im.width * im.height > MAX_IMAGE_PIXELS:
@@ -345,7 +347,9 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
             level, label, key = entry
             self.canv.bookmarkPage(key)
             self.canv.addOutlineEntry(label, key, level=min(level, 8), closed=False)
-            self.notify("TOCEntry", (min(level, 8), label, self.page, key))
+            # ReportLab treats TOC labels as Paragraph markup: preserve literal
+            # angle brackets and ampersands rather than silently dropping text.
+            self.notify("TOCEntry", (min(level, 8), escape(label), self.page, key))
 
     styles = getSampleStyleSheet()
     normal = styles["BodyText"]
@@ -370,8 +374,10 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
     label_style = ParagraphStyle("ReportLabel", parent=styles["Heading2"], fontName=bold_font)
     story = [Paragraph(escape(plan.title), title_style),
              Spacer(1, 10), Paragraph("Report information", label_style)]
-    metadata = [[Paragraph(escape(label), styles["BodyText"]),
-                 Paragraph(escape(value).replace("\n", "<br/>"), styles["BodyText"])]
+    # Use the same selected/embedded Unicode font as report body content.
+    # Default BodyText is Helvetica and corrupts non-Latin customer metadata.
+    metadata = [[Paragraph(escape(label), normal),
+                 Paragraph(escape(value).replace("\n", "<br/>"), normal)]
                 for label, value in plan.info]
     if metadata:
         tbl = Table(metadata, colWidths=[4.2*cm, 12.8*cm], hAlign="LEFT")
@@ -431,7 +437,13 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
             story.append(PageBreak())
         else:
             raise ExportError("Unsupported PDF item")
-    ReportPDF(destination).multiBuild(story, maxPasses=8)
+    from reportlab.platypus.doctemplate import LayoutError
+    try:
+        ReportPDF(destination).multiBuild(story, maxPasses=8)
+    except LayoutError as exc:
+        # A very tall table row / non-splittable object is normal invalid
+        # printable content, not a reason to leave the desktop export silent.
+        raise ExportError("PDF content does not fit on a page; shorten or split the oversized table cell or image") from exc
 
 
 def export_project(project: ReportProject, destination: str | Path,
