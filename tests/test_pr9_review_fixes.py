@@ -97,6 +97,16 @@ class ReviewedM2SafetyTests(TestCase):
         # where undeclared/orphan assets are intentionally forbidden.
         manifest["version"] = 1
         manifest.pop("media_library")
+        # Reconstruct actual pre-v3 records, not a v3 manifest with a
+        # version number changed: historical photo blocks had no visual key.
+        def strip_visuals(module):
+            for block in module["blocks"]:
+                if block["kind"] == "photo":
+                    block.pop("visual", None)
+                elif block["kind"] == "module":
+                    strip_visuals(block["module"])
+        for module in (*manifest["report"]["modules"], manifest["report"]["conclusion"]):
+            strip_visuals(module)
         manifest["assets"].append({"id": "obsolete", "length": len(unused),
                                    "sha256": sha256(unused).hexdigest()})
         with ZipFile(self.path, "w", ZIP_DEFLATED) as archive:

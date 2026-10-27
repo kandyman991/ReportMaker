@@ -210,6 +210,9 @@ def _block_from(obj, depth, require_visual=False):
             raise ValueError("v3 photo placement is missing editable visual state")
         # Valid v1/v2 photo records predate per-placement visuals.
         obj = {**obj, "visual": _visual_to(PhotoVisual())}
+    elif kind == "photo" and not require_visual:
+        # Older formats must not silently accept new editable layers.
+        raise ValueError("Legacy photo records cannot contain v3 visual layers")
     if kind not in allowed or obj.keys() != allowed[kind]:
         raise ValueError("Unsupported or inconsistent block kind")
     if kind == "paragraph":

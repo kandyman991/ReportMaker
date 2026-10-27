@@ -217,7 +217,8 @@ def validate_photo_visual(value: PhotoVisual) -> None:
         raise ValueError("Too many photo annotations")
     ids = set()
     for mark in value.marks:
-        if (not isinstance(mark, PhotoMark) or mark.kind not in PHOTO_MARK_KINDS
+        if (not isinstance(mark, PhotoMark) or not isinstance(mark.kind, str)
+            or mark.kind not in PHOTO_MARK_KINDS
             or not all(coordinate(v) for v in (mark.x, mark.y, mark.x2, mark.y2))
             or type(mark.thickness) is not int or not 1 <= mark.thickness <= 16
             or not isinstance(mark.color, str)

@@ -289,6 +289,17 @@ def run() -> int:
                          if name.startswith("assets/")}
             original_manifest["version"] = 1
             original_manifest.pop("media_library")
+            # Simulate a historical v1 file accurately, removing all v3
+            # visual-layer keys rather than only changing the version tag.
+            def strip_visuals(module):
+                for entry in module["blocks"]:
+                    if entry["kind"] == "photo":
+                        entry.pop("visual", None)
+                    elif entry["kind"] == "module":
+                        strip_visuals(entry["module"])
+            for module in (*original_manifest["report"]["modules"],
+                           original_manifest["report"]["conclusion"]):
+                strip_visuals(module)
             with ZipFile(legacy, "w", ZIP_DEFLATED) as bundle:
                 bundle.writestr("manifest.json", json.dumps(original_manifest))
                 for name, blob in blobs.items():
