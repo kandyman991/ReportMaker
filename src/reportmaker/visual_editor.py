@@ -31,7 +31,7 @@ from .model import (
 from .project_io import (LEGACY_VERSION, VERSION, MAX_ASSET, ReportProject,
                          default_projects_directory, load_project, save_project)
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
-from .media_import import (PictureImportError, convert_picture, import_pictures,
+from .media_import import (PictureImportError, stage_pictures, commit_staged_pictures,
                            remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 
@@ -685,6 +685,66 @@ class VisualReportEditor:
             buttons.addWidget(button)
         layout.addLayout(buttons)
 
+        def approve_staged(staged):
+            """Review true source/converted previews; approval commits exact bytes."""
+            comparison = QDialog(dialog)
+            comparison.setObjectName("pictureImportComparisonDialog")
+            comparison.setWindowTitle("Compare original and optimized working pictures")
+            comparison.resize(780, 475)
+            content = QVBoxLayout(comparison)
+            selector = QComboBox()
+            selector.setObjectName("pictureComparisonSelector")
+            for entry in staged:
+                selector.addItem(entry.name)
+            content.addWidget(selector)
+            views = QHBoxLayout()
+            source_panel = QVBoxLayout()
+            target_panel = QVBoxLayout()
+            source_panel.addWidget(QLabel("Original (preview only)"))
+            target_panel.addWidget(QLabel("Optimized project copy"))
+            source_image = QLabel()
+            target_image = QLabel()
+            for widget in (source_image, target_image):
+                widget.setMinimumSize(300, 210)
+                widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            source_panel.addWidget(source_image)
+            target_panel.addWidget(target_image)
+            views.addLayout(source_panel)
+            views.addLayout(target_panel)
+            content.addLayout(views)
+            details = QLabel()
+            content.addWidget(details)
+
+            def show_comparison(*_):
+                entry = staged[selector.currentIndex()]
+                photo = entry.photo
+                for widget, image_bytes in (
+                    (source_image, photo.source_preview), (target_image, photo.data)
+                ):
+                    image = QImage.fromData(image_bytes)
+                    widget.setPixmap(QPixmap.fromImage(image.scaled(
+                        330, 240, Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation))
+                        if not image.isNull() else QPixmap())
+                details.setText(
+                    f"{entry.name}: {photo.original_width}×{photo.original_height} "
+                    f"({photo.source_bytes / 1048576:.2f} MiB) → "
+                    f"{photo.width}×{photo.height} {photo.format.upper()} "
+                    f"({len(photo.data) / 1048576:.2f} MiB)")
+            selector.currentIndexChanged.connect(show_comparison)
+            show_comparison()
+            old = sum(entry.photo.source_bytes for entry in staged)
+            new = sum(len(entry.photo.data) for entry in staged)
+            content.addWidget(QLabel(
+                f"Total: {len(staged)} photos; source {old / 1048576:.2f} MiB → "
+                f"project {new / 1048576:.2f} MiB. Source files stay unchanged."))
+            actions = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                       QDialogButtonBox.StandardButton.Cancel)
+            actions.accepted.connect(comparison.accept)
+            actions.rejected.connect(comparison.reject)
+            content.addWidget(actions)
+            return comparison.exec() == QDialog.DialogCode.Accepted
+
         def import_selected():
             paths, _ = QFileDialog.getOpenFileNames(
                 dialog, "Import independent project copies", "",
@@ -692,23 +752,14 @@ class VisualReportEditor:
             if not paths:
                 return
             try:
-                profile = preset.currentData()
-                output = fmt.currentData()
-                converted = [convert_picture(path, preset=profile, output_format=output)
-                             for path in paths]
-                old = sum(p.source_bytes for p in converted)
-                new = sum(len(p.data) for p in converted)
-                answer = QMessageBox.question(
-                    dialog, "Import optimized working copies",
-                    f"{len(paths)} picture(s) · source {old / 1048576:.2f} MiB → "
-                    f"project {new / 1048576:.2f} MiB. Import copies?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes)
-                if answer != QMessageBox.StandardButton.Yes:
+                # Stage once. The preview and committed working copy use the
+                # identical image bytes; source originals are never reopened.
+                staged = stage_pictures(paths, preset=preset.currentData(),
+                                        output_format=fmt.currentData())
+                if not approve_staged(staged):
                     return
-                import_pictures(ReportProject(self.report, self.assets,
-                                              self.media_library), paths,
-                                preset=profile, output_format=output)
+                commit_staged_pictures(
+                    ReportProject(self.report, self.assets, self.media_library), staged)
             except (PictureImportError, ValueError, OSError) as exc:
                 self._warn("Cannot import pictures", exc)
                 return
