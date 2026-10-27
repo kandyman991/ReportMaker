@@ -13,12 +13,12 @@ from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import QDate, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QImage, QKeySequence, QPixmap, QTextDocument
+from PySide6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPen, QPixmap, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
     QDialogButtonBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
-    QPlainTextEdit, QPushButton, QScrollArea, QSplitter, QTabWidget, QTableWidget,
+    QPlainTextEdit, QPushButton, QScrollArea, QSlider, QSplitter, QTabWidget, QTableWidget,
     QTableWidgetItem, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
     QWidget,
 )
@@ -35,6 +35,7 @@ from .media_import import (PictureImportError, stage_pictures, commit_staged_pic
                            remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
+from .photo_gallery import PHOTO_MIME, ProjectPictureList, scaled_project_image
 from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
 from .rich_text import safe_html
 from .page_editor import EditableDocumentPage
@@ -160,9 +161,85 @@ class BlockList(QListWidget):
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
         self.setDropIndicatorShown(True)
-        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.photo_drop_resolver = lambda source, mime: None
+        self.on_picture_drop = None
+        self._photo_drop_index = None
+
+    def _index_at(self, position):
+        target = self.itemAt(position)
+        if target is None:
+            return self.count()
+        index = self.row(target)
+        if position.y() >= self.visualItemRect(target).center().y():
+            index += 1
+        return index
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat(PHOTO_MIME):
+            if self.photo_drop_resolver(event.source(), event.mimeData()) is None:
+                event.ignore()
+                return
+            self._photo_drop_index = None
+            event.acceptProposedAction()
+        elif event.source() is self:
+            super().dragEnterEvent(event)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat(PHOTO_MIME):
+            if self.photo_drop_resolver(event.source(), event.mimeData()) is None:
+                self._photo_drop_index = None
+                self.viewport().update()
+                event.ignore()
+                return
+            self._photo_drop_index = self._index_at(event.position().toPoint())
+            self.viewport().update()
+            event.acceptProposedAction()
+        elif event.source() is self:
+            super().dragMoveEvent(event)
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._photo_drop_index = None
+        self.viewport().update()
+        super().dragLeaveEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._photo_drop_index is None:
+            return
+        index = self._photo_drop_index
+        if index < self.count():
+            y = self.visualItemRect(self.item(index)).top()
+        elif self.count():
+            y = self.visualItemRect(self.item(self.count() - 1)).bottom()
+        else:
+            y = 3
+        painter = QPainter(self.viewport())
+        painter.setPen(QPen(QColor("#1474c9"), 3))
+        painter.drawLine(3, y, self.viewport().width() - 3, y)
+        painter.end()
 
     def dropEvent(self, event):
+        if event.mimeData().hasFormat(PHOTO_MIME):
+            key = self.photo_drop_resolver(event.source(), event.mimeData())
+            self._photo_drop_index = None
+            self.viewport().update()
+            if key is None or self.on_picture_drop is None:
+                event.ignore()
+                return
+            index = self._index_at(event.position().toPoint())
+            event.acceptProposedAction()
+            # Refresh replaces the target list; defer until Qt finishes dropping.
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self.on_picture_drop(None, index, key))
+            return
+        if event.source() is not self:
+            event.ignore()
+            return
         source = self.currentItem()
         if source is None:
             event.ignore()
