@@ -65,7 +65,7 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
         return ExportStyle()
     if not isinstance(style, ExportStyle):
         raise ExportError("Invalid export branding configuration")
-    for value, label, limit in ((style.company_name, "Company name", 80),
+    for value, label, limit in ((style.company_name, "Company name", 120),
                                 (style.footer_note, "Footer note", 120)):
         if (not isinstance(value, str) or len(value) > limit or
             any(ord(c) < 32 or ord(c) == 127 for c in value)):
