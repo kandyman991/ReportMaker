@@ -56,6 +56,8 @@ class ExportStyle:
     footer_distance_cm: float = 0.9
     normal_font: str = ""
     normal_size_pt: float = 11.0
+    heading_font: str = ""
+    heading_size_pt: float = 16.0
 
 
 def _validate_style(style: ExportStyle | None) -> ExportStyle:
@@ -78,7 +80,9 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
             top_margin_cm=style.top_margin_cm, bottom_margin_cm=style.bottom_margin_cm,
             header_distance_cm=style.header_distance_cm, footer_distance_cm=style.footer_distance_cm,
             header_text=style.company_name, footer_text=style.footer_note,
-            normal_font=style.normal_font, normal_size_pt=style.normal_size_pt, logo=style.logo))
+            normal_font=style.normal_font, normal_size_pt=style.normal_size_pt,
+            heading_font=style.heading_font, heading_size_pt=style.heading_size_pt,
+            logo=style.logo))
     except TemplateError as exc:
         raise ExportError(str(exc)) from exc
     if (style.company_name or style.logo) and style.top_margin_cm < 1.6:
@@ -91,7 +95,8 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
                        style.left_margin_cm, style.right_margin_cm,
                        style.top_margin_cm, style.bottom_margin_cm,
                        style.header_distance_cm, style.footer_distance_cm,
-                       style.normal_font, style.normal_size_pt)
+                       style.normal_font, style.normal_size_pt,
+                       style.heading_font, style.heading_size_pt)
 
 
 def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
@@ -377,6 +382,10 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
     if style.normal_font:
         normal.font.name = style.normal_font
     normal.font.size = Pt(style.normal_size_pt)
+    first_heading = document.styles["Heading 1"]
+    if style.heading_font:
+        first_heading.font.name = style.heading_font
+    first_heading.font.size = Pt(style.heading_size_pt)
     printable_width = style.page_width_cm - style.left_margin_cm - style.right_margin_cm
     # Repeated Word header/footer, with a live PAGE field.
     if style.company_name or style.logo:
@@ -613,7 +622,7 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     normal.leading = style.normal_size_pt * 1.4
     heading_styles = [
         ParagraphStyle("ReportSection" + str(i), parent=normal,
-                       fontName=bold_font, fontSize=max(11, 16-i),
+                       fontName=bold_font, fontSize=max(10, style.heading_size_pt-i),
                        leading=max(15, 20-i), spaceBefore=13, spaceAfter=6,
                        keepWithNext=1, leftIndent=min(i, 12)*.35*cm)
         for i in range(9)
