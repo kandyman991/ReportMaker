@@ -94,7 +94,9 @@ make an M0-only branch masquerade as the current release.
 
 ## Pending record
 
-- RC GitHub Actions build: PENDING.
-- RC release installer SHA-256: PENDING.
-- Installed Windows: PENDING.
-- Owner acceptance and production promotion: PENDING.
+- RC GitHub Actions build: **SUCCESS** [run #40473742814](https://github.com/kandyman991/ReportMaker/actions/runs/40473742814), from pinned product source `1e092c175857bfd5969202201b2595604bb27b2f`. Frozen WebEngine, layout, customer DB, report editor, export, synthetic HEIC/project tests and installer packaging passed.
+- Published [Windows v0.5.0 RC1 prerelease](https://github.com/kandyman991/ReportMaker/releases/tag/reportmaker-v0.5.0-rc.1), 2026-10-27, with direct [installer](https://github.com/kandyman991/ReportMaker/releases/download/reportmaker-v0.5.0-rc.1/ReportMaker-0.5.0-Setup.exe) (165,244,362 bytes) and [SHA256SUMS.txt](https://github.com/kandyman991/ReportMaker/releases/download/reportmaker-v0.5.0-rc.1/SHA256SUMS.txt).
+- RC installer SHA-256 (from successful GitHub packaging logs): `e0e58ec4eb94990caad56a8e96d7e2d266b929ba33d793773a1d90b07c68f16b`. The checksum must match the downloaded file on the user's Windows PC. Do not overwrite this tested binary.
+- Historical [M0 prerelease](https://github.com/kandyman991/ReportMaker/releases/tag/reportmaker-windows-m0) and its original installer remain unchanged.
+- Installed Windows: **PENDING** — only Linux `mircea-gitmachine` is connected to Remote Desktop Commander; no Windows native acceptance executed.
+- Owner acceptance and stable production promotion of the identical binary: **PENDING**.
