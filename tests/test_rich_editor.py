@@ -152,15 +152,18 @@ class RichQtTests(unittest.TestCase):
         editor.setTextCursor(cursor)
         ribbon.findChild(QPushButton, "richBold").click()
         ribbon.findChild(QPushButton, "richUnderline").click()
+        ribbon.findChild(QPushButton, "richBorder").click()
         content, rich = capture_rich(editor)
         self.assertEqual(content, source)
         self.assertTrue(any(r.bold for r in rich.runs))
         self.assertTrue(any(r.underline for r in rich.runs))
+        self.assertTrue(rich.paragraphs[0].border)
         clone = SafeRichTextEdit()
         apply_rich(clone, content, rich)
         same_text, same_format = capture_rich(clone)
         self.assertEqual(same_text, source)
         self.assertTrue(any(r.bold and r.underline for r in same_format.runs))
+        self.assertTrue(same_format.paragraphs[0].border)
         self.assertEqual(clone.toPlainText(), source)
 
 if __name__ == "__main__":
