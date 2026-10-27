@@ -15,9 +15,8 @@ class RC2BuildContractTests(unittest.TestCase):
     def test_pin_and_main_only_release_entry_point(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn(f"RC2_SOURCE_SHA: {SOURCE_SHA}", workflow)
-        self.assertRegex(workflow, r"(?m)^  push:\s*$")
-        self.assertIn("branches: [main]", workflow)
-        self.assertIn("- .github/workflows/windows-rc2.yml", workflow)
+        self.assertIn("on:\n  workflow_dispatch:", workflow)
+        self.assertNotIn("  push:", workflow)
         self.assertIn("github.repository == 'kandyman991/ReportMaker'", workflow)
         self.assertIn("github.ref == 'refs/heads/main'", workflow)
         self.assertIn("ref: ${{ env.RC2_SOURCE_SHA }}", workflow)
@@ -35,6 +34,8 @@ class RC2BuildContractTests(unittest.TestCase):
         self.assertIn("gh release create", workflow)
         self.assertIn("--draft", workflow)
         self.assertIn("gh release upload", workflow)
+        self.assertIn("gh release view $tag --repo $repo --json assets,isDraft,isPrerelease", workflow)
+        self.assertNotIn('$release = gh api "repos/$repo/releases/tags/$tag"', workflow)
         self.assertIn("gh release edit", workflow)
         self.assertIn("--draft=false --prerelease", workflow)
         self.assertLess(workflow.index("Smoke-test the actual frozen application"),
