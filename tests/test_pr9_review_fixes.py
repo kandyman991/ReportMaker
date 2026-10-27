@@ -105,8 +105,13 @@ class ReviewedM2SafetyTests(TestCase):
             archive.writestr("assets/obsolete", unused)
         imported = load_project(self.path)
         self.assertEqual(set(imported.assets), {"photo-1"})
-        save_project(imported, self.path)
-        with ZipFile(self.path) as archive:
+        source_v1 = self.path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "Save As"):
+            save_project(imported, self.path)
+        self.assertEqual(self.path.read_bytes(), source_v1)
+        upgraded = self.path.with_name("migrated.rmproj")
+        save_project(imported, upgraded)
+        with ZipFile(upgraded) as archive:
             self.assertEqual(set(archive.namelist()), {"manifest.json", "assets/photo-1"})
 
     def test_f02_invalid_mutations_leave_undo_and_source_unchanged(self):
