@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-27T16:24:50.578Z",
+  "generatedAt": "2026-10-27T16:39:16.169Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "600fc795b45a3337b29f1f9bc9ecaa051b9196ac",
-    "message": "Merge PR #41: non-modal photo gallery and secure report insertion\n\nReviewed issue #37 implementation, fixed deferred stale Qt drop callbacks, preserved the latest main fixes (#35/#36/#38), and verified M0/M1/continuity Windows checks at exact PR head.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/600fc795b45a3337b29f1f9bc9ecaa051b9196ac"
+    "sha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+    "message": "build: add source-pinned Windows RC3 installer and prerelease (#43)\n\nCo-authored-by: ReportMaker Release Automation <release-automation@users.noreply.github.com>",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/9924d0a33486381a66c2e2a2f92e3f37305166b0"
   },
   "openPullRequests": [
     {
@@ -61,114 +61,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40540645305,
+      "id": 40543005457,
       "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
+      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+      "event": "push",
+      "updatedAt": "2026-10-27T16:39:15Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005457"
+    },
+    {
+      "id": 40543005177,
+      "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+      "event": "push",
+      "updatedAt": "2026-10-27T16:39:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005177"
+    },
+    {
+      "id": 40543005086,
+      "name": "ReportMaker Windows RC3 pinned installer",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+      "event": "push",
+      "updatedAt": "2026-10-27T16:39:11Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005086"
+    },
+    {
+      "id": 40543005083,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+      "event": "push",
+      "updatedAt": "2026-10-27T16:39:11Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005083"
+    },
+    {
+      "id": 40542684828,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "release/rc3-pinned-main-20261027",
+      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T16:38:35Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542684828"
+    },
+    {
+      "id": 40542684820,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "release/rc3-pinned-main-20261027",
+      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T16:38:23Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542684820"
+    },
+    {
+      "id": 40542684795,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "release/rc3-pinned-main-20261027",
+      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T16:37:20Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542684795"
+    },
+    {
+      "id": 40542675840,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "release/rc3-pinned-main-20261027",
+      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
+      "event": "push",
+      "updatedAt": "2026-10-27T16:38:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542675840"
+    },
+    {
+      "id": 40540645305,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "600fc795b45a3337b29f1f9bc9ecaa051b9196ac",
       "event": "push",
-      "updatedAt": "2026-10-27T16:24:48Z",
+      "updatedAt": "2026-10-27T16:24:52Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540645305"
     },
     {
       "id": 40540645266,
       "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "600fc795b45a3337b29f1f9bc9ecaa051b9196ac",
       "event": "push",
-      "updatedAt": "2026-10-27T16:24:47Z",
+      "updatedAt": "2026-10-27T16:25:56Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540645266"
-    },
-    {
-      "id": 40540645260,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "600fc795b45a3337b29f1f9bc9ecaa051b9196ac",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:24:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540645260"
-    },
-    {
-      "id": 40540291844,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/issue-37-project-photo-gallery",
-      "headSha": "fd8d8e2e6b6b114d8edb261f77014680dedb06c3",
-      "event": "pull_request",
-      "updatedAt": "2026-10-27T16:22:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540291844"
-    },
-    {
-      "id": 40540291753,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/issue-37-project-photo-gallery",
-      "headSha": "fd8d8e2e6b6b114d8edb261f77014680dedb06c3",
-      "event": "pull_request",
-      "updatedAt": "2026-10-27T16:24:20Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540291753"
-    },
-    {
-      "id": 40540291613,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/issue-37-project-photo-gallery",
-      "headSha": "fd8d8e2e6b6b114d8edb261f77014680dedb06c3",
-      "event": "pull_request",
-      "updatedAt": "2026-10-27T16:23:50Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540291613"
-    },
-    {
-      "id": 40540283249,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/issue-37-project-photo-gallery",
-      "headSha": "fd8d8e2e6b6b114d8edb261f77014680dedb06c3",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:23:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540283249"
-    },
-    {
-      "id": 40539981139,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "7912ffdfad032bcc85b061a16d85cf88d931da5c",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:21:51Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40539981139"
-    },
-    {
-      "id": 40539981086,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "7912ffdfad032bcc85b061a16d85cf88d931da5c",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:20:50Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40539981086"
-    },
-    {
-      "id": 40539981000,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "7912ffdfad032bcc85b061a16d85cf88d931da5c",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:21:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40539981000"
     }
   ]
 }
