@@ -8,11 +8,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout,
-    QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QVBoxLayout,
+    QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
+    QPushButton, QVBoxLayout,
 )
 
-from .template_import import DocumentTemplate, TemplateError, validate_template, MAX_LOGO
+from .template_import import (
+    DocumentTemplate, TemplateError, validate_template, MAX_LOGO,
+    MAX_HEADER_FOOTER_CHARS,
+)
 
 
 def edit_template_layout(owner, source: DocumentTemplate,
@@ -21,7 +24,7 @@ def edit_template_layout(owner, source: DocumentTemplate,
     dialog = QDialog(owner)
     dialog.setObjectName("templateLayoutDialog")
     dialog.setWindowTitle("Word template — local layout editor")
-    dialog.resize(600, 660)
+    dialog.resize(720, 740)
     root = QVBoxLayout(dialog)
     if warnings:
         summary = QLabel(
@@ -64,9 +67,20 @@ def edit_template_layout(owner, source: DocumentTemplate,
         ("normal_font", "Normal Word font"),
         ("heading_font", "Heading 1 Word font"),
     ):
-        control = QLineEdit(getattr(source, name))
+        if name in ("header_text", "footer_text"):
+            # QLineEdit silently collapses paragraphs and truncates longer
+            # source text. Keep every character visible/editable and validate
+            # the shared bound on OK instead.
+            control = QPlainTextEdit(dialog)
+            control.setPlainText(getattr(source, name))
+            control.setMinimumHeight(72)
+            control.setMaximumHeight(100)
+            control.setToolTip(f"Maximum {MAX_HEADER_FOOTER_CHARS} characters, including line breaks")
+            control.textChanged.connect(lambda: refresh_preview())
+        else:
+            control = QLineEdit(getattr(source, name))
+            control.setMaxLength(96)
         control.setObjectName("template_" + name)
-        control.setMaxLength(120 if name in ("header_text", "footer_text") else 96)
         settings.addRow(label, control)
         text_fields[name] = control
     logo = [source.logo]
@@ -131,12 +145,13 @@ def edit_template_layout(owner, source: DocumentTemplate,
     def refresh_preview(*_):
         w, h = numeric["page_width_cm"].value(), numeric["page_height_cm"].value()
         paper.setToolTip(f"{w:g} × {h:g} cm — schematic preview, not Word pagination")
-        paper_header.setText(text_fields["header_text"].text() or "(Header)")
-        paper_footer.setText(text_fields["footer_text"].text() + "   Page 1")
+        paper_header.setText(text_fields["header_text"].toPlainText() or "(Header)")
+        paper_footer.setText(text_fields["footer_text"].toPlainText() + "   Page 1")
     for field in numeric.values():
         field.valueChanged.connect(refresh_preview)
-    for field in text_fields.values():
-        field.textChanged.connect(refresh_preview)
+    for name, field in text_fields.items():
+        if name not in ("header_text", "footer_text"):
+            field.textChanged.connect(refresh_preview)
     refresh_preview()
     foot = QLabel("The page is schematic. Word shapes, tables, floating objects and "
                   "exact font metrics are not reproduced. No report content is imported.")
@@ -148,7 +163,8 @@ def edit_template_layout(owner, source: DocumentTemplate,
     accepted = [None]
     def accept():
         values = {name: widget.value() for name, widget in numeric.items()}
-        values.update({name: widget.text() for name, widget in text_fields.items()})
+        values.update({name: (widget.toPlainText() if isinstance(widget, QPlainTextEdit)
+                              else widget.text()) for name, widget in text_fields.items()})
         try:
             proposed = validate_template(DocumentTemplate(**values, logo=logo[0]))
         except TemplateError as exc:

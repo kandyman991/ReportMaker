@@ -65,11 +65,6 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
         return ExportStyle()
     if not isinstance(style, ExportStyle):
         raise ExportError("Invalid export branding configuration")
-    for value, label, limit in ((style.company_name, "Company name", 120),
-                                (style.footer_note, "Footer note", 120)):
-        if (not isinstance(value, str) or len(value) > limit or
-            any(ord(c) < 32 or ord(c) == 127 for c in value)):
-            raise ExportError(label + " contains unsupported characters or is too long")
     if not isinstance(style.logo, bytes) or len(style.logo) > MAX_BRAND_LOGO_BYTES:
         raise ExportError("Company logo exceeds the 2 MiB export limit")
     from .template_import import DocumentTemplate, TemplateError, validate_template
@@ -576,6 +571,9 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                 text_x = style.left_margin_cm*cm
                 if style.logo:
                     logo_w, logo_h = _logo_dimensions(style.logo)
+                    if logo_h > style.top_margin_cm - style.header_distance_cm - .2:
+                        raise ExportError("Header logo does not fit the PDF top margin; "
+                                          "increase the top margin or move the header upward")
                     canvas.drawImage(ImageReader(BytesIO(style.logo)),
                                      text_x, style.page_height_cm*cm - (style.header_distance_cm + .2)*cm - logo_h*cm,
                                      width=logo_w*cm, height=logo_h*cm,
@@ -584,19 +582,26 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                 if style.company_name:
                     header_style = ParagraphStyle(
                         "RMHeader", fontName=bold_font, fontSize=9, leading=11)
-                    header = Paragraph(escape(style.company_name), header_style)
+                    markup = escape(style.company_name).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
+                    header = Paragraph(markup, header_style)
                     avail = style.page_width_cm*cm - style.right_margin_cm*cm - text_x
-                    _, height = header.wrap(avail, 1.2*cm)
-                    if height > 1.2*cm:
-                        raise ExportError("Company name does not fit the PDF header")
+                    allowed_height = (style.top_margin_cm - style.header_distance_cm - .2)*cm
+                    _, height = header.wrap(avail, allowed_height)
+                    if height > allowed_height:
+                        raise ExportError("Header text does not fit the PDF top margin; "
+                                          "increase the top margin or shorten the header")
                     header.drawOn(canvas, text_x, style.page_height_cm*cm - (style.header_distance_cm + .2)*cm - height)
                 if style.footer_note:
                     note_style = ParagraphStyle(
                         "RMFooter", fontName=body_font, fontSize=8, leading=10)
-                    note = Paragraph(escape(style.footer_note), note_style)
-                    _, height = note.wrap(max(2*cm, (style.page_width_cm-style.left_margin_cm-style.right_margin_cm-3)*cm), .85*cm)
-                    if height > .85*cm:
-                        raise ExportError("Footer note does not fit the PDF footer")
+                    markup = escape(style.footer_note).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
+                    note = Paragraph(markup, note_style)
+                    note_width = max(2*cm, (style.page_width_cm-style.left_margin_cm-style.right_margin_cm-3)*cm)
+                    allowed_height = (style.bottom_margin_cm - style.footer_distance_cm - .15)*cm
+                    _, height = note.wrap(note_width, allowed_height)
+                    if height > allowed_height:
+                        raise ExportError("Footer text does not fit the PDF bottom margin; "
+                                          "increase the bottom margin or shorten the footer")
                     note.drawOn(canvas, style.left_margin_cm*cm, style.footer_distance_cm*cm)
                 canvas.setFont(body_font, 9)
                 canvas.drawRightString((style.page_width_cm-style.right_margin_cm)*cm, style.footer_distance_cm*cm,
