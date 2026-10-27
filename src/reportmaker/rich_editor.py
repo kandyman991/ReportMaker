@@ -217,6 +217,7 @@ class RichTextRibbon(QWidget):
         first.addStretch(1)
         self.button(first, "• List", lambda: self.listify("bullet"), "richBullets")
         self.button(first, "1. List", lambda: self.listify("decimal"), "richNumbering")
+        self.button(first, "Sort", self.sort_lines, "richSortParagraphs")
         self.button(first, "Outdent", lambda: self.indent(-1), "richOutdent")
         self.button(first, "Indent", lambda: self.indent(1), "richIndent")
         self.button(first, "¶", self.show_paragraph_marks, "richShowMarks")
@@ -373,7 +374,24 @@ class RichTextRibbon(QWidget):
         cursor.setBlockFormat(fmt)
         self.editor.setFocus()
 
+    def sort_lines(self):
+        """Sort selected paragraphs; never re-order canonical report modules."""
+        cursor = self.editor.textCursor()
+        if not cursor.hasSelection():
+            return
+        text = cursor.selectedText().replace("\u2029", "\n")
+        lines = text.split("\n")
+        if len(lines) < 2:
+            return
+        lines.sort(key=lambda x: x.casefold())
+        cursor.insertText("\n".join(lines))
+        self.editor.setFocus()
+
     def show_paragraph_marks(self):
-        # A visual-only toggle; canonical source text and exports are unchanged.
-        self.editor.setPlaceholderText("¶ Show paragraph boundaries in editing mode")
+        from PySide6.QtGui import QTextOption
+        options = self.editor.document().defaultTextOption()
+        flag = QTextOption.Flag.ShowLineAndParagraphSeparators
+        options.setFlags(options.flags() ^ flag)
+        self.editor.document().setDefaultTextOption(options)
+        self.editor.viewport().update()
         self.editor.setFocus()
