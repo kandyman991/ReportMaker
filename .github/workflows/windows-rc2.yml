@@ -159,7 +159,7 @@ jobs:
           $expected = (Get-Content $manifest -Raw).Trim()
           if ($expected -ne "$hash  $env:RC2_ASSET") { throw "SHA-256 manifest mismatch" }
           Write-Host "Installer SHA-256: $hash"
-          "Installer SHA-256: `$hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Installer SHA-256: $hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Publish immutable GitHub RC2 prerelease after all smoke tests
         shell: pwsh
@@ -181,10 +181,10 @@ jobs:
           # ReportMaker 0.5.0 RC2 — Windows acceptance candidate
 
           **PRE-RELEASE / NOT PRODUCTION-ACCEPTED / UNSIGNED.**
-          Built from the exact pinned main source `$env:RC2_SOURCE_SHA`.
-          Workflow source revision: `$env:GITHUB_SHA`; GitHub Actions run: $env:GITHUB_RUN_ID.
-          Windows x64 per-user setup: `$env:RC2_ASSET`.
-          Installer SHA-256: `$sha256` (also in SHA256SUMS.txt).
+          Built from the exact pinned main source SHA: $env:RC2_SOURCE_SHA.
+          Workflow source revision: $env:GITHUB_SHA; GitHub Actions run: $env:GITHUB_RUN_ID.
+          Windows x64 per-user setup: $env:RC2_ASSET.
+          Installer SHA-256: $sha256 (also in SHA256SUMS.txt).
 
           Contains the consolidated customer/site/machine database, project and picture
           editors, HEIC conversion, rich text ribbon, directly editable document page,
