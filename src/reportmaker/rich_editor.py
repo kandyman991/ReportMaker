@@ -62,10 +62,8 @@ def _format_to_qt(info: TextRun) -> QTextCharFormat:
 
 
 def _format_from_qt(fmt: QTextCharFormat, start: int, end: int) -> TextRun:
-    print("RICHDIAG: format from Qt enter",flush=True)
     families = fmt.fontFamilies() if fmt.hasProperty(QTextFormat.Property.FontFamilies) else []
     base = families[0] if families else ""
-    print("RICHDIAG: font family read",flush=True)
     point_size = fmt.fontPointSize()
     vertical = fmt.verticalAlignment()
     result = TextRun(start=start, end=end,
@@ -79,7 +77,6 @@ def _format_from_qt(fmt: QTextCharFormat, start: int, end: int) -> TextRun:
                              else "normal"),
                    color=fmt.foreground().color().name() if fmt.hasProperty(QTextFormat.Property.ForegroundBrush) else "",
                    highlight=fmt.background().color().name() if fmt.hasProperty(QTextFormat.Property.BackgroundBrush) else "")
-    print("RICHDIAG: candidate",repr(result),"weight",fmt.fontWeight(),flush=True)
     return result
 
 
@@ -146,7 +143,6 @@ def apply_rich(editor: QTextEdit, text: str, rich: RichFormatting):
 
 
 def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
-    print('RICHDIAG: capture enter',flush=True)
     text = editor.toPlainText()
     positions = _offsets(text)
     result = RichFormatting()
@@ -164,17 +160,12 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                 QTextListFormat.Style.ListLowerAlpha: "lower-alpha",
                 QTextListFormat.Style.ListUpperAlpha: "upper-alpha",
             }.get(listing.format().style(), "none")
-        print('RICHDIAG: before para from qt',flush=True)
         pf = _para_from_qt(bf, start, kind)
-        print('RICHDIAG: after para from qt',flush=True)
         if pf != ParagraphStyle(start):
             result.paragraphs.append(pf)
         iterator = block.begin()
-        print("RICHDIAG: before fragment iteration",flush=True)
         while not iterator.atEnd():
-            print("RICHDIAG: fragment begin",flush=True)
             fragment = iterator.fragment()
-            print("RICHDIAG: fragment got",flush=True)
             if fragment.isValid() and fragment.length():
                 left = _py_index(positions, fragment.position())
                 right = _py_index(positions, fragment.position() + fragment.length())
@@ -188,14 +179,9 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                             result.runs[-1].end = right
                         else:
                             result.runs.append(candidate)
-            print("RICHDIAG: current rich runs",repr(result.runs),flush=True)
-            print("RICHDIAG: before iterator++",flush=True)
             iterator += 1
-            print("RICHDIAG: after iterator++",flush=True)
         block = block.next()
-    print('RICHDIAG: before capture validation',flush=True)
     validate_rich(result, text)
-    print('RICHDIAG: capture return',flush=True)
     return text, result
 
 
@@ -260,7 +246,7 @@ class RichTextRibbon(QWidget):
             ("U", "underline", "richUnderline"), ("S̶", "strike", "richStrike"),
             ("x₂", "sub", "richSubscript"), ("x²", "super", "richSuperscript")
         ):
-            self.button(second, label, lambda key=prop: self.toggle(key), ident)
+            self.button(second, label, lambda _checked=False, key=prop: self.toggle(key), ident)
         self.button(second, "A Color", lambda: self.pick_color(False), "richTextColor")
         self.button(second, "Highlight", lambda: self.pick_color(True), "richHighlight")
         for label, align, ident in (
@@ -269,7 +255,7 @@ class RichTextRibbon(QWidget):
             ("Right", Qt.AlignmentFlag.AlignRight, "richAlignRight"),
             ("Justify", Qt.AlignmentFlag.AlignJustify, "richJustify")
         ):
-            self.button(second, label, lambda value=align: self.align(value), ident)
+            self.button(second, label, lambda _checked=False, value=align: self.align(value), ident)
         self.button(second, "Line", self.line_spacing, "richLineSpacing")
         self.button(second, "Shade", self.shade, "richShading")
         self.button(second, "Border", self.border, "richBorder")
@@ -286,31 +272,23 @@ class RichTextRibbon(QWidget):
         return button
 
     def apply_char(self, setter):
-        print('RICHDIAG: apply char enter',flush=True)
         fmt = QTextCharFormat()
         setter(fmt)
         cur = self.editor.textCursor()
-        print('RICHDIAG: pre selection merge',cur.selectionStart(),cur.selectionEnd(),fmt.fontWeight(),flush=True)
         cur.mergeCharFormat(fmt)
-        print('RICHDIAG: post selection merge',flush=True)
         self.editor.mergeCurrentCharFormat(fmt)
-        print('RICHDIAG: post current merge',flush=True)
         self.editor.setFocus()
 
     def sync(self, fmt):
-        print('RICHDIAG: sync enter',flush=True)
         self.family.blockSignals(True)
-        print('RICHDIAG: before sync family',flush=True)
         families = fmt.fontFamilies() if fmt.hasProperty(QTextFormat.Property.FontFamilies) else []
         selected_family = families[0] if families else DEFAULT_FONT
         if self.family.currentFont().family() != selected_family:
             self.family.setCurrentFont(QFont(selected_family))
-        print('RICHDIAG: after sync family',flush=True)
         self.family.blockSignals(False)
         self.size.blockSignals(True)
         self.size.setCurrentText(str(round(fmt.fontPointSize() or DEFAULT_SIZE)))
         self.size.blockSignals(False)
-        print('RICHDIAG: sync complete',flush=True)
 
     def choose_size(self):
         try:
@@ -331,7 +309,6 @@ class RichTextRibbon(QWidget):
         # selected text itself before toggling a span-level command.
         cursor = self.editor.textCursor()
         fmt = cursor.charFormat() if cursor.hasSelection() else self.editor.currentCharFormat()
-        print("RICHDIAG: toggle",value,"selected",cursor.hasSelection(),"text weight",fmt.fontWeight(),"edit weight",self.editor.currentCharFormat().fontWeight(),flush=True)
         if value == "bold":
             self.apply_char(lambda f: f.setFontWeight(
                 QFont.Weight.Normal if fmt.fontWeight() >= QFont.Weight.Bold else QFont.Weight.Bold))
