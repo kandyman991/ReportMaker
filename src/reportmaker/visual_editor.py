@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 from .engine import ProjectEditor, module_outline
 from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
-    ParagraphBlock, PhotoBlock, Report, TableBlock,
+    ParagraphBlock, PhotoBlock, PhotoVisual, Report, TableBlock,
 )
 from .project_io import (LEGACY_VERSION, PREVIOUS_VERSION, VERSION, MAX_ASSET, ReportProject,
                          default_projects_directory, load_project, save_project)
@@ -1108,9 +1108,11 @@ class VisualReportEditor:
                         width = min(520, image.width()) * block.visual.width_pct // 100
                         image = image.scaledToWidth(max(1, width),
                                                     Qt.TransformationMode.SmoothTransformation)
-                        images[block.id] = image
+                        image_key = (block.asset_id if block.visual == PhotoVisual()
+                                     else block.id)
+                        images[image_key] = image
                         sections.append('<p style="text-align:%s"><img src="rmasset:%s"/></p>'
-                                        % (block.visual.alignment, block.id))
+                                        % (block.visual.alignment, image_key))
                     else:
                         sections.append("<p>[Photo unavailable]</p>")
                     if block.caption:
