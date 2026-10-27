@@ -70,14 +70,17 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
             raise ExportError(label + " contains unsupported characters or is too long")
     if not isinstance(style.logo, bytes) or len(style.logo) > MAX_BRAND_LOGO_BYTES:
         raise ExportError("Company logo exceeds the 2 MiB export limit")
-    from .template_import import DocumentTemplate, validate_template
-    validate_template(DocumentTemplate(
-        page_width_cm=style.page_width_cm, page_height_cm=style.page_height_cm,
-        left_margin_cm=style.left_margin_cm, right_margin_cm=style.right_margin_cm,
-        top_margin_cm=style.top_margin_cm, bottom_margin_cm=style.bottom_margin_cm,
-        header_distance_cm=style.header_distance_cm, footer_distance_cm=style.footer_distance_cm,
-        header_text=style.company_name, footer_text=style.footer_note,
-        normal_font=style.normal_font, normal_size_pt=style.normal_size_pt, logo=style.logo))
+    from .template_import import DocumentTemplate, TemplateError, validate_template
+    try:
+        validate_template(DocumentTemplate(
+            page_width_cm=style.page_width_cm, page_height_cm=style.page_height_cm,
+            left_margin_cm=style.left_margin_cm, right_margin_cm=style.right_margin_cm,
+            top_margin_cm=style.top_margin_cm, bottom_margin_cm=style.bottom_margin_cm,
+            header_distance_cm=style.header_distance_cm, footer_distance_cm=style.footer_distance_cm,
+            header_text=style.company_name, footer_text=style.footer_note,
+            normal_font=style.normal_font, normal_size_pt=style.normal_size_pt, logo=style.logo))
+    except TemplateError as exc:
+        raise ExportError(str(exc)) from exc
     if (style.company_name or style.logo) and style.top_margin_cm < 1.6:
         raise ExportError("Header requires at least 1.6 cm top margin")
     if style.bottom_margin_cm < 1.5:
