@@ -212,7 +212,6 @@ class RichTextRibbon(QWidget):
         first, second = QHBoxLayout(), QHBoxLayout()
         vertical.addLayout(first)
         vertical.addLayout(second)
-        scroll.setWidget(inner)
         # Keep the ribbon outside the editor's splitter; navigation remains
         # discoverable when the central pane is narrower than both tool rows.
         header = QHBoxLayout()
@@ -285,7 +284,11 @@ class RichTextRibbon(QWidget):
         self.button(second, "Shade", self.shade, "richShading")
         self.button(second, "Border", self.border, "richBorder")
         second.addStretch(1)
+        # Qt requires the child layout to be completely populated BEFORE
+        # setWidget(). In RC2 it was attached while both tool rows were empty,
+        # so the scroll area retained a zero/obsolete size and clipped controls.
         inner.adjustSize()
+        scroll.setWidget(inner)
         # QScrollArea with a non-resizable content widget otherwise has a
         # zero-height size hint on some Qt/Windows DPI and splitter layouts.
         # Reserve the real height of both rows and the horizontal scrollbar.
