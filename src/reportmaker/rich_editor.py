@@ -22,6 +22,11 @@ from .rich_text import TextRun, ParagraphStyle, RichFormatting, validate_rich
 DEFAULT_FONT = "Cambria"
 DEFAULT_SIZE = 11
 
+# QTextBlockFormat has no border()/setBorder() API (those belong to
+# QTextFrameFormat). Keep border intent as a safe Qt user property on the
+# paragraph block; the derived paper preview and exports render the border.
+_BORDER_PROPERTY = int(QTextFormat.Property.UserProperty) + 1
+
 
 def _offsets(value: str):
     result = [0]
@@ -86,8 +91,7 @@ def _para_to_qt(spec: ParagraphStyle):
     if spec.shading:
         fmt.setBackground(QColor(spec.shading))
     if spec.border:
-        fmt.setBorder(0.8)
-        fmt.setBorderBrush(QColor("#777777"))
+        fmt.setProperty(_BORDER_PROPERTY, True)
     return fmt
 
 
@@ -103,7 +107,7 @@ def _para_from_qt(fmt: QTextBlockFormat, start: int, list_kind: str):
                           list_kind=list_kind, line_height=max(1.0, min(3.0, round(ratio, 2))),
                           shading=fmt.background().color().name() if
                           fmt.hasProperty(QTextFormat.Property.BackgroundBrush) else "",
-                          border=fmt.border() > 0)
+                          border=bool(fmt.property(_BORDER_PROPERTY)))
 
 
 def apply_rich(editor: QTextEdit, text: str, rich: RichFormatting):
@@ -168,7 +172,8 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                     if (candidate.family or candidate.size or candidate.bold or candidate.italic
                         or candidate.underline or candidate.strike or candidate.baseline != "normal"
                         or candidate.color or candidate.highlight):
-                        if result.runs and vars(result.runs[-1]) | {"end": right} == vars(candidate):
+                        if (result.runs and result.runs[-1].end == left
+                            and (vars(result.runs[-1]) | {"start": left, "end": right}) == vars(candidate)):
                             result.runs[-1].end = right
                         else:
                             result.runs.append(candidate)
@@ -383,8 +388,7 @@ class RichTextRibbon(QWidget):
     def border(self):
         cursor = self.editor.textCursor()
         fmt = cursor.blockFormat()
-        fmt.setBorder(0 if fmt.border() else 0.8)
-        fmt.setBorderBrush(QColor("#666666"))
+        fmt.setProperty(_BORDER_PROPERTY, not bool(fmt.property(_BORDER_PROPERTY)))
         cursor.setBlockFormat(fmt)
         self.editor.setFocus()
 
