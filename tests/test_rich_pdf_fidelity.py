@@ -79,7 +79,7 @@ class RichPdfFidelityTests(unittest.TestCase):
                 body = "\n".join(
                     page.get_contents().get_data().decode("latin1")
                     for page in reader.pages[1:])
-                return len(re.findall(r"(?m)\\.75 w\\s+n [^\\n]+ re S", body))
+                return len(re.findall(r"(?m)\.75 w\s+n [^\n]+ re S", body))
             self.assertGreater(painted_border(with_border), painted_border(without_border))
             self.assertIn("Verifica avviata", _body_text(PdfReader(with_border)))
 
