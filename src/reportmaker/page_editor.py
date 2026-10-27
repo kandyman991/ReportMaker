@@ -61,6 +61,7 @@ class EditableDocumentPage(QScrollArea):
         self.pending = set()
         self._building = False
         self.on_style_request = None
+        self.layout_template = None  # transient, local presentation profile only
 
     def _track(self, key, widget, signal):
         self.fields[key] = widget
@@ -93,10 +94,26 @@ class EditableDocumentPage(QScrollArea):
             outer.setContentsMargins(14, 14, 14, 14)
             paper = QFrame()
             paper.setObjectName("editablePaper")
+            template = self.layout_template
+            # A continuous canvas, not a native Word paginator. Sizes represent
+            # the imported page ratio and printable margins schematically.
+            ratio = template.page_width_cm / 21.0 if template else 1.0
             paper.setMinimumWidth(440)
-            paper.setMaximumWidth(800)
+            paper.setMaximumWidth(max(440, round(800 * ratio)))
+            page_height = template.page_height_cm if template else 29.7
+            paper.setMinimumHeight(max(540, round(1050 * page_height / 29.7)))
             layout = QVBoxLayout(paper)
-            layout.setContentsMargins(38, 34, 38, 40)
+            if template:
+                layout.setContentsMargins(
+                    max(15, round(38 * template.left_margin_cm / 2.1)),
+                    max(15, round(34 * template.top_margin_cm / 3.0)),
+                    max(15, round(38 * template.right_margin_cm / 2.1)),
+                    max(15, round(40 * template.bottom_margin_cm / 2.5)))
+                paper.setToolTip(
+                    f"Imported page: {template.page_width_cm:g} × "
+                    f"{template.page_height_cm:g} cm, continuous schematic")
+            else:
+                layout.setContentsMargins(38, 34, 38, 40)
             layout.setSpacing(9)
             self._heading(report.title.original, layout, 22)
             self._heading("Report information · protected (edit in Report Information)", layout, 11)
