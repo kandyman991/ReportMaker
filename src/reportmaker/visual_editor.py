@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import QDate, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QImage, QKeySequence, QPixmap, QTextDocument
+from PySide6.QtGui import QAction, QImage, QKeySequence, QPixmap, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
     QDialogButtonBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
@@ -226,6 +226,7 @@ class VisualReportEditor:
         body = QWidget()
         body_layout = QVBoxLayout(body)
         vertical = QSplitter(Qt.Orientation.Vertical)
+        self.content_splitter = vertical
         body_layout.addWidget(vertical, 1)
         top = QWidget()
         top_layout = QVBoxLayout(top)
@@ -254,7 +255,10 @@ class VisualReportEditor:
         for button in self.rich_ribbon.findChildren(QPushButton):
             if button.objectName() != "richShowMarks":
                 button.clicked.connect(self._set_pending)
-        top_layout.addWidget(self.rich_ribbon)
+        # The block-list/editor is intentionally resizable, but the text
+        # formatting commands must never vanish when its splitter is squeezed.
+        # Place the ribbon at the top of the Content tab, outside the splitter.
+        body_layout.insertWidget(0, self.rich_ribbon)
         top_layout.addWidget(self.text_edit, 1)
         self.photo_caption = QLineEdit()
         self.photo_caption.setPlaceholderText("Photo caption")
@@ -663,12 +667,31 @@ class VisualReportEditor:
         self.refresh()  # print preview, ribbon and paper now share one model
 
     def _select_page_block(self, module_id, block_id):
-        # Style controls live in the existing rich ribbon; locate by stable IDs.
+        # Read the selection *before* committing/rebuilding the editable page;
+        # QTextCursor positions are UTF-16 offsets on both Qt text surfaces.
+        page_field = self.page.fields.get((module_id, block_id, "text"))
+        selection = None
+        if page_field is not None:
+            cursor = page_field.textCursor()
+            if cursor.hasSelection():
+                selection = (cursor.selectionStart(), cursor.selectionEnd())
         if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         self._module_id = module_id
         self._edit_block_id = block_id
         self.refresh()
+        if selection is not None:
+            cursor = self.text_edit.textCursor()
+            last = self.text_edit.document().characterCount() - 1
+            cursor.setPosition(min(selection[0], last))
+            cursor.setPosition(min(selection[1], last), QTextCursor.MoveMode.KeepAnchor)
+            self.text_edit.setTextCursor(cursor)
+        # A user might have compressed the upper splitter all the way down.
+        # The ribbon now remains accessible independently; reveal the editor
+        # too, so the selection and formatting result can be inspected.
+        sizes = self.content_splitter.sizes()
+        if sizes and sizes[0] < 160:
+            self.content_splitter.setSizes([max(240, sizes[0]), max(120, sizes[1])])
         self.text_edit.setFocus()
         return True
 
