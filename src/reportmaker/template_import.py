@@ -121,8 +121,10 @@ def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
         total = 0
         for entry in infos:
             name = entry.filename
+            segments = name.rstrip("/").split("/")
             if (not name or name.startswith("/") or "\\" in name or
-                any(part in ("", ".", "..") for part in name.split("/")) or
+                any(part in ("", ".", "..") for part in segments) or
+                (name.endswith("/") and entry.file_size != 0) or
                 ":" in name or (entry.external_attr >> 16) & 0o170000 == 0o120000):
                 raise TemplateError("Unsafe Word package path")
             if entry.flag_bits & 1:
@@ -193,13 +195,18 @@ def import_word_template(path: str | Path) -> ImportResult:
         raise TemplateError("Select a DOCX or DOTX file")
     if not path.is_file() or path.stat().st_size > MAX_SOURCE:
         raise TemplateError("Word source missing or exceeds the 24 MiB limit")
-    blob, warnings_in = _inspect_package(path.read_bytes())
+    try:
+        blob, warnings_in = _inspect_package(path.read_bytes())
+    except (BadZipFile, EOFError, RuntimeError, NotImplementedError, OSError) as exc:
+        raise TemplateError("Corrupt or unsupported Word archive") from exc
     from docx import Document
     from docx.oxml.ns import qn
     from docx.shared import Cm
     try:
         doc = Document(BytesIO(blob))
-    except (ValueError, KeyError, TypeError, OSError) as exc:
+    except Exception as exc:
+        # python-docx/lxml may raise several provider-specific OPC/XML errors.
+        # None should escape as an unexpected GUI exception or fetch a URL.
         raise TemplateError("Unsupported or corrupt Word document") from exc
     warnings = list(warnings_in)
     if len(doc.sections) != 1:
