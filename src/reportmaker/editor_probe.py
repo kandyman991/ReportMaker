@@ -304,6 +304,8 @@ def run() -> int:
             # visual-layer keys rather than only changing the version tag.
             def strip_visuals(module):
                 for entry in module["blocks"]:
+                    if entry["kind"] in ("paragraph", "heading"):
+                        entry.pop("rich", None)
                     if entry["kind"] == "photo":
                         entry.pop("visual", None)
                     elif entry["kind"] == "module":
@@ -324,7 +326,7 @@ def run() -> int:
             upgraded = root / "independent-upgraded-copy.rmproj"
             assert doc.save_to_path(upgraded)
             assert legacy.read_bytes() == original_v1
-            assert load_project(upgraded).loaded_version == 3
+            assert load_project(upgraded).loaded_version == 4
         finally:
             doc.dirty = False
             window.close()
