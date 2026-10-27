@@ -1538,7 +1538,8 @@ class VisualReportEditor:
                 template.left_margin_cm, template.right_margin_cm,
                 template.top_margin_cm, template.bottom_margin_cm,
                 template.header_distance_cm, template.footer_distance_cm,
-                template.normal_font, template.normal_size_pt)
+                template.normal_font, template.normal_size_pt,
+                template.heading_font, template.heading_size_pt)
 
         logo_path = str(settings.value("export/logo_path", "")).strip()
         raw = b""
