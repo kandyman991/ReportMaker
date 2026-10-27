@@ -268,7 +268,7 @@ def run() -> int:
             upgraded = root / "independent-upgraded-copy.rmproj"
             assert doc.save_to_path(upgraded)
             assert legacy.read_bytes() == original_v1
-            assert load_project(upgraded).loaded_version == 2
+            assert load_project(upgraded).loaded_version == 3
         finally:
             doc.dirty = False
             window.close()
