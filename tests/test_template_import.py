@@ -201,6 +201,20 @@ class TemplateImportTests(unittest.TestCase):
             with self.assertRaisesRegex(TemplateError, "DTD"):
                 import_word_template(path)
 
+    def test_utf16_encoded_dtd_cannot_bypass_entity_guard(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "utf16-dtd.docx"
+            create_sample(path)
+            evil = ('<?xml version="1.0" encoding="UTF-16"?>'
+                    '<!DOCTYPE w:document [<!ENTITY sensitive "synthetic-private">]>'
+                    '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+                    'wordprocessingml/2006/main">&sensitive;</w:document>').encode("utf-16")
+            mutate_package(path, lambda parts: [
+                (name, evil if name == "word/document.xml" else payload)
+                for name, payload in parts])
+            with self.assertRaisesRegex(TemplateError, "DTD/entities"):
+                import_word_template(path)
+
     def test_benign_zip_directories_and_corruption_handling(self):
         with TemporaryDirectory() as folder:
             path = Path(folder) / "word.docx"
