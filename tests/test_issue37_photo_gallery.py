@@ -241,6 +241,10 @@ class ProjectGalleryTests(unittest.TestCase):
 
     def test_reject_external_fake_stale_wrong_project_and_empty_gallery(self):
         from PySide6.QtCore import QMimeData
+        # Only dedicated structural receivers accept project photo drags.
+        self.assertFalse(self.editor.text_edit.acceptDrops())
+        self.assertFalse(self.editor.photo_caption.acceptDrops())
+        self.assertFalse(self.editor.table.acceptDrops())
         _, empty = self.open_gallery()
         self.assertEqual(empty.count(), 0)
         keys = self.add_images(2)
