@@ -46,6 +46,7 @@ class ProjectPictureList(QListWidget):
         self.assets = assets
         self.session_token = session_token
         self._cached: OrderedDict[tuple[str, int], QIcon] = OrderedDict()
+        self._items_by_key: dict[str, QListWidgetItem] = {}
         self._thumb_side = 132
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
@@ -76,6 +77,7 @@ class ProjectPictureList(QListWidget):
         selected = current.data(Qt.ItemDataRole.UserRole) if current else None
         self.clear()
         self._cached.clear()
+        self._items_by_key.clear()
         for key, name in sorted(library.items(), key=lambda item: (item[1].casefold(), item[0])):
             if not self.allowed(key):
                 continue
@@ -84,6 +86,7 @@ class ProjectPictureList(QListWidget):
             tile.setToolTip(name)
             tile.setTextAlignment(Qt.AlignmentFlag.AlignHCenter)
             self.addItem(tile)
+            self._items_by_key[key] = tile
         for i in range(self.count()):
             if self.item(i).data(Qt.ItemDataRole.UserRole) == selected:
                 self.setCurrentRow(i)
@@ -121,7 +124,12 @@ class ProjectPictureList(QListWidget):
                 self._cached[cache_key] = icon
                 decoded += 1
                 if len(self._cached) > MAX_THUMBNAILS:
-                    self._cached.popitem(last=False)
+                    # A QListWidgetItem also retains its QIcon. Evict both
+                    # copies or scrolling eventually retains every thumbnail.
+                    (old_key, _size), _old_icon = self._cached.popitem(last=False)
+                    old_item = self._items_by_key.get(old_key)
+                    if old_item is not None:
+                        old_item.setIcon(QIcon())
             else:
                 self._cached.move_to_end(cache_key)
             item.setIcon(icon)
