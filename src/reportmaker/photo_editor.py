@@ -201,8 +201,10 @@ class PictureCanvas(QWidget):
         if not (0 <= original.x() <= base_w and 0 <= original.y() <= base_h):
             return None
         x0, y0, cw, ch = self.owner.visual.crop
-        return (round(x0 + original.x() / base_w * cw, 6),
-                round(y0 + original.y() / base_h * ch, 6))
+        # A valid crop may extend beyond 1 by the model's numerical tolerance;
+        # clamp only after proving the pointer is on real image pixels.
+        return (round(_clamp(x0 + original.x() / base_w * cw), 6),
+                round(_clamp(y0 + original.y() / base_h * ch), 6))
 
     def _onscreen(self, value):
         # Preview overlay is approximate for drag feedback; final render is canonical.

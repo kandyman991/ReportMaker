@@ -94,6 +94,14 @@ class QtGeometryHistoryRegression(unittest.TestCase):
             self.assertIsNotNone(roundtrip)
             self.assertAlmostEqual(roundtrip[0], original[0], places=4)
             self.assertAlmostEqual(roundtrip[1], original[1], places=4)
+        # The model allows a one-ppm numerical tolerance on the crop boundary.
+        # A mouse hit at that final pixel still must produce valid coordinates.
+        dialog.visual = PhotoVisual(crop=(.9900005, 0, .01, 1))
+        canvas.update_image()
+        self.app.processEvents()
+        end = canvas._coordinate(canvas._onscreen((1.0000002, .5)))
+        self.assertIsNotNone(end)
+        self.assertLessEqual(end[0], 1)
 
     def test_click_does_not_consume_history_and_move_preserves_shape(self):
         from PySide6.QtCore import Qt, QPoint
