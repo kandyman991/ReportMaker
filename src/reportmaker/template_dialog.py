@@ -66,7 +66,7 @@ def edit_template_layout(owner, source: DocumentTemplate,
     ):
         control = QLineEdit(getattr(source, name))
         control.setObjectName("template_" + name)
-        control.setMaxLength(120 if name != "normal_font" else 96)
+        control.setMaxLength(120 if name in ("header_text", "footer_text") else 96)
         settings.addRow(label, control)
         text_fields[name] = control
     logo = [source.logo]
