@@ -22,6 +22,11 @@ from .rich_text import TextRun, ParagraphStyle, RichFormatting, validate_rich
 DEFAULT_FONT = "Cambria"
 DEFAULT_SIZE = 11
 
+# QTextBlockFormat has no border()/setBorder() API (those belong to
+# QTextFrameFormat). Keep border intent as a safe Qt user property on the
+# paragraph block; the derived paper preview and exports render the border.
+_BORDER_PROPERTY = int(QTextFormat.Property.UserProperty) + 1
+
 
 def _offsets(value: str):
     result = [0]
@@ -57,10 +62,11 @@ def _format_to_qt(info: TextRun) -> QTextCharFormat:
 
 
 def _format_from_qt(fmt: QTextCharFormat, start: int, end: int) -> TextRun:
-    base = fmt.fontFamily()
+    families = fmt.fontFamilies() if fmt.hasProperty(QTextFormat.Property.FontFamilies) else []
+    base = families[0] if families else ""
     point_size = fmt.fontPointSize()
     vertical = fmt.verticalAlignment()
-    return TextRun(start=start, end=end,
+    result = TextRun(start=start, end=end,
                    family=base if base and base != DEFAULT_FONT else "",
                    size=round(point_size, 2) if point_size >= 6 else 0,
                    bold=fmt.fontWeight() >= QFont.Weight.Bold,
@@ -71,6 +77,7 @@ def _format_from_qt(fmt: QTextCharFormat, start: int, end: int) -> TextRun:
                              else "normal"),
                    color=fmt.foreground().color().name() if fmt.hasProperty(QTextFormat.Property.ForegroundBrush) else "",
                    highlight=fmt.background().color().name() if fmt.hasProperty(QTextFormat.Property.BackgroundBrush) else "")
+    return result
 
 
 def _para_to_qt(spec: ParagraphStyle):
@@ -82,12 +89,11 @@ def _para_to_qt(spec: ParagraphStyle):
         "justify": Qt.AlignmentFlag.AlignJustify,
     }[spec.align])
     fmt.setLeftMargin(spec.indent * 24)
-    fmt.setLineHeight(int(spec.line_height * 100), QTextBlockFormat.LineHeightTypes.ProportionalHeight)
+    fmt.setLineHeight(int(spec.line_height * 100), QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
     if spec.shading:
         fmt.setBackground(QColor(spec.shading))
     if spec.border:
-        fmt.setBorder(0.8)
-        fmt.setBorderBrush(QColor("#777777"))
+        fmt.setProperty(_BORDER_PROPERTY, True)
     return fmt
 
 
@@ -103,7 +109,7 @@ def _para_from_qt(fmt: QTextBlockFormat, start: int, list_kind: str):
                           list_kind=list_kind, line_height=max(1.0, min(3.0, round(ratio, 2))),
                           shading=fmt.background().color().name() if
                           fmt.hasProperty(QTextFormat.Property.BackgroundBrush) else "",
-                          border=fmt.border() > 0)
+                          border=bool(fmt.property(_BORDER_PROPERTY)))
 
 
 def apply_rich(editor: QTextEdit, text: str, rich: RichFormatting):
@@ -168,7 +174,8 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                     if (candidate.family or candidate.size or candidate.bold or candidate.italic
                         or candidate.underline or candidate.strike or candidate.baseline != "normal"
                         or candidate.color or candidate.highlight):
-                        if result.runs and vars(result.runs[-1]) | {"end": right} == vars(candidate):
+                        if (result.runs and result.runs[-1].end == left
+                            and (vars(result.runs[-1]) | {"start": left, "end": right}) == vars(candidate)):
                             result.runs[-1].end = right
                         else:
                             result.runs.append(candidate)
@@ -239,7 +246,7 @@ class RichTextRibbon(QWidget):
             ("U", "underline", "richUnderline"), ("S̶", "strike", "richStrike"),
             ("x₂", "sub", "richSubscript"), ("x²", "super", "richSuperscript")
         ):
-            self.button(second, label, lambda key=prop: self.toggle(key), ident)
+            self.button(second, label, lambda _checked=False, key=prop: self.toggle(key), ident)
         self.button(second, "A Color", lambda: self.pick_color(False), "richTextColor")
         self.button(second, "Highlight", lambda: self.pick_color(True), "richHighlight")
         for label, align, ident in (
@@ -248,7 +255,7 @@ class RichTextRibbon(QWidget):
             ("Right", Qt.AlignmentFlag.AlignRight, "richAlignRight"),
             ("Justify", Qt.AlignmentFlag.AlignJustify, "richJustify")
         ):
-            self.button(second, label, lambda value=align: self.align(value), ident)
+            self.button(second, label, lambda _checked=False, value=align: self.align(value), ident)
         self.button(second, "Line", self.line_spacing, "richLineSpacing")
         self.button(second, "Shade", self.shade, "richShading")
         self.button(second, "Border", self.border, "richBorder")
@@ -274,7 +281,10 @@ class RichTextRibbon(QWidget):
 
     def sync(self, fmt):
         self.family.blockSignals(True)
-        self.family.setCurrentFont(QFont(fmt.fontFamily() or DEFAULT_FONT))
+        families = fmt.fontFamilies() if fmt.hasProperty(QTextFormat.Property.FontFamilies) else []
+        selected_family = families[0] if families else DEFAULT_FONT
+        if self.family.currentFont().family() != selected_family:
+            self.family.setCurrentFont(QFont(selected_family))
         self.family.blockSignals(False)
         self.size.blockSignals(True)
         self.size.setCurrentText(str(round(fmt.fontPointSize() or DEFAULT_SIZE)))
@@ -294,7 +304,11 @@ class RichTextRibbon(QWidget):
         self.apply_char(lambda f: f.setFontPointSize(max(6, min(96, size + direction))))
 
     def toggle(self, value):
-        fmt = self.editor.currentCharFormat()
+        # QTextEdit.currentCharFormat can describe an insertion override rather
+        # than the existing characters when a selection is active. Inspect the
+        # selected text itself before toggling a span-level command.
+        cursor = self.editor.textCursor()
+        fmt = cursor.charFormat() if cursor.hasSelection() else self.editor.currentCharFormat()
         if value == "bold":
             self.apply_char(lambda f: f.setFontWeight(
                 QFont.Weight.Normal if fmt.fontWeight() >= QFont.Weight.Bold else QFont.Weight.Bold))
@@ -367,7 +381,7 @@ class RichTextRibbon(QWidget):
         if ok:
             cursor = self.editor.textCursor()
             fmt = cursor.blockFormat()
-            fmt.setLineHeight(round(float(chosen) * 100), QTextBlockFormat.LineHeightTypes.ProportionalHeight)
+            fmt.setLineHeight(round(float(chosen) * 100), QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
             cursor.setBlockFormat(fmt)
         self.editor.setFocus()
 
@@ -383,8 +397,7 @@ class RichTextRibbon(QWidget):
     def border(self):
         cursor = self.editor.textCursor()
         fmt = cursor.blockFormat()
-        fmt.setBorder(0 if fmt.border() else 0.8)
-        fmt.setBorderBrush(QColor("#666666"))
+        fmt.setProperty(_BORDER_PROPERTY, not bool(fmt.property(_BORDER_PROPERTY)))
         cursor.setBlockFormat(fmt)
         self.editor.setFocus()
 

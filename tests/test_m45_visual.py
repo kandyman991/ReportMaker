@@ -117,7 +117,9 @@ class M45VisualModelTests(unittest.TestCase):
             assets = {item.filename: bundle.read(item.filename)
                       for item in bundle.infolist() if item.filename.startswith("assets/")}
         manifest["version"] = 2
-        for module in manifest["report"]["modules"]:
+        # Historical v2 files have no v3 visual layers OR v4 rich spans,
+        # including in the mandatory Conclusions module.
+        for module in manifest["report"]["modules"] + [manifest["report"]["conclusion"]]:
             def remove_visual(obj):
                 for block in obj["blocks"]:
                     if block["kind"] in ("paragraph", "heading"):
