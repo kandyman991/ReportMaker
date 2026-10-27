@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
-    ParagraphBlock, PhotoBlock, Report, TableBlock,
+    ParagraphBlock, PhotoBlock, Report, TableBlock, validate_photo_visual,
     validate_localized_text, validate_report_metadata,
 )
 
@@ -67,6 +67,7 @@ def validate_report_tree(report: Report) -> None:
                     raise ValueError("Photo must use a safe logical asset ID")
                 if block.caption is not None:
                     validate_localized_text(block.caption)
+                validate_photo_visual(block.visual)
             if isinstance(block, TableBlock):
                 if not isinstance(block.rows, list) or any(not isinstance(row, list) for row in block.rows):
                     raise ValueError("Invalid table cells")
