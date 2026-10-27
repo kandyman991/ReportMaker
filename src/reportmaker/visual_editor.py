@@ -163,6 +163,7 @@ class BlockList(QListWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self.photo_drop_resolver = lambda source, mime: None
+        self.photo_drop_context = lambda: (None, None)
         self.on_picture_drop = None
         self._photo_drop_index = None
 
@@ -232,10 +233,17 @@ class BlockList(QListWidget):
                 event.ignore()
                 return
             index = self._index_at(event.position().toPoint())
+            # Freeze the owning module AND project generation at drop time.
+            # Qt runs this callback later, when selection/project may differ.
+            module_id, session_token = self.photo_drop_context()
+            if not module_id or not session_token:
+                event.ignore()
+                return
+            insert_photo = self.on_picture_drop
             event.acceptProposedAction()
             # Refresh replaces the target list; defer until Qt finishes dropping.
             from PySide6.QtCore import QTimer
-            QTimer.singleShot(0, lambda: self.on_picture_drop(None, index, key))
+            QTimer.singleShot(0, lambda: insert_photo(module_id, index, key, session_token))
             return
         if event.source() is not self:
             event.ignore()
@@ -322,7 +330,9 @@ class VisualReportEditor:
         top_layout.addLayout(content_buttons)
         self.blocks = BlockList()
         self.blocks.photo_drop_resolver = self._resolve_project_photo_drag
-        self.blocks.on_picture_drop = self._insert_project_photo
+        self.blocks.photo_drop_context = lambda: (self._module_id, self._photo_drag_token)
+        self.blocks.on_picture_drop = lambda module, index, asset, session: (
+            self._insert_project_photo(module, index, asset, expected_token=session))
         self.blocks.currentItemChanged.connect(self._block_selected)
         self.blocks.moveRequested.connect(self._block_move)
         top_layout.addWidget(self.blocks, 2)
@@ -886,8 +896,13 @@ class VisualReportEditor:
             return None
         return key
 
-    def _insert_project_photo(self, module_id, index, asset_id):
-        """One validated canonical insertion, never a duplicate image asset."""
+    def _insert_project_photo(self, module_id, index, asset_id, *, expected_token=None):
+        """One validated canonical insertion, never a duplicate image asset.
+
+        A deferred Qt drop must never outlive its originating project session.
+        """
+        if expected_token is not None and expected_token != self._photo_drag_token:
+            return False
         if (not isinstance(asset_id, str) or asset_id not in self.media_library
                 or asset_id not in self.assets):
             return False
@@ -904,7 +919,17 @@ class VisualReportEditor:
         # Fail without inserting if a conflicting draft cannot be resolved.
         if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
+        if (expected_token is not None and expected_token != self._photo_drag_token):
+            return False
         if asset_id not in self.media_library or asset_id not in self.assets:
+            return False
+        # Draft-resolution dialogs can run a nested Qt event loop. Revalidate
+        # the target against the current report before editing its structure.
+        try:
+            module = find_module(self.report, module_id)
+        except (LookupError, TypeError):
+            return False
+        if not 0 <= index <= len(module.blocks):
             return False
         picture = PhotoBlock(asset_id, LocalizedText(self.report.primary_language, ""))
         try:
@@ -1470,6 +1495,11 @@ class VisualReportEditor:
             self.page.setToolTip("Selected page template is invalid: exports will be blocked")
         # Avoid dropping uncommitted direct page edits when the other pane redraws.
         if not self.page.pending:
+            # Each rendered structural zone keeps the generation of the
+            # project in which it was created, even after being superseded.
+            token = self._photo_drag_token
+            self.page.on_picture_drop = lambda module, index, asset, session=token: (
+                self._insert_project_photo(module, index, asset, expected_token=session))
             self.page.rebuild(report, self.assets)
 
     def _confirm_discard(self):
