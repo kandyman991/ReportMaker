@@ -21,6 +21,7 @@ from .project_io import (
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
 MAX_DECODE_PIXELS = 60_000_000  # accept common 48 MP phone HEIC originals
 MAX_ICC_BYTES = 1024 * 1024
+MAX_IMPORT_BATCH = 64  # bound retained decoded comparison thumbnails
 # maximum long edge, JPEG/WebP encoder quality
 PRESETS = {"compact": (1600, 75), "balanced": (2500, 88),
            "high": (4000, 94)}
@@ -186,8 +187,8 @@ def remove_library_picture(project: ReportProject, asset_id: str) -> None:
 def stage_pictures(paths: list[str | Path], *, preset: str = "balanced",
                    output_format: str = "auto") -> list[StagedPicture]:
     """Read external originals once. Detached, bounded bytes are approval input."""
-    if not isinstance(paths, list) or len(paths) > MAX_ENTRIES - 1:
-        raise PictureImportError("Invalid batch picture import")
+    if not isinstance(paths, list) or len(paths) > MAX_IMPORT_BATCH:
+        raise PictureImportError("Import at most 64 pictures per batch")
     staged = []
     total = 0
     for path in paths:
@@ -208,8 +209,8 @@ def commit_staged_pictures(project: ReportProject,
     """Commit EXACT bytes previously previewed. No external files re-opened."""
     if not isinstance(project, ReportProject) or not isinstance(staged, list):
         raise PictureImportError("Invalid picture import transaction")
-    if len(staged) > MAX_ENTRIES - 1:
-        raise PictureImportError("Too many staged pictures")
+    if len(staged) > MAX_IMPORT_BATCH:
+        raise PictureImportError("Import at most 64 pictures per batch")
     assets = dict(project.assets)
     library = dict(project.media_library)
     keys = []
