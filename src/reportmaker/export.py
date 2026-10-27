@@ -315,6 +315,19 @@ def _rich_pdf_markup(parts, fallback_bold=False):
     return "".join(result)
 
 
+def _pdf_number_marker(kind: str, ordinal: int) -> str:
+    """Visible numbering for canonical PDF list paragraphs (one-based)."""
+    if kind == "decimal":
+        return f"{ordinal}. "
+    if kind not in ("lower-alpha", "upper-alpha") or ordinal < 1:
+        raise ValueError("Invalid PDF list number")
+    label = ""
+    while ordinal:
+        ordinal, digit = divmod(ordinal - 1, 26)
+        label = chr(ord("a") + digit) + label
+    return (label.upper() if kind == "upper-alpha" else label) + ". "
+
+
 def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     from docx import Document
     from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
@@ -587,7 +600,14 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
         story.extend([tbl, Spacer(1, 12)])
     story.extend([Paragraph("Summary", label_style), toc, PageBreak()])
 
+    # Continue a list over adjacent canonical text blocks, but never across a
+    # module/table/photo/page break or a plain/bulleted paragraph.
+    numbering_key = None
+    ordinal = 0
     for item in plan.items:
+        if item.kind not in ("paragraph", "heading"):
+            numbering_key = None
+            ordinal = 0
         if item.kind == "module":
             label = escape(item.text)
             level = min(item.depth, 8)
@@ -598,6 +618,13 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
             from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
             from reportlab.lib.styles import ParagraphStyle
             for index, (parts, fmt) in enumerate(_rich_lines(item.text, item.rich)):
+                key = ((fmt.list_kind, fmt.indent) if fmt.list_kind in
+                       ("decimal", "lower-alpha", "upper-alpha") else None)
+                if key is None:
+                    ordinal = 0
+                else:
+                    ordinal = ordinal + 1 if key == numbering_key else 1
+                numbering_key = key
                 base = (heading_styles[min(max(item.depth, 1), 8)]
                         if item.kind == "heading" else normal)
                 pstyle = ParagraphStyle("Rich-%s-%d-%d" % (item.kind, len(story), index),
@@ -606,11 +633,14 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                         "right": TA_RIGHT, "justify": TA_JUSTIFY,
                     }[fmt.align], leftIndent=base.leftIndent + fmt.indent * 15,
                     leading=base.leading * fmt.line_height,
-                    backColor=fmt.shading or None)
+                    backColor=fmt.shading or None,
+                    borderWidth=0.75 if fmt.border else 0,
+                    borderColor=colors.HexColor("#777777") if fmt.border else None,
+                    borderPadding=3 if fmt.border else 0)
                 if fmt.list_kind == "bullet":
                     marker = "&#8226; "
-                elif fmt.list_kind != "none":
-                    marker = "1. "  # export numeric lists as editable paragraphs
+                elif key is not None:
+                    marker = _pdf_number_marker(fmt.list_kind, ordinal)
                 else:
                     marker = ""
                 story.append(Paragraph(marker +
