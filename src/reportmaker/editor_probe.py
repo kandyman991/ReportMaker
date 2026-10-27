@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
 from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QListWidget, QPushButton, QMessageBox
 
 from .engine import module_outline
 from .model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, PhotoBlock, TableBlock
@@ -85,6 +85,32 @@ def run() -> int:
             assert saved.report.modules[0].blocks[-1].text.original == "Approved synthetic field notes"
             assert saved.assets["synthetic-image"] == bytes(buffer.data())
             assert not doc.dirty
+
+            # M4.5: exercise the real picture manager offline with a synthetic
+            # import, confirm external source bytes are never changed, and
+            # verify unplaced library pictures survive project Save/Open.
+            from PIL import Image as PILImage
+            source = root / "synthetic-external.jpg"
+            PILImage.new("RGB", (100, 60), "blue").save(source)
+            source_bytes = source.read_bytes()
+            def drive_picture_dialog(dialog):
+                import_button = dialog.findChild(QPushButton, "importProjectPicturesAction")
+                assert import_button is not None
+                import_button.click()
+                library = dialog.findChild(QListWidget, "projectPictureLibrary")
+                assert library is not None and library.count() == 1
+                return QDialog.DialogCode.Accepted
+            with patch.object(QFileDialog, "getOpenFileNames",
+                              return_value=([str(source)], "")), \
+                 patch.object(QMessageBox, "question",
+                              return_value=QMessageBox.StandardButton.Yes), \
+                 patch.object(QDialog, "exec", drive_picture_dialog):
+                assert doc.manage_pictures()
+            assert source.read_bytes() == source_bytes
+            assert len(doc.media_library) == 1
+            assert doc.dirty
+            assert doc.save_to_path(path)
+            assert load_project(path).media_library == doc.media_library
 
             doc.editor.add_module(Module(LocalizedText("en", "Unsaved")))
             doc.dirty = True
