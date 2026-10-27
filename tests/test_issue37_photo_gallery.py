@@ -241,8 +241,6 @@ class ProjectGalleryTests(unittest.TestCase):
 
     def test_nonmodal_import_and_remove_preserve_current_drafts(self):
         from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QPushButton
-        from reportmaker.model import ParagraphBlock
-
         gallery, pictures = self.open_gallery()
         source = Path(self.folder.name) / "synthetic-import.jpg"
         Image.new("RGB", (78, 44), "purple").save(source)
@@ -250,9 +248,9 @@ class ProjectGalleryTests(unittest.TestCase):
         self.editor.text_edit.setPlainText("Unapplied text before gallery import")
         self.assertTrue(self.editor._block_pending)
         with patch.object(QFileDialog, "getOpenFileNames",
-                          return_value=([str(source)], "")), \\
+                          return_value=([str(source)], "")), \
              patch.object(QDialog, "exec",
-                          return_value=QDialog.DialogCode.Accepted), \\
+                          return_value=QDialog.DialogCode.Accepted), \
              patch.object(QMessageBox, "warning",
                           side_effect=AssertionError("Unexpected import warning")):
             gallery.findChild(QPushButton, "importProjectPicturesAction").click()
