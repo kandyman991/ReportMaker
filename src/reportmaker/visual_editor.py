@@ -270,6 +270,10 @@ class VisualReportEditor:
         self._info_pending = False
         self._edit_block_id: str | None = None
         self._module_id: str | None = None
+        self._picture_gallery = None
+        self._picture_list = None
+        self._gallery_populate = None
+        self._photo_drag_token = uuid4().hex
         self._build(left, center)
         self.refresh()
 
@@ -317,6 +321,8 @@ class VisualReportEditor:
             content_buttons.addWidget(btn)
         top_layout.addLayout(content_buttons)
         self.blocks = BlockList()
+        self.blocks.photo_drop_resolver = self._resolve_project_photo_drag
+        self.blocks.on_picture_drop = self._insert_project_photo
         self.blocks.currentItemChanged.connect(self._block_selected)
         self.blocks.moveRequested.connect(self._block_move)
         top_layout.addWidget(self.blocks, 2)
@@ -375,6 +381,8 @@ class VisualReportEditor:
         self.page_tabs.setObjectName("documentPageTabs")
         self.page = EditableDocumentPage()
         self.page.on_style_request = self._select_page_block
+        self.page.photo_drop_resolver = self._resolve_project_photo_drag
+        self.page.on_picture_drop = self._insert_project_photo
         page_container = QWidget()
         page_layout = QVBoxLayout(page_container)
         page_controls = QHBoxLayout()
@@ -850,18 +858,82 @@ class VisualReportEditor:
         self._add_block(PageBreakBlock())
 
     def add_photo(self):
-        """Insert an already imported picture, or import into the media library."""
+        """Open the non-modal project gallery for keyboard or mouse insertion."""
         self.manage_pictures()
+
+    def _resolve_project_photo_drag(self, source, mime):
+        """Accept exactly one project-owned asset ID from THIS gallery instance.
+
+        External files, URLs, text, HTML, stale gallery instances and forged
+        MIME from another drag source are never interpreted as report content.
+        """
+        if (source is not self._picture_list or
+                getattr(source, "session_token", None) != self._photo_drag_token or
+                mime is None or mime.formats() != [PHOTO_MIME]):
+            return None
+        raw = bytes(mime.data(PHOTO_MIME))
+        if not raw or len(raw) > 128:
+            return None
+        try:
+            key = raw.decode("utf-8")
+        except UnicodeError:
+            return None
+        if key not in self.media_library or key not in self.assets:
+            return None
+        return key
+
+    def _insert_project_photo(self, module_id, index, asset_id):
+        """One validated canonical insertion, never a duplicate image asset."""
+        if (not isinstance(asset_id, str) or asset_id not in self.media_library
+                or asset_id not in self.assets):
+            return False
+        module_id = module_id or self._module_id
+        try:
+            module = find_module(self.report, module_id)
+        except (LookupError, TypeError):
+            return False
+        if index is None:
+            index = len(module.blocks)
+        if type(index) is not int or not 0 <= index <= len(module.blocks):
+            return False
+        # Respect uncommitted rich block, information and editable-page drafts.
+        # Fail without inserting if a conflicting draft cannot be resolved.
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            return False
+        if asset_id not in self.media_library or asset_id not in self.assets:
+            return False
+        picture = PhotoBlock(asset_id, LocalizedText(self.report.primary_language, ""))
+        try:
+            self.editor.add_block(module_id, picture, index=index)
+        except (ValueError, LookupError, TypeError) as exc:
+            self._warn("Cannot insert project picture", exc)
+            return False
+        self.dirty = True
+        self._module_id = module_id
+        self._edit_block_id = picture.id
+        self.refresh()
+        return True
 
     def manage_pictures(self):
         """Local project-owned picture container; no external paths persisted."""
         if not self._flush_block() or not self._flush_info():
             return False
+        if self._picture_gallery is not None:
+            if self._gallery_populate is not None:
+                self._gallery_populate()
+            self._picture_gallery.show()
+            self._picture_gallery.raise_()
+            self._picture_gallery.activateWindow()
+            return True
         dialog = QDialog(self.owner)
-        dialog.setWindowTitle("Project Pictures — optimized working copies")
-        dialog.resize(630, 540)
+        dialog.setObjectName("projectPictureGallery")
+        dialog.setModal(False)
+        dialog.setWindowTitle("Project Pictures — drag thumbnails into report")
+        dialog.resize(870, 720)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Pictures belong to this project; external originals stay unchanged."))
+        layout.addWidget(QLabel(
+            "All thumbnails are project-owned working copies. Drag onto a blue block-list "
+            "insertion marker or a page drop zone; original photos stay unchanged."))
         choices = QHBoxLayout()
         preset = QComboBox()
         preset.setObjectName("pictureImportPreset")
@@ -877,11 +949,27 @@ class VisualReportEditor:
         choices.addWidget(preset)
         choices.addWidget(fmt)
         layout.addLayout(choices)
-        pictures = QListWidget()
-        pictures.setObjectName("projectPictureLibrary")
+        pictures = ProjectPictureList(
+            lambda key: key in self.media_library and key in self.assets,
+            lambda key: self.assets.get(key, b""),
+            self._photo_drag_token, dialog)
+        self._picture_list = pictures
+        zoom_row = QHBoxLayout()
+        zoom_row.addWidget(QLabel("Thumbnail size"))
+        zoom = QSlider(Qt.Orientation.Horizontal)
+        zoom.setObjectName("pictureThumbnailZoom")
+        zoom.setRange(72, 220)
+        zoom.setValue(132)
+        zoom.valueChanged.connect(pictures.set_thumbnail_size)
+        zoom_row.addWidget(zoom)
+        layout.addLayout(zoom_row)
         layout.addWidget(pictures, 1)
-        thumbnail = QLabel("Select a project picture to preview it.")
-        thumbnail.setMinimumHeight(200)
+        empty = QLabel("No project pictures yet. Choose Import pictures… to add some.")
+        empty.setObjectName("pictureGalleryEmptyState")
+        layout.addWidget(empty)
+        thumbnail = QLabel("Select a project picture to inspect it.")
+        thumbnail.setObjectName("pictureGalleryInspector")
+        thumbnail.setMinimumHeight(180)
         thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(thumbnail)
 
@@ -891,25 +979,20 @@ class VisualReportEditor:
 
         def show_preview():
             key = selected_key()
-            image = QImage.fromData(self.assets.get(key, b"")) if key else QImage()
+            image = scaled_project_image(self.assets.get(key, b""), 660, 230) if key else QImage()
             if image.isNull():
-                thumbnail.setText("Select a project picture to preview it.")
+                thumbnail.setText("Select a project picture to inspect it.")
                 thumbnail.setPixmap(QPixmap())
             else:
-                thumbnail.setPixmap(QPixmap.fromImage(image.scaled(
-                    500, 210, Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation)))
+                thumbnail.setText("")
+                thumbnail.setPixmap(QPixmap.fromImage(image))
 
         pictures.currentItemChanged.connect(lambda *_: show_preview())
 
         def populate():
-            pictures.clear()
-            for key, name in sorted(self.media_library.items(), key=lambda p: p[1].lower()):
-                item = QListWidgetItem(name)
-                item.setData(Qt.ItemDataRole.UserRole, key)
-                pictures.addItem(item)
-            if pictures.count():
-                pictures.setCurrentRow(0)
+            pictures.populate(self.media_library)
+            empty.setVisible(pictures.count() == 0)
+            show_preview()
 
         buttons = QHBoxLayout()
         do_import = QPushButton("Import pictures…")
@@ -1010,8 +1093,7 @@ class VisualReportEditor:
             if not self._module_id:
                 self._warn("Select a module", "Select a report module before inserting a picture.")
                 return
-            self._add_block(PhotoBlock(key, LocalizedText(self.report.primary_language, "")))
-            dialog.accept()
+            self._insert_project_photo(self._module_id, None, key)
 
         def delete_selected():
             key = selected_key()
@@ -1030,9 +1112,11 @@ class VisualReportEditor:
         do_import.clicked.connect(import_selected)
         insert.clicked.connect(insert_selected)
         remove.clicked.connect(delete_selected)
-        close.clicked.connect(dialog.accept)
+        close.clicked.connect(dialog.close)
+        self._picture_gallery = dialog
+        self._gallery_populate = populate
         populate()
-        dialog.exec()
+        dialog.show()  # non-modal: report remains editable and drop zones active
         return True
 
     def edit_picture(self):
