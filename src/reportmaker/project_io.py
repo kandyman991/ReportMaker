@@ -184,17 +184,17 @@ def _block_to(block):
     return record
 
 
-def _module_from(obj, depth=0):
+def _module_from(obj, depth=0, require_visual=False):
     if depth > MAX_NESTING:
         raise ValueError("Report project is too deeply nested")
     obj = _shape(obj, ("id", "title", "blocks"))
     if not isinstance(obj["blocks"], list):
         raise ValueError("Module blocks must be an array")
     return Module(_localized_from(obj["title"]),
-                  [_block_from(b, depth) for b in obj["blocks"]], _string(obj["id"]))
+                  [_block_from(b, depth, require_visual) for b in obj["blocks"]], _string(obj["id"]))
 
 
-def _block_from(obj, depth):
+def _block_from(obj, depth, require_visual=False):
     obj = _shape(obj, ("kind", "id"), ("text", "level", "asset_id", "caption", "rows", "module", "visual"))
     kind, identifier = _string(obj["kind"]), _string(obj["id"])
     allowed = {
@@ -206,6 +206,8 @@ def _block_from(obj, depth):
         "module": {"kind", "id", "module"},
     }
     if kind == "photo" and "visual" not in obj:
+        if require_visual:
+            raise ValueError("v3 photo placement is missing editable visual state")
         # Valid v1/v2 photo records predate per-placement visuals.
         obj = {**obj, "visual": _visual_to(PhotoVisual())}
     if kind not in allowed or obj.keys() != allowed[kind]:
@@ -225,7 +227,8 @@ def _block_from(obj, depth):
         return TableBlock([[_localized_from(c) for c in row] for row in obj["rows"]], identifier)
     if kind == "page_break":
         return PageBreakBlock(identifier)
-    return NestedModuleBlock(_module_from(obj["module"], depth + 1), identifier)
+    return NestedModuleBlock(_module_from(obj["module"], depth + 1,
+                                         require_visual), identifier)
 
 
 def _snapshot_checked(value):
@@ -282,7 +285,7 @@ def _report_to(report):
     }
 
 
-def _report_from(obj):
+def _report_from(obj, require_visual=False):
     obj = _shape(obj, ("id", "customer_id", "customer_snapshot", "created_date",
                        "title", "start_date", "end_date", "primary_language",
                        "output_languages", "ticket", "technicians", "intervention_types",
@@ -306,8 +309,8 @@ def _report_from(obj):
         technicians=[_string(v) for v in obj["technicians"]],
         intervention_types=[_string(v) for v in obj["intervention_types"]],
         other_intervention_detail=_string(obj["other_intervention_detail"]),
-        modules=[_module_from(v) for v in obj["modules"]],
-        conclusion=_module_from(obj["conclusion"]),
+        modules=[_module_from(v, require_visual=require_visual) for v in obj["modules"]],
+        conclusion=_module_from(obj["conclusion"], require_visual=require_visual),
         id=_string(obj["id"]),
     )
     validate_report_tree(report)
@@ -515,7 +518,7 @@ def load_project(source: str | Path) -> ReportProject:
                 assets[identifier] = blob
             if set(names) != expected:
                 raise ValueError("Unlisted/untrusted files in project archive")
-            report = _report_from(manifest["report"])
+            report = _report_from(manifest["report"], manifest["version"] == VERSION)
             # Legacy v1 bundles may contain verified orphans, discarded on load.
             # v2 only contains block-referenced or explicitly declared library
             # assets; reject hidden unreferenced ZIP members even if hashed.
