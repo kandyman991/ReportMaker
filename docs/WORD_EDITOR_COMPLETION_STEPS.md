@@ -22,15 +22,17 @@ The report/project canonical hierarchy and language provenance stay authoritativ
 - [x] Implementation in staged draft PR #29, code SHA 0d08f351bb5a4c5bc430562a8c8aa9cd4710a9a6; exact Windows M0 #40499581827 and M1 #40499582022 SUCCESS; local 102 tests + offline GUI smoke PASS.
 - [x] Independent PR #29 review completed at `b7bbd7cfa99bce593fa25f287ccbf98e8bbc3193`, findings F01/F02 corrected in PR #30 (`1c1dbceef0223c31733cab93c44055cd08a1ef56`) and merged into PR #29 at `98292dbad63ebf22ac060cf1adff75656660407d`; reviewed code integrated into PR #25 at `6281b54352e2e7ff7324a6c88104cf6ca29662f9`. Windows M0 #40502217998 and M1 #40502217764 both SUCCESS at exact integrated PR #25 merge head; 104 synthetic tests.
 
-## Step 3 — Safe local DOCX/DOTX template import (new staged PR)
-- [ ] Bounded OOXML ZIP and relationships inspection; no external content fetching, macros, embedded scripts or silent template data transmission.
-- [ ] Capture page size, margins, headers, footers, embedded logos, supported paragraph styles and page elements as a portable template, independent of report facts.
-- [ ] Visual template editing, explicit unsupported-object warnings, safe persistence/schema versioning, reversible import and DOCX/PDF parity.
-- [ ] Synthetic fixtures plus private installed Windows testing of the user's sample only locally.
+## Step 3 — Safe local DOCX/DOTX template import (draft PR #31)
+- [x] Bounded offline OOXML ZIP and relationships inspection; reject external links, macros, embedded active content, entity definitions and unsafe paths; no network/browser transfer.
+- [x] Capture first-section page geometry, static header/footer, first embedded header logo and Normal/Heading 1 typography as an independent, versioned .rmtemplate profile. Explicitly warn about unsupported Word constructs; do not import arbitrary document body into report facts.
+- [x] Native Qt review/schematic paper editing of supported template fields, safe atomic sidecar saving/loading and profile selection/clear; supported DOCX/PDF layout geometry is exported from the same profile. See [import contract](WORD_TEMPLATE_IMPORT.md).
+- [x] Synthetic DOCX/DOTX, malformed/malicious package, no-clobber, Qt profile selection and cross-export tests in PR #31. Exact reviewed Windows CI and independent review must still be checked at the *final* feature head.
+- [ ] Installed-Windows mouse/DPI/Word/PDF visual test of the user's original Word sample, **only locally**, and unsupported-layout fidelity acceptance.
+- [ ] Independent code review and user-authorized merge into PR #25; never merge PR #31 to main directly.
 
 ## Step 4 — Integration and Windows release acceptance
 - [ ] Review/reconcile PR #22, #25 and their accepted corrections against current main, exact-head required CI and history.
 - [ ] Install exact built candidate on Windows and verify font faces/sizes, page editing, save/reopen, database, images/HEIC, DOCX in Word, PDF print, template import, dark/light themes and DPI.
 - [ ] Publish/promote one current release only when critical installed-Windows acceptance passes and user approves.
 
-Step 2 is integrated at code level into draft PR #25. **Step 2 installed-Windows visual/keyboard/DPI/Word/PDF acceptance**, Step 3 DOCX/DOTX template import, and Step 4 consolidated Windows/release gates remain pending. No main merge or installer approval.
+Step 2 is integrated at code level into draft PR #25. Step 3 template-import implementation is **staged in draft PR #31 only**. Installed-Windows visual/keyboard/DPI/Word/PDF/template acceptance, independent review of Step 3, and Step 4 consolidated Windows/release gates remain pending. No main merge or installer approval.
