@@ -42,6 +42,7 @@ def run() -> int:
         window.show()
         app.processEvents()
         doc = window.document
+        print("M3SMOKE: window ready", flush=True)
         # Catch accidental blocking alert dialogs in CI instead of hanging indefinitely.
         unforeseen_warning = patch.object(QMessageBox, "warning",
                                          side_effect=AssertionError("Unexpected Qt warning during rich-editor smoke"))
@@ -96,9 +97,13 @@ def run() -> int:
             ) is None
             doc._module_id = parent_id
             doc.refresh()
+            print("M3SMOKE: before add paragraph", flush=True)
             doc.add_paragraph()
+            print("M3SMOKE: added paragraph", flush=True)
             doc.text_edit.setPlainText("Approved synthetic field notes")
+            print("M3SMOKE: before apply block", flush=True)
             assert doc.apply_block()
+            print("M3SMOKE: block applied", flush=True)
             assert "Approved synthetic field notes" in doc.preview.toPlainText()
 
             # Metadata edits are captured on Save, including multiple types.
