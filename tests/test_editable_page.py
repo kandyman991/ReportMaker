@@ -270,7 +270,10 @@ class EditablePageTests(unittest.TestCase):
             blocks = controller.report.modules[0].blocks
             self.assertEqual(len(blocks), 2)
             self.assertEqual(blocks[1].id, selected_id)
-            self.assertIn("unsaved block draft", blocks[1].text.original)
+            self.assertTrue(controller._block_pending)
+            self.assertEqual(controller._edit_block_id, selected_id)
+            self.assertIn("unsaved block draft", controller.text_edit.toPlainText())
+            self.assertEqual(blocks[1].text.original, "")
             self.assertIn(first_key, controller.page.pending)
             owner.close()
 
