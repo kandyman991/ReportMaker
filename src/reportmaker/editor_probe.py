@@ -348,7 +348,12 @@ def run() -> int:
         finally:
             unforeseen_question.stop()
             unforeseen_warning.stop()
+            # The rich-text selection may leave an unapplied synthetic draft.
+            # Offline smoke cleanup intentionally discards it without showing
+            # an interactive confirmation box on an unattended Windows runner.
             doc.dirty = False
+            doc._block_pending = False
+            doc._info_pending = False
             window.close()
             app.processEvents()
     watchdog.cancel()
