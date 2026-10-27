@@ -1081,6 +1081,11 @@ class VisualReportEditor:
                                         output_format=fmt.currentData())
                 if not approve_staged(staged):
                     return
+                # The non-modal gallery allows ongoing report/page editing.
+                # Before a gallery mutation redraws the editor, explicitly
+                # commit/resolve drafts or keep both the draft and library intact.
+                if not self._flush_block() or not self._flush_info() or not self._flush_page():
+                    return
                 commit_staged_pictures(
                     ReportProject(self.report, self.assets, self.media_library), staged)
             except (PictureImportError, ValueError, OSError) as exc:
@@ -1102,6 +1107,8 @@ class VisualReportEditor:
         def delete_selected():
             key = selected_key()
             if key is None:
+                return
+            if not self._flush_block() or not self._flush_info() or not self._flush_page():
                 return
             try:
                 remove_library_picture(ReportProject(self.report, self.assets,
