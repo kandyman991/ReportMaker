@@ -25,7 +25,8 @@ from .model import (
 from .reference import CustomerSnapshot
 
 FORMAT = "reportmaker.project"
-VERSION = 1
+VERSION = 2
+LEGACY_VERSION = 1
 MAX_MANIFEST = 8 * 1024 * 1024
 MAX_ASSET = 32 * 1024 * 1024
 MAX_TOTAL_ASSETS = 256 * 1024 * 1024
@@ -37,6 +38,9 @@ ASSET_ID = re.compile(r"[A-Za-z0-9_-]{1,96}\Z")
 class ReportProject:
     report: Report
     assets: dict[str, bytes] = field(default_factory=dict)
+    # Explicit project media-library membership persists even without PhotoBlocks.
+    # Unlike legacy v1 orphans, these images are intentionally user-owned content.
+    media_library: dict[str, str] = field(default_factory=dict)  # asset ID -> display name
 
 
 def default_projects_directory() -> Path:
@@ -266,10 +270,18 @@ def _assets_checked(project):
     if not isinstance(project, ReportProject) or not isinstance(project.assets, dict):
         raise ValueError("Expected a report project")
     report_json = _report_to(project.report)
-    # Unreferenced images remain available to the in-memory undo history, but
-    # MUST NOT survive in a saved portable project after deletion. Reused IDs
-    # shared by another module stay referenced and therefore are preserved.
-    referenced = _photo_ids(project.report)
+    # Keep all placed photos plus explicitly listed project media. Unlisted
+    # in-memory orphan bytes remain available for Undo but are never serialized.
+    if not isinstance(project.media_library, dict):
+        raise ValueError("Invalid project picture container")
+    library = []
+    for identifier, name in sorted(project.media_library.items()):
+        if (not isinstance(identifier, str) or ASSET_ID.fullmatch(identifier) is None
+            or not isinstance(name, str) or not name.strip() or len(name) > 200
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)):
+            raise ValueError("Invalid media-library entry")
+        library.append({"id": identifier, "name": name})
+    referenced = _photo_ids(project.report) | set(project.media_library)
     for identifier in project.assets:
         if not isinstance(identifier, str) or ASSET_ID.fullmatch(identifier) is None:
             raise ValueError("Unsafe logical asset ID")
@@ -287,7 +299,8 @@ def _assets_checked(project):
         metadata.append({"id": identifier, "length": len(blob),
                          "sha256": sha256(blob).hexdigest()})
     manifest = {"format": FORMAT, "version": VERSION,
-                "report": report_json, "assets": metadata}
+                "report": report_json, "assets": metadata,
+                "media_library": library}
     serialized = json.dumps(manifest, ensure_ascii=False, sort_keys=True,
                             separators=(",", ":"), allow_nan=False).encode("utf-8")
     if len(serialized) > MAX_MANIFEST:
@@ -351,12 +364,31 @@ def load_project(source: str | Path) -> ReportProject:
             data = archive.read("manifest.json")
             if len(data) > MAX_MANIFEST:
                 raise ValueError("Project manifest is too large")
-            manifest = _shape(json.loads(data.decode("utf-8"),
-                                              object_pairs_hook=_unique_pairs,
-                                              parse_constant=_reject_constant),
-                              ("format", "version", "report", "assets"))
-            if manifest["format"] != FORMAT or type(manifest["version"]) is not int or manifest["version"] != VERSION:
+            manifest = json.loads(data.decode("utf-8"),
+                                  object_pairs_hook=_unique_pairs,
+                                  parse_constant=_reject_constant)
+            if (not isinstance(manifest, dict) or manifest.get("format") != FORMAT
+                or type(manifest.get("version")) is not int
+                or manifest["version"] not in (LEGACY_VERSION, VERSION)):
                 raise ValueError("Unsupported project schema; no automatic downgrade")
+            if manifest["version"] == LEGACY_VERSION:
+                _shape(manifest, ("format", "version", "report", "assets"))
+                library = {}
+            else:
+                _shape(manifest, ("format", "version", "report", "assets", "media_library"))
+                entries = manifest["media_library"]
+                if not isinstance(entries, list) or len(entries) > MAX_ENTRIES - 1:
+                    raise ValueError("Invalid media library")
+                library = {}
+                for entry in entries:
+                    entry = _shape(entry, ("id", "name"))
+                    identifier, name = entry["id"], entry["name"]
+                    if (not isinstance(identifier, str) or ASSET_ID.fullmatch(identifier) is None
+                        or not isinstance(name, str) or not name.strip() or len(name) > 200
+                        or any(ord(char) < 32 or ord(char) == 127 for char in name)
+                        or identifier in library):
+                        raise ValueError("Invalid or duplicated media-library member")
+                    library[identifier] = name
             if not isinstance(manifest["assets"], list):
                 raise ValueError("Project asset records must be an array")
             expected = {"manifest.json"}
@@ -383,11 +415,17 @@ def load_project(source: str | Path) -> ReportProject:
             if set(names) != expected:
                 raise ValueError("Unlisted/untrusted files in project archive")
             report = _report_from(manifest["report"])
-            # Older v1 bundles may contain orphan assets. Read/verify the
-            # manifest faithfully, but discard orphans in the active project.
+            # Legacy v1 bundles may contain verified orphans, discarded on load.
+            # v2 only contains block-referenced or explicitly declared library
+            # assets; reject hidden unreferenced ZIP members even if hashed.
+            keep = _photo_ids(report) | set(library)
+            if not keep <= assets.keys():
+                raise ValueError("Declared picture is missing from archive")
+            if manifest["version"] == VERSION and set(assets) != keep:
+                raise ValueError("Undeclared project image asset")
             project = ReportProject(report, {
-                identifier: assets[identifier] for identifier in _photo_ids(report)
-            })
+                identifier: assets[identifier] for identifier in keep
+            }, library)
             _assets_checked(project)
             return project
     except (zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError,
