@@ -1,0 +1,236 @@
+name: ReportMaker Windows RC3 pinned installer
+
+# This workflow is intentionally separate from windows-installer.yml (historical M0).
+# This one-time source-pinned publisher runs when its configuration merges to main.
+# Later changes and reruns never overwrite the immutable RC3 tag.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/windows-rc3.yml
+      - packaging/windows/ReportMaker-RC3.iss
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reportmaker-rc3-v0.5.0-rc.3
+  cancel-in-progress: false
+
+env:
+  RC3_SOURCE_SHA: 5da9f06e72303f1370783f5efdae17fb8fcd5f40
+  RC3_TAG: reportmaker-v0.5.0-rc.3
+  RC3_ASSET: ReportMaker-0.5.0-rc.3-Setup.exe
+
+jobs:
+  build-test-and-publish:
+    # Never publish from a PR, fork, non-main branch or a different repository.
+    if: github.repository == 'kandyman991/ReportMaker' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout approved RC3 build configuration
+        uses: actions/checkout@v4
+        with:
+          path: release-config
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout immutable reviewed main source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RC3_SOURCE_SHA }}
+          path: app
+          persist-credentials: false
+
+      - name: Verify source SHA and ensure app did not change after pin
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = (git -C app rev-parse HEAD).Trim()
+          if ($source -ne $env:RC3_SOURCE_SHA) {
+            throw "Source mismatch: wanted $env:RC3_SOURCE_SHA, checked out $source"
+          }
+          git -C release-config merge-base --is-ancestor $source HEAD
+          if ($LASTEXITCODE -ne 0) { throw "Pinned source is not an ancestor of the main workflow commit" }
+          $changedApp = @(git -C release-config diff --name-only $source HEAD -- src/ pyproject.toml packaging/windows/launcher.py packaging/windows/requirements-build.txt packaging/windows/ReportMaker.iss)
+          if ($LASTEXITCODE -ne 0 -or $changedApp.Count -gt 0) {
+            throw "App or original packaging changed after pin: $($changedApp -join ', ')"
+          }
+          Write-Host "Source verified: $source"
+          Write-Host "RC3 build configuration commit: $env:GITHUB_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+
+      - name: Install full desktop dependencies and frozen-build tools
+        working-directory: app
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -e ".[desktop]"
+          if ($LASTEXITCODE -ne 0) { throw "Desktop dependency install failed" }
+          python -m pip install --disable-pip-version-check -r packaging/windows/requirements-build.txt
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller dependency install failed" }
+
+      - name: Validate pinned source and synthetic tests on Windows
+        working-directory: app
+        shell: pwsh
+        run: |
+          python -m compileall -q src
+          if ($LASTEXITCODE -ne 0) { throw "Compile failed" }
+          python -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { throw "Regression tests failed" }
+
+      - name: Freeze full offline Windows application
+        working-directory: app
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMaker `
+            --hidden-import PySide6.QtWebEngineWidgets `
+            --hidden-import PySide6.QtWebEngineCore `
+            --collect-submodules reportmaker `
+            --collect-all pillow_heif `
+            packaging/windows/launcher.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+          if (!(Test-Path "dist/ReportMaker/ReportMaker.exe")) { throw "Frozen app missing" }
+          if (!(Test-Path "dist/ReportMaker/_internal")) { throw "Bundled dependencies missing" }
+
+      - name: Smoke-test the actual frozen application (no external accounts)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path "app/dist/ReportMaker/ReportMaker.exe").Path
+          foreach ($check in @(
+            '--self-test',
+            '--layout-self-test',
+            '--customer-self-test',
+            '--visual-editor-self-test',
+            '--export-self-test'
+          )) {
+            Write-Host "Running frozen $check"
+            $p = Start-Process -FilePath $exe -ArgumentList $check -PassThru -Wait
+            if ($p.ExitCode -ne 0) {
+              throw "Frozen $check failed: exit $($p.ExitCode)"
+            }
+          }
+
+      - name: Locate or install Inno Setup 6
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $compiler) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          }
+
+      - name: Create per-user RC3 setup executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $compiler) { throw "ISCC.exe was not found" }
+          $sourceRoot = (Resolve-Path app).Path
+          $outputRoot = Join-Path $PWD "dist-installer"
+          New-Item -ItemType Directory -Force $outputRoot | Out-Null
+          & $compiler "/DSourceRoot=$sourceRoot" "/DOutputRoot=$outputRoot" "release-config/packaging/windows/ReportMaker-RC3.iss"
+          if ($LASTEXITCODE -ne 0) { throw "RC3 Inno Setup compilation failed" }
+          $installer = Join-Path $outputRoot $env:RC3_ASSET
+          if (!(Test-Path $installer)) { throw "RC3 installer missing" }
+          if ((Get-Item $installer).Length -lt 10000000) { throw "RC3 installer unexpectedly small" }
+
+      - name: Produce and verify local SHA-256 manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Join-Path $PWD "dist-installer/$env:RC3_ASSET"
+          $manifest = Join-Path $PWD "dist-installer/SHA256SUMS.txt"
+          $hash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $env:RC3_ASSET" | Set-Content -Path $manifest -Encoding ascii
+          $expected = (Get-Content $manifest -Raw).Trim()
+          if ($expected -ne "$hash  $env:RC3_ASSET") { throw "SHA-256 manifest mismatch" }
+          Write-Host "Installer SHA-256: $hash"
+          "Installer SHA-256: $hash" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Publish immutable GitHub RC3 prerelease after all smoke tests
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = $env:GITHUB_REPOSITORY
+          $tag = $env:RC3_TAG
+          $setup = Join-Path $PWD "dist-installer/$env:RC3_ASSET"
+          $manifest = Join-Path $PWD "dist-installer/SHA256SUMS.txt"
+          if (!(Test-Path $setup) -or !(Test-Path $manifest)) { throw "Release assets missing" }
+          # A previously published tag must never be silently overwritten.
+          $found = & gh release view $tag --repo $repo --json tagName --jq '.tagName' 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "RC3 release $tag exists already; refusing overwrite" }
+          $notes = Join-Path $env:RUNNER_TEMP "reportmaker-rc3-notes.md"
+          $sha256 = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          @"
+          # ReportMaker 0.5.0 RC3 — Windows acceptance candidate
+
+          **PRE-RELEASE / NOT PRODUCTION-ACCEPTED / UNSIGNED.**
+          Built from the exact pinned main source SHA: $env:RC3_SOURCE_SHA.
+          Workflow source revision: $env:GITHUB_SHA; GitHub Actions run: $env:GITHUB_RUN_ID.
+          Windows x64 per-user setup: $env:RC3_ASSET.
+          Installer SHA-256: $sha256 (also in SHA256SUMS.txt).
+
+          Contains the consolidated customer/site/machine database, project and picture
+          editors, HEIC conversion, rich text ribbon, directly editable document page,
+          safe partial DOCX/DOTX letterhead import, and DOCX/PDF export.
+          Also includes merged fixes #35 (long letterhead text), #36 (live block labels),
+          #37 (non-modal drag-and-drop photo gallery), and #38 (visible rich-text ribbon).
+          The template adapter does not recreate all Word shapes, tables or exact
+          pagination; PDF font fidelity and actual installed Windows acceptance are
+          still pending. The currently selected letterhead is an application-wide
+          preference, so confirm it before exporting customer reports.
+
+          Offline synthetic tests and frozen Windows smoke checks passed before
+          publication. Interactive user testing on an installed Windows PC is still
+          mandatory before stable release approval. No customer data was used.
+          "@ | Set-Content -Path $notes -Encoding utf8
+          gh release create $tag --repo $repo --target $env:RC3_SOURCE_SHA --title "ReportMaker 0.5.0 RC3 - Windows acceptance" --notes-file $notes --prerelease --draft
+          if ($LASTEXITCODE -ne 0) { throw "Draft RC3 creation failed" }
+          gh release upload $tag $setup $manifest --repo $repo
+          if ($LASTEXITCODE -ne 0) { throw "RC3 asset upload failed; draft retained" }
+          # GitHub's public releases/tags API returns 404 for unpublished drafts.
+          # gh release view resolves drafts by tag for the authenticated publisher.
+          $releaseJson = gh release view $tag --repo $repo --json assets,isDraft,isPrerelease
+          if ($LASTEXITCODE -ne 0) { throw "RC3 draft release asset lookup failed" }
+          $release = $releaseJson | ConvertFrom-Json
+          if (-not $release.isDraft -or -not $release.isPrerelease) {
+            throw "Unexpected RC3 release state prior to publication"
+          }
+          $remoteSetup = $release.assets | Where-Object { $_.name -eq $env:RC3_ASSET }
+          $remoteManifest = $release.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' }
+          if (@($remoteSetup).Count -ne 1 -or @($remoteManifest).Count -ne 1) {
+            throw "RC3 remote asset names missing or ambiguous; draft retained"
+          }
+          if ($remoteSetup.size -ne (Get-Item $setup).Length -or
+              $remoteManifest.size -ne (Get-Item $manifest).Length) {
+            throw "RC3 remote asset size mismatch; draft retained"
+          }
+          gh release edit $tag --repo $repo --draft=false --prerelease
+          if ($LASTEXITCODE -ne 0) { throw "RC3 public prerelease promotion failed" }
+          $publishedJson = gh release view $tag --repo $repo --json isDraft,isPrerelease,tagName,url
+          if ($LASTEXITCODE -ne 0) { throw "RC3 published release lookup failed" }
+          $published = $publishedJson | ConvertFrom-Json
+          if ($published.isDraft -or -not $published.isPrerelease -or $published.tagName -ne $tag) {
+            throw "RC3 published release verification failed"
+          }
+          "RC3 prerelease: $($published.url)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Host "RC3 prerelease successfully published: $($published.url)"
