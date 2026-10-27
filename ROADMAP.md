@@ -46,11 +46,11 @@ See `docs/M3_VISUAL_EDITOR.md`.
 - [ ] Consolidated installed Windows/Word/PDF acceptance, page-field refresh, real visual wrapping/printing and long-table/typography cases. Template import and arbitrary floating-image/page-layout design remain M6; language translations remain M5.
 See `docs/M4_EXPORT.md` and `docs/WINDOWS_ACCEPTANCE_M0_M4.md`.
 
-## M4.5 — Project Picture Manager and editable annotations (agreed requirements; not implemented)
-- [ ] Design review of ADR-0008 and docs/M45_MEDIA_WORKSPACE.md; no code implementation or merge authorized by this documentation PR.
-- [x] M4.5.1 code proposed in draft PR #17: version-2 portable .rmproj media library, imported working copies, v1 loading and declared-unused-media storage. Exact-head CI/review and real Windows acceptance still required.
-- [x] M4.5.1 code proposed: offline HEIC/HEIF conversion, JPEG Q88 / max 2500 px, batch import, safe bounds, format selection, size confirmation and metadata removal. A visual original-vs-converted quality comparison remains pending.
-- [ ] Non-destructive crop/rotate/flip/image layout plus editable visible arrows, shapes, highlights and translatable callouts. Same media asset reusable across modules with independent per-placement edits.
+## M4.5 — Project Picture Manager and editable annotations (M4.5.1 merged; M4.5.2 feature under review)
+- [x] ADR-0008, Picture Manager design and M4.5.1 implementation/corrections merged through PRs #16–#18; separate collective technical review and installed-PC acceptance pending.
+- [x] M4.5.1 portable v2 media library, imported immutable working copies, v1 compatibility and native Pictures UI merged.
+- [x] M4.5.1 HEIC/HEIF conversion, JPEG Q88/max 2500 px and user-approved original-vs-optimized image comparison merged, with safe bounds and metadata removal.
+- [x] M4.5.2 source proposed in isolated feature PR: PySide6 crop/rotate/straighten/flip, relative layout, visible arrow/shape/highlight/text/freehand annotations, per-PhotoBlock independence and editable v3 .rmproj. Independent review, installed Windows and annotation exports still pending.
 - [ ] Separate optional pinned internal comment threads/replies/status, excluded from customer DOCX/PDF and preview by default.
 - [ ] Source-preserving DOCX/PDF composed-image output without unconditional PNG inflation, synthetic CI plus actual Windows packaging/interactive verification.
 - [ ] Independent M4.5.1 code/security and schema-migration review, exact-final-head CI, installed-Windows validation; M0–M4 installed-Windows acceptance and installer/release approval remain separate gates.

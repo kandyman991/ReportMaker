@@ -18,7 +18,7 @@ from xml.sax.saxutils import escape
 from .engine import OutlineEntry, module_outline, validate_report_tree
 from .model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock, ParagraphBlock,
-    PhotoBlock, TableBlock,
+    PhotoBlock, PhotoVisual, TableBlock,
 )
 from .project_io import MAX_ASSET, ReportProject
 
@@ -175,6 +175,11 @@ def prepare_export(project: ReportProject) -> ExportPlan:
                     "table", rows=tuple(tuple(cell.original for cell in row)
                                         for row in block.rows)))
             elif isinstance(block, PhotoBlock):
+                # M4.5.4 will render visual layers consistently to DOCX/PDF.
+                # Never silently export the unedited original in their place.
+                if block.visual != PhotoVisual():
+                    raise ExportError("Edited photographs cannot be exported until "
+                                      "M4.5.4 annotated DOCX/PDF support is implemented")
                 if block.asset_id not in project.assets:
                     raise ExportError("Referenced photograph is missing: " + block.asset_id)
                 items.append(RenderItem(

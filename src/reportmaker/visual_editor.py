@@ -26,14 +26,15 @@ from PySide6.QtWidgets import (
 from .engine import ProjectEditor, module_outline
 from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
-    ParagraphBlock, PhotoBlock, Report, TableBlock,
+    ParagraphBlock, PhotoBlock, PhotoVisual, Report, TableBlock,
 )
-from .project_io import (LEGACY_VERSION, VERSION, MAX_ASSET, ReportProject,
+from .project_io import (LEGACY_VERSION, PREVIOUS_VERSION, VERSION, MAX_ASSET, ReportProject,
                          default_projects_directory, load_project, save_project)
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
 from .media_import import (PictureImportError, stage_pictures, commit_staged_pictures,
                            remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
+from .photo_editor import PictureEditorDialog, render_photo
 
 
 def new_report() -> ReportProject:
@@ -245,6 +246,10 @@ class VisualReportEditor:
         self.photo_caption.setPlaceholderText("Photo caption")
         self.photo_caption.textEdited.connect(self._set_pending)
         top_layout.addWidget(self.photo_caption)
+        self.picture_edit = QPushButton("Edit selected picture (crop, rotate, annotations…)")
+        self.picture_edit.setObjectName("editPictureVisualAction")
+        self.picture_edit.clicked.connect(self.edit_picture)
+        top_layout.addWidget(self.picture_edit)
         self.table = QTableWidget()
         self.table.cellChanged.connect(self._set_pending)
         top_layout.addWidget(self.table, 1)
@@ -498,6 +503,7 @@ class VisualReportEditor:
             is_table = isinstance(block, TableBlock)
             self.text_edit.setVisible(is_text)
             self.photo_caption.setVisible(is_photo)
+            self.picture_edit.setVisible(is_photo)
             self.table.setVisible(is_table)
             self.table_buttons.setVisible(is_table)
             self.block_hint.setText("Submodules are edited through the module tree." if isinstance(block, NestedModuleBlock)
@@ -799,6 +805,33 @@ class VisualReportEditor:
         dialog.exec()
         return True
 
+    def edit_picture(self):
+        """Edit only this PhotoBlock's own visual instructions, never asset bytes."""
+        if not self._flush_block() or not self._flush_info():
+            return False
+        module = self._selected_module()
+        block = next((b for b in module.blocks if b.id == self._edit_block_id),
+                     None) if module else None
+        if not isinstance(block, PhotoBlock):
+            return False
+        source = self.assets.get(block.asset_id, b"")
+        if not source or QImage.fromData(source).isNull():
+            self._warn("Cannot edit picture", "The project picture cannot be decoded")
+            return False
+        dialog = PictureEditorDialog(self.owner, source, block.visual,
+                                     self.report.primary_language)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return False
+        edited = deepcopy(dialog.visual)
+        if edited == block.visual:
+            return True
+        def update(report):
+            destination = find_module(report, module.id)
+            image_block = next(b for b in destination.blocks
+                               if b.id == block.id)
+            image_block.visual = deepcopy(edited)
+        return self._change(lambda: self.editor.apply(update))
+
     def remove_block(self):
         item = self.blocks.currentItem()
         if item and self._module_id:
@@ -1066,12 +1099,20 @@ class VisualReportEditor:
                                                         for cell in row) + "</tr>")
                     sections.append("</table>")
                 elif isinstance(block, PhotoBlock):
-                    image = QImage.fromData(self.assets.get(block.asset_id, b""))
+                    data = self.assets.get(block.asset_id, b"")
+                    try:
+                        image = render_photo(data, block.visual, 800)
+                    except ValueError:
+                        image = QImage()
                     if not image.isNull():
-                        if image.width() > 520:
-                            image = image.scaledToWidth(520, Qt.TransformationMode.SmoothTransformation)
-                        images[block.asset_id] = image
-                        sections.append('<p><img src="rmasset:%s"/></p>' % block.asset_id)
+                        width = min(520, image.width()) * block.visual.width_pct // 100
+                        image = image.scaledToWidth(max(1, width),
+                                                    Qt.TransformationMode.SmoothTransformation)
+                        image_key = (block.asset_id if block.visual == PhotoVisual()
+                                     else block.id)
+                        images[image_key] = image
+                        sections.append('<p style="text-align:%s"><img src="rmasset:%s"/></p>'
+                                        % (block.visual.alignment, image_key))
                     else:
                         sections.append("<p>[Photo unavailable]</p>")
                     if block.caption:
@@ -1155,10 +1196,10 @@ class VisualReportEditor:
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
             self._warn("Customer required", "Enter a customer name or select one from the database.")
             return False
-        if (self.loaded_version == LEGACY_VERSION and self.loaded_from is not None
+        if (self.loaded_version in (LEGACY_VERSION, PREVIOUS_VERSION) and self.loaded_from is not None
             and Path(path).absolute() == self.loaded_from.absolute()):
             self._warn("Save upgraded project as a copy",
-                       "This report uses the original v1 project format. "
+                       "This report uses an older project format. "
                        "Choose Save As and a new filename to preserve your "
                        "original file for rollback.")
             return False

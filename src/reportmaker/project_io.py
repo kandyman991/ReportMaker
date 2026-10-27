@@ -20,12 +20,14 @@ import zlib
 from .engine import MAX_NESTING, validate_report_tree
 from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
-    ParagraphBlock, PhotoBlock, Report, TableBlock,
+    ParagraphBlock, PhotoBlock, PhotoMark, PhotoVisual, Report, TableBlock,
+    validate_photo_visual,
 )
 from .reference import CustomerSnapshot
 
 FORMAT = "reportmaker.project"
-VERSION = 2
+VERSION = 3
+PREVIOUS_VERSION = 2
 LEGACY_VERSION = 1
 MAX_MANIFEST = 8 * 1024 * 1024
 MAX_ASSET = 32 * 1024 * 1024
@@ -105,6 +107,57 @@ def _localized_from(obj):
                          translations, set(stale))
 
 
+def _visual_to(visual: PhotoVisual):
+    validate_photo_visual(visual)
+    return {
+        "crop": list(visual.crop), "rotation": visual.rotation,
+        "straighten": visual.straighten, "flip_h": visual.flip_h,
+        "flip_v": visual.flip_v, "width_pct": visual.width_pct,
+        "alignment": visual.alignment,
+        "marks": [{
+            "id": mark.id, "kind": mark.kind,
+            "x": mark.x, "y": mark.y, "x2": mark.x2, "y2": mark.y2,
+            "color": mark.color, "thickness": mark.thickness,
+            "text": _localized_to(mark.text) if mark.text else None,
+            "points": [list(pt) for pt in mark.points],
+        } for mark in visual.marks],
+    }
+
+
+def _visual_from(obj):
+    obj = _shape(obj, ("crop", "rotation", "straighten", "flip_h", "flip_v",
+                        "width_pct", "alignment", "marks"))
+    crop = obj["crop"]
+    if not isinstance(crop, list) or len(crop) != 4:
+        raise ValueError("Invalid photo crop record")
+    marks_json = obj["marks"]
+    if not isinstance(marks_json, list) or len(marks_json) > 120:
+        raise ValueError("Invalid photo annotation collection")
+    marks = []
+    for entry in marks_json:
+        entry = _shape(entry, ("id", "kind", "x", "y", "x2", "y2",
+                               "color", "thickness", "text", "points"))
+        points = entry["points"]
+        if not isinstance(points, list) or len(points) > 500 or any(
+            not isinstance(pair, list) or len(pair) != 2 for pair in points
+        ):
+            raise ValueError("Malformed annotation coordinates")
+        marks.append(PhotoMark(
+            kind=entry["kind"], x=entry["x"], y=entry["y"],
+            x2=entry["x2"], y2=entry["y2"], color=entry["color"],
+            thickness=entry["thickness"],
+            text=_localized_from(entry["text"]) if entry["text"] is not None else None,
+            points=[tuple(pair) for pair in points], id=entry["id"],
+        ))
+    visual = PhotoVisual(
+        crop=tuple(crop), rotation=obj["rotation"],
+        straighten=obj["straighten"], flip_h=obj["flip_h"],
+        flip_v=obj["flip_v"], width_pct=obj["width_pct"],
+        alignment=obj["alignment"], marks=marks)
+    validate_photo_visual(visual)
+    return visual
+
+
 def _module_to(value: Module):
     return {"id": value.id, "title": _localized_to(value.title),
             "blocks": [_block_to(b) for b in value.blocks]}
@@ -118,7 +171,8 @@ def _block_to(block):
         record.update(kind="heading", text=_localized_to(block.text), level=block.level)
     elif isinstance(block, PhotoBlock):
         record.update(kind="photo", asset_id=block.asset_id,
-                      caption=_localized_to(block.caption) if block.caption is not None else None)
+                      caption=_localized_to(block.caption) if block.caption is not None else None,
+                      visual=_visual_to(block.visual))
     elif isinstance(block, TableBlock):
         record.update(kind="table", rows=[[_localized_to(c) for c in row] for row in block.rows])
     elif isinstance(block, PageBreakBlock):
@@ -130,27 +184,35 @@ def _block_to(block):
     return record
 
 
-def _module_from(obj, depth=0):
+def _module_from(obj, depth=0, require_visual=False):
     if depth > MAX_NESTING:
         raise ValueError("Report project is too deeply nested")
     obj = _shape(obj, ("id", "title", "blocks"))
     if not isinstance(obj["blocks"], list):
         raise ValueError("Module blocks must be an array")
     return Module(_localized_from(obj["title"]),
-                  [_block_from(b, depth) for b in obj["blocks"]], _string(obj["id"]))
+                  [_block_from(b, depth, require_visual) for b in obj["blocks"]], _string(obj["id"]))
 
 
-def _block_from(obj, depth):
-    obj = _shape(obj, ("kind", "id"), ("text", "level", "asset_id", "caption", "rows", "module"))
+def _block_from(obj, depth, require_visual=False):
+    obj = _shape(obj, ("kind", "id"), ("text", "level", "asset_id", "caption", "rows", "module", "visual"))
     kind, identifier = _string(obj["kind"]), _string(obj["id"])
     allowed = {
         "paragraph": {"kind", "id", "text"},
         "heading": {"kind", "id", "text", "level"},
-        "photo": {"kind", "id", "asset_id", "caption"},
+        "photo": {"kind", "id", "asset_id", "caption", "visual"},
         "table": {"kind", "id", "rows"},
         "page_break": {"kind", "id"},
         "module": {"kind", "id", "module"},
     }
+    if kind == "photo" and "visual" not in obj:
+        if require_visual:
+            raise ValueError("v3 photo placement is missing editable visual state")
+        # Valid v1/v2 photo records predate per-placement visuals.
+        obj = {**obj, "visual": _visual_to(PhotoVisual())}
+    elif kind == "photo" and not require_visual:
+        # Older formats must not silently accept new editable layers.
+        raise ValueError("Legacy photo records cannot contain v3 visual layers")
     if kind not in allowed or obj.keys() != allowed[kind]:
         raise ValueError("Unsupported or inconsistent block kind")
     if kind == "paragraph":
@@ -160,14 +222,16 @@ def _block_from(obj, depth):
     if kind == "photo":
         caption = obj["caption"]
         return PhotoBlock(_string(obj["asset_id"]),
-                          _localized_from(caption) if caption is not None else None, identifier)
+                          _localized_from(caption) if caption is not None else None,
+                          identifier, _visual_from(obj["visual"]))
     if kind == "table":
         if not isinstance(obj["rows"], list) or any(not isinstance(r, list) for r in obj["rows"]):
             raise ValueError("Table must have rows")
         return TableBlock([[_localized_from(c) for c in row] for row in obj["rows"]], identifier)
     if kind == "page_break":
         return PageBreakBlock(identifier)
-    return NestedModuleBlock(_module_from(obj["module"], depth + 1), identifier)
+    return NestedModuleBlock(_module_from(obj["module"], depth + 1,
+                                         require_visual), identifier)
 
 
 def _snapshot_checked(value):
@@ -224,7 +288,7 @@ def _report_to(report):
     }
 
 
-def _report_from(obj):
+def _report_from(obj, require_visual=False):
     obj = _shape(obj, ("id", "customer_id", "customer_snapshot", "created_date",
                        "title", "start_date", "end_date", "primary_language",
                        "output_languages", "ticket", "technicians", "intervention_types",
@@ -248,8 +312,8 @@ def _report_from(obj):
         technicians=[_string(v) for v in obj["technicians"]],
         intervention_types=[_string(v) for v in obj["intervention_types"]],
         other_intervention_detail=_string(obj["other_intervention_detail"]),
-        modules=[_module_from(v) for v in obj["modules"]],
-        conclusion=_module_from(obj["conclusion"]),
+        modules=[_module_from(v, require_visual=require_visual) for v in obj["modules"]],
+        conclusion=_module_from(obj["conclusion"], require_visual=require_visual),
         id=_string(obj["id"]),
     )
     validate_report_tree(report)
@@ -343,10 +407,10 @@ def save_project(project: ReportProject, destination: str | Path) -> Path:
     target = Path(destination)
     if target.is_symlink() or target.is_dir():
         raise ValueError("Project target cannot be a symlink or directory")
-    if (project.loaded_version == LEGACY_VERSION and project.loaded_from is not None
+    if (project.loaded_version in (LEGACY_VERSION, PREVIOUS_VERSION) and project.loaded_from is not None
         and os.path.normcase(os.path.abspath(target)) ==
             os.path.normcase(os.path.abspath(project.loaded_from))):
-        raise ValueError("This v1 project must be upgraded with Save As to a new file; original v1 project was preserved")
+        raise ValueError("This older project must be upgraded with Save As to a new file; original project was preserved")
     manifest, metadata = _assets_checked(project)
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".reportmaker-", suffix=".tmp",
@@ -403,7 +467,7 @@ def load_project(source: str | Path) -> ReportProject:
                                   parse_constant=_reject_constant)
             if (not isinstance(manifest, dict) or manifest.get("format") != FORMAT
                 or type(manifest.get("version")) is not int
-                or manifest["version"] not in (LEGACY_VERSION, VERSION)):
+                or manifest["version"] not in (LEGACY_VERSION, PREVIOUS_VERSION, VERSION)):
                 raise ValueError("Unsupported project schema; no automatic downgrade")
             if manifest["version"] == LEGACY_VERSION:
                 _shape(manifest, ("format", "version", "report", "assets"))
@@ -457,16 +521,16 @@ def load_project(source: str | Path) -> ReportProject:
                 assets[identifier] = blob
             if set(names) != expected:
                 raise ValueError("Unlisted/untrusted files in project archive")
-            report = _report_from(manifest["report"])
+            report = _report_from(manifest["report"], manifest["version"] == VERSION)
             # Legacy v1 bundles may contain verified orphans, discarded on load.
             # v2 only contains block-referenced or explicitly declared library
             # assets; reject hidden unreferenced ZIP members even if hashed.
             keep = _photo_ids(report) | set(library)
             if not keep <= assets.keys():
                 raise ValueError("Declared picture is missing from archive")
-            if manifest["version"] == VERSION and set(assets) != keep:
+            if manifest["version"] in (PREVIOUS_VERSION, VERSION) and set(assets) != keep:
                 raise ValueError("Undeclared project image asset")
-            if manifest["version"] == VERSION:
+            if manifest["version"] in (PREVIOUS_VERSION, VERSION):
                 for identifier, signature in library_signatures.items():
                     if _image_signature(assets[identifier]) != signature:
                         raise ValueError("Project media metadata disagrees with image bytes")

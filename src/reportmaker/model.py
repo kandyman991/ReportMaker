@@ -160,11 +160,93 @@ class ParagraphBlock:
     id: str = field(default_factory=lambda: uuid4().hex)
 
 
+# A photograph's source bytes are project-owned and never modified by the editor.
+# Per-placement visual state lives with the PhotoBlock, not the shared media asset.
+PHOTO_MARK_KINDS = frozenset({"arrow", "line", "rectangle", "ellipse",
+                              "highlight", "text", "callout", "pen"})
+MAX_PHOTO_MARKS = 120
+MAX_PEN_POINTS = 500
+
+
+@dataclass
+class PhotoMark:
+    kind: str
+    x: float
+    y: float
+    x2: float
+    y2: float
+    color: str = "#e02020"
+    thickness: int = 3
+    text: LocalizedText | None = None
+    points: list[tuple[float, float]] = field(default_factory=list)
+    id: str = field(default_factory=lambda: uuid4().hex)
+
+
+@dataclass
+class PhotoVisual:
+    # Normalized coordinates relative to the oriented source working copy.
+    crop: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
+    rotation: int = 0  # multiples of 90 degrees
+    straighten: int = 0  # additional degrees (-15..15)
+    flip_h: bool = False
+    flip_v: bool = False
+    width_pct: int = 100
+    alignment: str = "center"
+    marks: list[PhotoMark] = field(default_factory=list)
+
+
+def validate_photo_visual(value: PhotoVisual) -> None:
+    import math
+    if not isinstance(value, PhotoVisual):
+        raise ValueError("Invalid photo visual state")
+    def coordinate(v):
+        return type(v) in (float, int) and math.isfinite(v) and 0 <= v <= 1
+    if (not isinstance(value.crop, tuple) or len(value.crop) != 4
+        or not all(coordinate(p) for p in value.crop)):
+        raise ValueError("Invalid photo crop")
+    x, y, width, height = value.crop
+    if width < 0.01 or height < 0.01 or x + width > 1.000001 or y + height > 1.000001:
+        raise ValueError("Photo crop must be nonempty and inside the original")
+    if (type(value.rotation) is not int or value.rotation not in (0, 90, 180, 270)
+        or type(value.straighten) is not int or not -15 <= value.straighten <= 15
+        or type(value.flip_h) is not bool or type(value.flip_v) is not bool
+        or type(value.width_pct) is not int or not 20 <= value.width_pct <= 100
+        or value.alignment not in ("left", "center", "right")):
+        raise ValueError("Unsupported photo layout/transform")
+    if not isinstance(value.marks, list) or len(value.marks) > MAX_PHOTO_MARKS:
+        raise ValueError("Too many photo annotations")
+    ids = set()
+    for mark in value.marks:
+        if (not isinstance(mark, PhotoMark) or not isinstance(mark.kind, str)
+            or mark.kind not in PHOTO_MARK_KINDS
+            or not all(coordinate(v) for v in (mark.x, mark.y, mark.x2, mark.y2))
+            or type(mark.thickness) is not int or not 1 <= mark.thickness <= 16
+            or not isinstance(mark.color, str)
+            or not fullmatch(r"#[0-9A-Fa-f]{6}", mark.color)
+            or not isinstance(mark.id, str) or not fullmatch(r"[a-f0-9]{32}", mark.id)
+            or mark.id in ids):
+            raise ValueError("Invalid photo annotation")
+        ids.add(mark.id)
+        if (not isinstance(mark.points, list) or len(mark.points) > MAX_PEN_POINTS
+            or any(not isinstance(pair, tuple) or len(pair) != 2
+                   or not all(coordinate(v) for v in pair) for pair in mark.points)
+            or (mark.kind == "pen" and len(mark.points) < 2)
+            or (mark.kind != "pen" and mark.points)):
+            raise ValueError("Invalid freehand photo annotation")
+        if mark.kind in ("text", "callout"):
+            validate_localized_text(mark.text)
+            if len(mark.text.original) > 500:
+                raise ValueError("Photo text annotation is too long")
+        elif mark.text is not None:
+            raise ValueError("Shapes cannot carry hidden text")
+
+
 @dataclass
 class PhotoBlock:
     asset_id: str  # logical ID, not filesystem path or remote URL
     caption: LocalizedText | None = None
     id: str = field(default_factory=lambda: uuid4().hex)
+    visual: PhotoVisual = field(default_factory=PhotoVisual)
 
 
 @dataclass

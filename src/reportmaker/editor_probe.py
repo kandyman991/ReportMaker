@@ -10,10 +10,10 @@ from unittest.mock import patch
 from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
 from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QFileDialog, QListWidget, QPushButton, QMessageBox
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QFileDialog, QListWidget, QPushButton, QMessageBox, QWidget
 
 from .engine import module_outline
-from .model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, PhotoBlock, TableBlock
+from .model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, PhotoBlock, PhotoMark, TableBlock
 from .project_io import load_project
 from .reference import manual_snapshot
 from .ui import MainWindow
@@ -87,6 +87,40 @@ def run() -> int:
             assert saved.report.modules[0].blocks[-1].text.original == "Approved synthetic field notes"
             assert saved.assets["synthetic-image"] == bytes(buffer.data())
             assert not doc.dirty
+
+            # M4.5.2: invoke native PictureEditorDialog through the selected
+            # PhotoBlock. It edits only placement instructions, never bytes.
+            from .photo_editor import PictureEditorDialog, render_photo
+            current_photo = next(b for b in doc.report.modules[0].blocks
+                                 if isinstance(b, PhotoBlock))
+            doc._module_id = doc.report.modules[0].id
+            doc._edit_block_id = current_photo.id
+            original_bytes = doc.assets["synthetic-image"]
+            def accept_visual(dialog):
+                assert isinstance(dialog, PictureEditorDialog)
+                assert dialog.findChild(QWidget, "pictureEditorCanvas") is not None
+                dialog.change_property("rotation", 90)
+                dialog.change_property("width_pct", 70)
+                dialog.visual.marks.append(PhotoMark("arrow", .1,.1,.8,.8))
+                dialog.changed()
+                return QDialog.DialogCode.Accepted
+            with patch.object(PictureEditorDialog, "exec", accept_visual):
+                assert doc.edit_picture()
+            assert doc.assets["synthetic-image"] == original_bytes
+            edited = next(b for b in doc.report.modules[0].blocks
+                          if isinstance(b, PhotoBlock))
+            assert edited.visual.rotation == 90
+            assert len(edited.visual.marks) == 1
+            assert not render_photo(original_bytes, edited.visual).isNull()
+            assert doc.save_to_path(path)
+            assert next(b for b in load_project(path).report.modules[0].blocks
+                        if isinstance(b, PhotoBlock)).visual.rotation == 90
+            doc.undo()
+            assert next(b for b in doc.report.modules[0].blocks
+                        if isinstance(b, PhotoBlock)).visual.rotation == 0
+            doc.redo()
+            assert next(b for b in doc.report.modules[0].blocks
+                        if isinstance(b, PhotoBlock)).visual.rotation == 90
 
             # M4.5: exercise the real picture manager offline with a synthetic
             # import, confirm external source bytes are never changed, and
@@ -255,6 +289,17 @@ def run() -> int:
                          if name.startswith("assets/")}
             original_manifest["version"] = 1
             original_manifest.pop("media_library")
+            # Simulate a historical v1 file accurately, removing all v3
+            # visual-layer keys rather than only changing the version tag.
+            def strip_visuals(module):
+                for entry in module["blocks"]:
+                    if entry["kind"] == "photo":
+                        entry.pop("visual", None)
+                    elif entry["kind"] == "module":
+                        strip_visuals(entry["module"])
+            for module in (*original_manifest["report"]["modules"],
+                           original_manifest["report"]["conclusion"]):
+                strip_visuals(module)
             with ZipFile(legacy, "w", ZIP_DEFLATED) as bundle:
                 bundle.writestr("manifest.json", json.dumps(original_manifest))
                 for name, blob in blobs.items():
@@ -268,7 +313,7 @@ def run() -> int:
             upgraded = root / "independent-upgraded-copy.rmproj"
             assert doc.save_to_path(upgraded)
             assert legacy.read_bytes() == original_v1
-            assert load_project(upgraded).loaded_version == 2
+            assert load_project(upgraded).loaded_version == 3
         finally:
             doc.dirty = False
             window.close()
