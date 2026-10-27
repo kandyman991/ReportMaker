@@ -230,3 +230,10 @@ Next reproducible action:
 - PR #31 code integration into **PR #25 only**: `4a5c52b42a507136c654b7f75bdff6515db4b087`, Windows M0 #40510975632, M1 #40510975571 pending final check. PR #25 remains draft atop #22; no main merge/release authorization.
 - Active `.rmtemplate` selection is a *global local export preference*, not report-owned; header/logo/footer now visible in editable page, but users must choose correct customer letterhead before exporting.
 - Still required: exact integrated/code-and-documentation-head CI, installed Windows fidelity test of original private Word sample (locally only), review of preserved report editing, fonts, margins and exports at multiple DPI, PR #22 reconciliation, consolidated acceptance and separate release approval.
+
+## CP-RC2-BUILD — pinned source and prerelease workflow (2026-10-27)
+- User authorized dedicated RC2 installer build and publication, while stable promotion awaits native acceptance.
+- Pinned live `main` source snapshot: `9865178a0ccdfe27e79fc16640c0c3eca50fe099`; reviewed integration of PRs #22/#25.
+- Separate one-shot Windows workflow and Inno profile, no changes to historical M0 publisher or installer: `.github/workflows/windows-rc2.yml`, `packaging/windows/ReportMaker-RC2.iss`, plus `tests/test_rc2_release_contract.py`.
+- Mandatory build gates: exact SHA/ancestor/no-app-diff, synthetic tests, desktop freeze with QtWebEngine and HEIF support, five executable smoke tests, SHA-256, draft upload/asset size verification, public GitHub RC2 prerelease with immutable tag. See `docs/RC2_BUILD_AND_ACCEPTANCE.md`.
+- At checkpoint, PR/CI/installer publication status must be verified live; no actual native installed-Windows acceptance and no production authorization. Use private Word template on user PC only.
