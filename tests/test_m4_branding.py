@@ -86,7 +86,7 @@ class M4BrandingTests(unittest.TestCase):
                 target = Path(directory) / ("existing." + kind)
                 target.write_bytes(b"previous approved export")
                 for style in (
-                    ExportStyle(company_name="bad\ncompany"),
+                    ExportStyle(company_name="bad\x00company"),
                     ExportStyle(logo=b"not an image"),
                     ExportStyle(logo=b"x" * (2*1024*1024 + 1)),
                 ):
