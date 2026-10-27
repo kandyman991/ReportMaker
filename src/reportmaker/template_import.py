@@ -272,22 +272,27 @@ def import_word_template(path: str | Path) -> ImportResult:
         # tabs. For field-bearing paragraphs, omit cached dynamic field results
         # (e.g. a stale PAGE value), retaining surrounding static runs.
         lines = []
+        # Complex fields can span paragraphs and can be nested. A per-run
+        # boolean resets too early (or on an inner END), leaking cached
+        # dynamic results into the new static header/footer text.
+        field_depth = 0
         for paragraph in part.paragraphs:
-            if not (paragraph._p.xpath(".//w:fldChar") or
-                    paragraph._p.xpath(".//w:fldSimple")):
+            if field_depth == 0 and not (paragraph._p.xpath(".//w:fldChar") or
+                                         paragraph._p.xpath(".//w:fldSimple")):
                 lines.append(paragraph.text)
                 continue
-            in_field = False
             pieces = []
             for run in paragraph.runs:
                 for node in run._r:
                     if node.tag == qn("w:fldChar"):
                         kind = node.get(qn("w:fldCharType"))
                         if kind == "begin":
-                            in_field = True
+                            field_depth += 1
                         elif kind == "end":
-                            in_field = False
-                    elif not in_field:
+                            if field_depth == 0:
+                                raise TemplateError("Unmatched dynamic Word field end")
+                            field_depth -= 1
+                    elif field_depth == 0:
                         if node.tag == qn("w:t"):
                             pieces.append(node.text or "")
                         elif node.tag in (qn("w:br"), qn("w:cr")):
@@ -295,6 +300,8 @@ def import_word_template(path: str | Path) -> ImportResult:
                         elif node.tag == qn("w:tab"):
                             pieces.append("\t")
             lines.append("".join(pieces))
+        if field_depth:
+            raise TemplateError("Unclosed dynamic Word header/footer field")
         return "\n".join(lines)
     header = plain(sec.header)
     footer = plain(sec.footer)
