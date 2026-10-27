@@ -16,6 +16,7 @@ import re
 import tempfile
 from zipfile import BadZipFile, ZipFile, ZIP_DEFLATED
 from xml.etree import ElementTree as ET
+from xml.parsers.expat import ParserCreate, ExpatError
 
 MAX_SOURCE = 24 * 1024 * 1024
 MAX_UNPACKED = 40 * 1024 * 1024
@@ -110,6 +111,26 @@ def validate_template(template: DocumentTemplate) -> DocumentTemplate:
     return template
 
 
+def _verify_xml_without_dtd(raw: bytes) -> None:
+    """Reject DTD/entity declarations before ElementTree expands any entities.
+
+    Byte searches alone miss UTF-16 encoded <!DOCTYPE>; Expat detects DTDs
+    regardless of the XML encoding declared by the untrusted document.
+    """
+    parser = ParserCreate()
+
+    def refuse(*_args):
+        raise TemplateError("DTD/entities are forbidden in Word XML")
+
+    parser.StartDoctypeDeclHandler = refuse
+    parser.EntityDeclHandler = refuse
+    parser.ExternalEntityRefHandler = refuse
+    try:
+        parser.Parse(raw, True)
+    except ExpatError as exc:
+        raise TemplateError("Malformed Word XML") from exc
+
+
 def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
     if len(blob) > MAX_SOURCE or len(blob) < 40:
         raise TemplateError("Word template size is unsupported")
@@ -149,8 +170,7 @@ def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
                 raise TemplateError("Executable or binary Word parts are not accepted")
             if low.endswith((".xml", ".rels")) or name == "[Content_Types].xml":
                 raw = archive.read(name)
-                if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
-                    raise TemplateError("DTD/entities are forbidden in Word XML")
+                _verify_xml_without_dtd(raw)
                 try:
                     root = ET.fromstring(raw)
                 except ET.ParseError as exc:
