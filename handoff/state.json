@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-27T13:42:02.447Z",
+  "generatedAt": "2026-10-27T14:09:52.095Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "cb9b4ef283e6f2e3dcd438239eccb6c85bcee6b2",
-    "message": "Merge pull request #25 from kandyman991/feature/word-style-rich-editor\n\nNative Word-style rich text ribbon: editable font and paragraph formatting with project v4",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/cb9b4ef283e6f2e3dcd438239eccb6c85bcee6b2"
+    "sha": "62b4d1ac766f8d4443f96f18494eb38d0404f909",
+    "message": "Merge pull request #33 from kandyman991/build/rc2-pinned-windows-installer\n\nBuild RC2: pin consolidated main, freeze and smoke-test Windows installer before prerelease",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/62b4d1ac766f8d4443f96f18494eb38d0404f909"
   },
   "openPullRequests": [
     {
@@ -49,114 +49,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40514337803,
+      "id": 40518468299,
+      "name": "M0 architecture and model gates",
+      "status": "queued",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "62b4d1ac766f8d4443f96f18494eb38d0404f909",
+      "event": "push",
+      "updatedAt": "2026-10-27T14:09:44Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518468299"
+    },
+    {
+      "id": 40518468262,
+      "name": "ReportMaker continuity contract",
+      "status": "queued",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "62b4d1ac766f8d4443f96f18494eb38d0404f909",
+      "event": "push",
+      "updatedAt": "2026-10-27T14:09:44Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518468262"
+    },
+    {
+      "id": 40518468170,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "queued",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "62b4d1ac766f8d4443f96f18494eb38d0404f909",
+      "event": "push",
+      "updatedAt": "2026-10-27T14:09:44Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518468170"
+    },
+    {
+      "id": 40518468145,
+      "name": "ReportMaker Windows RC2 pinned installer",
+      "status": "queued",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "62b4d1ac766f8d4443f96f18494eb38d0404f909",
+      "event": "push",
+      "updatedAt": "2026-10-27T14:09:44Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518468145"
+    },
+    {
+      "id": 40518100111,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
-      "branch": "main",
-      "headSha": "cb9b4ef283e6f2e3dcd438239eccb6c85bcee6b2",
-      "event": "push",
-      "updatedAt": "2026-10-27T13:41:59Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40514337803"
+      "branch": "build/rc2-pinned-windows-installer",
+      "headSha": "dfb6cec91cc0b01b36fe9b3634549c9897f13b32",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T14:09:31Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518100111"
     },
     {
-      "id": 40514337731,
+      "id": 40518100106,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
-      "branch": "main",
-      "headSha": "cb9b4ef283e6f2e3dcd438239eccb6c85bcee6b2",
-      "event": "push",
-      "updatedAt": "2026-10-27T13:41:58Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40514337731"
+      "branch": "build/rc2-pinned-windows-installer",
+      "headSha": "dfb6cec91cc0b01b36fe9b3634549c9897f13b32",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T14:08:03Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518100106"
     },
     {
-      "id": 40514337573,
+      "id": 40518100075,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "build/rc2-pinned-windows-installer",
+      "headSha": "dfb6cec91cc0b01b36fe9b3634549c9897f13b32",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T14:09:20Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518100075"
+    },
+    {
+      "id": 40518091174,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
-      "branch": "main",
-      "headSha": "cb9b4ef283e6f2e3dcd438239eccb6c85bcee6b2",
+      "branch": "build/rc2-pinned-windows-installer",
+      "headSha": "dfb6cec91cc0b01b36fe9b3634549c9897f13b32",
       "event": "push",
-      "updatedAt": "2026-10-27T13:41:58Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40514337573"
+      "updatedAt": "2026-10-27T14:07:50Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40518091174"
     },
     {
-      "id": 40514038286,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/word-style-rich-editor",
-      "headSha": "c473abc23cb2520b21f1ee3aa3f83025e7d51879",
-      "event": "pull_request",
-      "updatedAt": "2026-10-27T13:41:27Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40514038286"
-    },
-    {
-      "id": 40514038176,
+      "id": 40517949144,
       "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/word-style-rich-editor",
-      "headSha": "c473abc23cb2520b21f1ee3aa3f83025e7d51879",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "build/rc2-pinned-windows-installer",
+      "headSha": "25d87a26ec5e4e2f5ae105ab9b871184e2da2cbf",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T13:40:03Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40514038176"
+      "updatedAt": "2026-10-27T14:07:21Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40517949144"
     },
     {
-      "id": 40514038147,
+      "id": 40517949021,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/word-style-rich-editor",
-      "headSha": "c473abc23cb2520b21f1ee3aa3f83025e7d51879",
+      "conclusion": "cancelled",
+      "branch": "build/rc2-pinned-windows-installer",
+      "headSha": "25d87a26ec5e4e2f5ae105ab9b871184e2da2cbf",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T13:41:11Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40514038147"
-    },
-    {
-      "id": 40514031083,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/word-style-rich-editor",
-      "headSha": "c473abc23cb2520b21f1ee3aa3f83025e7d51879",
-      "event": "push",
-      "updatedAt": "2026-10-27T13:41:04Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40514031083"
-    },
-    {
-      "id": 40513774284,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/word-style-rich-editor",
-      "headSha": "5489df8eb5c033c6abefe18f1cd63b8cb520f6b8",
-      "event": "push",
-      "updatedAt": "2026-10-27T13:39:31Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40513774284"
-    },
-    {
-      "id": 40513759817,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/word-style-rich-editor",
-      "headSha": "3be3c98707066b9cbe3898fb769f929338aefc21",
-      "event": "push",
-      "updatedAt": "2026-10-27T13:39:08Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40513759817"
-    },
-    {
-      "id": 40513403039,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "e1808197bbc19a9fac29ace759241d906de52777",
-      "event": "push",
-      "updatedAt": "2026-10-27T13:37:42Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40513403039"
+      "updatedAt": "2026-10-27T14:08:05Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40517949021"
     }
   ]
 }
