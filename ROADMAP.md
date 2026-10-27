@@ -38,13 +38,23 @@ See `docs/M2_PROJECT_ENGINE.md`.
 - [ ] Independent technical review, exact-final-head CI, installed-Windows acceptance, keyboard accessibility and true WYSIWYG print/pagination validation.
 See `docs/M3_VISUAL_EDITOR.md`.
 
-## M4 — Word/PDF output (PR #13 merged; remaining layout in review)
+## M4 — Word/PDF output (PRs #13–#15 merged; installed-PC acceptance pending)
 - [x] Editable DOCX source text/headings/tables/photos/captions and manual page breaks; canonical-hierarchy Summary and Word PAGEREF fields.
 - [x] Local multipass PDF pagination/TOC and page numbering, without Word/LibreOffice.
 - [x] Qt export actions, atomic output replacement, synthetic export tests and independent corrections PR #14; post-merge main hosted Windows CI passed.
-- [ ] Review the M4 presentation follow-up PR: optional locally configured company logo/name/footer shared by both renderers, repeated Word/PDF headers and page labels, inline photo sizing/caption attachment with no upscaling. See ADR-0007.
+- [x] M4 presentation follow-up PR #15 merged into main at 5342e765efd7a80f34a6540fcad30ab8d9e7e3a7: optional local company logo/name/footer, repeated Word/PDF branding and page labels, bounded inline photos/captions. See ADR-0007.
 - [ ] Consolidated installed Windows/Word/PDF acceptance, page-field refresh, real visual wrapping/printing and long-table/typography cases. Template import and arbitrary floating-image/page-layout design remain M6; language translations remain M5.
 See `docs/M4_EXPORT.md` and `docs/WINDOWS_ACCEPTANCE_M0_M4.md`.
+
+## M4.5 — Project Picture Manager and editable annotations (agreed requirements; not implemented)
+- [ ] Design review of ADR-0008 and docs/M45_MEDIA_WORKSPACE.md; no code implementation or merge authorized by this documentation PR.
+- [ ] Portable .rmproj media library containing independent optimized copies while leaving original external photos untouched; handle unused-but-declared library assets via reviewed versioned M2 migration.
+- [ ] Offline HEIC/HEIF import and local configurable conversion, default JPEG quality 88 / max 2500 px long edge, with batch ingest, safe bounds, format preview, privacy and metadata controls.
+- [ ] Non-destructive crop/rotate/flip/image layout plus editable visible arrows, shapes, highlights and translatable callouts. Same media asset reusable across modules with independent per-placement edits.
+- [ ] Separate optional pinned internal comment threads/replies/status, excluded from customer DOCX/PDF and preview by default.
+- [ ] Source-preserving DOCX/PDF composed-image output without unconditional PNG inflation, synthetic CI plus actual Windows packaging/interactive verification.
+- [ ] Independent M4.5 review; never treat M0–M4 installed-Windows acceptance or installer/release approval as complete by implication.
+See docs/M45_MEDIA_WORKSPACE.md and ADR-0008.
 
 ## M5 — Open-ended languages
 User-added locales, per-block variants, stale markers, translations and separate/inline/section export styles. No paid AI translation integration.
