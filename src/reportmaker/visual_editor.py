@@ -28,7 +28,8 @@ from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, Report, TableBlock,
 )
-from .project_io import MAX_ASSET, ReportProject, default_projects_directory, load_project, save_project
+from .project_io import (LEGACY_VERSION, VERSION, MAX_ASSET, ReportProject,
+                         default_projects_directory, load_project, save_project)
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
 from .media_import import (PictureImportError, convert_picture, import_pictures,
                            remove_library_picture)
@@ -175,6 +176,8 @@ class VisualReportEditor:
         self.path: Path | None = None
         self.assets: dict[str, bytes] = {}
         self.media_library: dict[str, str] = {}
+        self.loaded_version = VERSION
+        self.loaded_from: Path | None = None
         self.editor = ProjectEditor(new_report().report)
         self.dirty = False
         self._loading = False
@@ -1062,6 +1065,8 @@ class VisualReportEditor:
         self.editor = ProjectEditor(project.report)
         self.assets = dict(project.assets)
         self.media_library = dict(project.media_library)
+        self.loaded_version = project.loaded_version
+        self.loaded_from = project.loaded_from
         self.path = path
         self.dirty = False
         self._module_id = None
@@ -1079,7 +1084,8 @@ class VisualReportEditor:
             self._warn("Cannot open project", exc)
             return False
         self._replace(ReportProject(replacement.report, project.assets,
-                                    project.media_library), Path(path))
+                                    project.media_library, project.loaded_version,
+                                    project.loaded_from), Path(path))
         return True
 
     def open_dialog(self):
@@ -1098,13 +1104,23 @@ class VisualReportEditor:
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
             self._warn("Customer required", "Enter a customer name or select one from the database.")
             return False
+        if (self.loaded_version == LEGACY_VERSION and self.loaded_from is not None
+            and Path(path).absolute() == self.loaded_from.absolute()):
+            self._warn("Save upgraded project as a copy",
+                       "This report uses the original v1 project format. "
+                       "Choose Save As and a new filename to preserve your "
+                       "original file for rollback.")
+            return False
         try:
             saved = save_project(ReportProject(self.editor.report, self.assets,
-                                               self.media_library), path)
+                                               self.media_library, self.loaded_version,
+                                               self.loaded_from), path)
         except (ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot save project", exc)
             return False
         self.path = saved
+        self.loaded_version = VERSION
+        self.loaded_from = saved.absolute()
         self.dirty = False
         self.refresh()
         return True
