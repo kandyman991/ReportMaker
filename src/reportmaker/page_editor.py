@@ -22,6 +22,7 @@ from .model import (
     ParagraphBlock, PhotoBlock, TableBlock,
 )
 from .photo_editor import render_photo
+from .photo_gallery import PictureDropZone
 from .rich_editor import SafeRichTextEdit, apply_rich, capture_rich
 
 
@@ -61,6 +62,8 @@ class EditableDocumentPage(QScrollArea):
         self.pending = set()
         self._building = False
         self.on_style_request = None
+        self.on_picture_drop = None
+        self.photo_drop_resolver = lambda source, mime: None
         self.layout_template = None  # transient, local presentation profile only
 
     def _track(self, key, widget, signal):
@@ -164,7 +167,13 @@ class EditableDocumentPage(QScrollArea):
             def draw(module, depth):
                 label = self._heading(module.title.original, layout, max(13, 19 - depth))
                 label.setToolTip("Protected module title. Rename using the module tree.")
-                for block in module.blocks:
+                def insert_zone(at):
+                    if self.on_picture_drop:
+                        layout.addWidget(PictureDropZone(
+                            module.id, at, self.photo_drop_resolver,
+                            self.on_picture_drop))
+                insert_zone(0)
+                for index, block in enumerate(module.blocks):
                     key = (module.id, block.id)
                     if isinstance(block, (ParagraphBlock, HeadingBlock)):
                         edit = SafeRichTextEdit()
@@ -230,6 +239,7 @@ class EditableDocumentPage(QScrollArea):
                         layout.addWidget(line)
                     elif isinstance(block, NestedModuleBlock):
                         draw(block.module, depth + 1)
+                    insert_zone(index + 1)
 
             for module in report.modules:
                 draw(module, 0)
