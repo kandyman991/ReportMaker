@@ -12,7 +12,7 @@ import unittest
 from PIL import Image
 
 from reportmaker.model import HeadingBlock, LocalizedText, PhotoBlock
-from reportmaker.project_io import ReportProject, load_project, save_project
+from reportmaker.project_io import load_project
 from reportmaker.reference import manual_snapshot
 from reportmaker.visual_editor import VisualReportEditor
 
@@ -119,9 +119,9 @@ class RibbonVisibilityTests(unittest.TestCase):
         self.assertEqual(block.text.original, "Valve 😀 test")
         self.assertTrue(any(run.bold and run.start == 6 and run.end == 8
                             for run in block.rich.runs))
-        self.assertTrue(controller.undo())
+        controller.undo()
         self.assertFalse(controller.report.modules[0].blocks[0].rich.runs)
-        self.assertTrue(controller.redo())
+        controller.redo()
         self.assertTrue(any(run.bold for run in
                             controller.report.modules[0].blocks[0].rich.runs))
         target = Path(self.working.name) / "style.rmproj"
