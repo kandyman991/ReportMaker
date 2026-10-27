@@ -1,0 +1,169 @@
+"""M4.5 offline import of independent, bounded working pictures.
+
+Never writes to a source filename and never stores its absolute path in a
+ReportProject. No browser/network calls or user-company test fixtures.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from io import BytesIO
+import os
+from pathlib import Path
+from uuid import uuid4
+
+from PIL import Image, ImageCms, ImageOps, UnidentifiedImageError
+
+from .project_io import (
+    MAX_ASSET, MAX_ENTRIES, MAX_TOTAL_ASSETS, ReportProject, _assets_checked,
+    _photo_ids,
+)
+
+MAX_SOURCE_BYTES = 64 * 1024 * 1024
+MAX_DECODE_PIXELS = 36_000_000
+MAX_ICC_BYTES = 1024 * 1024
+# maximum long edge, JPEG/WebP encoder quality
+PRESETS = {"compact": (1600, 75), "balanced": (2500, 88),
+           "high": (4000, 94)}
+INPUT_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".heic", ".heif"}
+
+
+class PictureImportError(ValueError):
+    """Import failed without modifying either the original file or project."""
+
+
+@dataclass(frozen=True)
+class ImportedPicture:
+    data: bytes
+    format: str
+    width: int
+    height: int
+    original_width: int
+    original_height: int
+    source_bytes: int
+
+
+def _prepare_heif(path: Path) -> None:
+    if path.suffix.lower() not in {".heic", ".heif"}:
+        return
+    try:
+        from pillow_heif import register_heif_opener
+    except ImportError as exc:
+        raise PictureImportError(
+            "HEIC support is not installed; install the verified Windows HEIC decoder"
+        ) from exc
+    register_heif_opener()
+
+
+def convert_picture(path: str | Path, *, preset: str = "balanced",
+                    output_format: str = "auto") -> ImportedPicture:
+    """Decode an external picture once, return detached optimized image bytes.
+
+    output_format: auto, jpeg, png or webp. Auto chooses PNG for transparency
+    and JPEG otherwise; lossy JPEG never silently flattens transparent pixels.
+    """
+    if preset not in PRESETS or output_format not in {"auto", "jpeg", "png", "webp"}:
+        raise PictureImportError("Unsupported picture conversion options")
+    source = Path(path)
+    if source.suffix.lower() not in INPUT_SUFFIXES or source.is_symlink():
+        raise PictureImportError("Unsupported image name or symlink")
+    max_edge, quality = PRESETS[preset]
+    try:
+        _prepare_heif(source)
+        with source.open("rb") as stream:
+            size = os.fstat(stream.fileno()).st_size
+            if size <= 0 or size > MAX_SOURCE_BYTES:
+                raise PictureImportError("Source image exceeds the 64 MiB import limit")
+            data = stream.read(MAX_SOURCE_BYTES + 1)
+        if len(data) != size:
+            raise PictureImportError("Source image changed during import")
+        with Image.open(BytesIO(data)) as input_image:
+            width, height = input_image.size
+            if (width < 1 or height < 1
+                or width * height > MAX_DECODE_PIXELS):
+                raise PictureImportError("Image dimensions exceed safe import limits")
+            icc = input_image.info.get("icc_profile")
+            if icc and (not isinstance(icc, bytes) or len(icc) > MAX_ICC_BYTES):
+                raise PictureImportError("Unsupported or oversized image color profile")
+            oriented = ImageOps.exif_transpose(input_image)
+            oriented.load()
+            # Convert non-sRGB tagged pictures before stripping camera metadata.
+            has_alpha = ("A" in oriented.getbands()
+                         or "transparency" in input_image.info)
+            mode = "RGBA" if has_alpha else "RGB"
+            if icc:
+                try:
+                    src_profile = ImageCms.ImageCmsProfile(BytesIO(icc))
+                    dest_profile = ImageCms.createProfile("sRGB")
+                    if has_alpha:
+                        alpha = oriented.convert("RGBA").getchannel("A")
+                        rgb = ImageCms.profileToProfile(
+                            oriented.convert("RGB"), src_profile, dest_profile,
+                            outputMode="RGB")
+                        converted = rgb.convert("RGBA")
+                        converted.putalpha(alpha)
+                    else:
+                        converted = ImageCms.profileToProfile(
+                            oriented.convert("RGB"), src_profile, dest_profile,
+                            outputMode="RGB")
+                except (OSError, ValueError, TypeError) as exc:
+                    raise PictureImportError("Unsupported source color profile") from exc
+            else:
+                converted = oriented.convert(mode)
+            converted.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+            chosen = ("png" if has_alpha else "jpeg") if output_format == "auto" else output_format
+            if chosen == "jpeg" and has_alpha:
+                raise PictureImportError("JPEG cannot preserve transparency; choose PNG or WebP")
+            # No EXIF, XMP, IPTC or GPS metadata is copied to project media.
+            output = BytesIO()
+            settings = {"quality": quality, "method": 5} if chosen == "webp" else (
+                {"quality": quality, "optimize": True, "subsampling": 0}
+                if chosen == "jpeg" else {"optimize": True})
+            converted.save(output, format=chosen.upper(), **settings)
+            result = output.getvalue()
+            if not result or len(result) > MAX_ASSET:
+                raise PictureImportError("Converted picture exceeds the 32 MiB project limit")
+            return ImportedPicture(result, chosen, converted.width, converted.height,
+                                   width, height, size)
+    except PictureImportError:
+        raise
+    except (OSError, ValueError, UnidentifiedImageError,
+            Image.DecompressionBombError) as exc:
+        raise PictureImportError("Cannot decode or convert this local picture") from exc
+
+
+def add_imported_picture(project: ReportProject, photo: ImportedPicture,
+                         name: str) -> str:
+    """Commit a validated detached asset to the library, or leave it untouched."""
+    if not isinstance(project, ReportProject) or not isinstance(photo, ImportedPicture):
+        raise PictureImportError("Invalid project image import")
+    name = name.strip() if isinstance(name, str) else ""
+    if not name or len(name) > 200 or any(ord(c) < 32 or ord(c) == 127 for c in name):
+        raise PictureImportError("Picture name must be 1–200 printable characters")
+    if not isinstance(photo.data, bytes) or not photo.data or len(photo.data) > MAX_ASSET:
+        raise PictureImportError("Invalid imported picture bytes")
+    key = uuid4().hex
+    # Validate on a detached working project so failed mutations stay atomic.
+    assets = dict(project.assets)
+    library = dict(project.media_library)
+    assets[key] = photo.data
+    library[key] = name
+    _assets_checked(ReportProject(project.report, assets, library))
+    project.assets[key] = photo.data
+    project.media_library[key] = name
+    return key
+
+
+def import_picture(project: ReportProject, source: str | Path, *,
+                   preset: str = "balanced", output_format: str = "auto") -> str:
+    picture = convert_picture(source, preset=preset, output_format=output_format)
+    return add_imported_picture(project, picture, Path(source).stem)
+
+
+def remove_library_picture(project: ReportProject, asset_id: str) -> None:
+    """User-requested removal; never removes an image still used in the report."""
+    if asset_id not in project.media_library:
+        raise PictureImportError("Picture is not in the project library")
+    if asset_id in _photo_ids(project.report):
+        raise PictureImportError("Remove the picture from report modules before deleting it")
+    del project.media_library[asset_id]
+    project.assets.pop(asset_id, None)
