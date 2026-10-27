@@ -13,11 +13,12 @@ from PySide6.QtCore import Qt, QRectF, QPointF
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPolygonF, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-    QHBoxLayout, QInputDialog, QLabel, QListWidget, QPushButton, QSlider,
+    QHBoxLayout, QInputDialog, QLabel, QListWidget, QMessageBox, QPushButton, QSlider,
     QSpinBox, QVBoxLayout, QWidget,
 )
 
-from .model import LocalizedText, PhotoMark, PhotoVisual, validate_photo_visual
+from .model import (LocalizedText, MAX_PEN_POINTS, MAX_PHOTO_MARKS, PhotoMark,
+                    PhotoVisual, validate_photo_visual)
 
 TOOLS = ("select", "crop", "arrow", "line", "rectangle", "ellipse",
          "highlight", "text", "callout", "pen")
@@ -144,6 +145,8 @@ class PictureCanvas(QWidget):
         self.current = None
         self.trace = []
         self.dragging_id = None
+        self._drag_origin = None
+        self._drag_checkpointed = False
         self.setMinimumSize(470, 330)
         self.setMouseTracking(True)
         self.update_image()
@@ -191,9 +194,17 @@ class PictureCanvas(QWidget):
         if not ok:
             return None
         original = inverse.map(rendered)
+        base_w, base_h = self.base_size
+        # Rotation/straightening pads the output with transparent corners.
+        # Those pixels have no original image coordinate and must not create
+        # annotations outside the crop or snap them to a fake edge.
+        if not (0 <= original.x() <= base_w and 0 <= original.y() <= base_h):
+            return None
         x0, y0, cw, ch = self.owner.visual.crop
-        return (round(_clamp(x0 + original.x() / self.base_size[0] * cw), 6),
-                round(_clamp(y0 + original.y() / self.base_size[1] * ch), 6))
+        # A valid crop may extend beyond 1 by the model's numerical tolerance;
+        # clamp only after proving the pointer is on real image pixels.
+        return (round(_clamp(x0 + original.x() / base_w * cw), 6),
+                round(_clamp(y0 + original.y() / base_h * ch), 6))
 
     def _onscreen(self, value):
         # Preview overlay is approximate for drag feedback; final render is canonical.
@@ -215,6 +226,8 @@ class PictureCanvas(QWidget):
         self.current = value
         self.trace = [value]
         self.dragging_id = None
+        self._drag_origin = None
+        self._drag_checkpointed = False
         if self.tool == "select":
             marks = list(reversed(self.owner.visual.marks))
             hit = next((mark for mark in marks
@@ -225,7 +238,7 @@ class PictureCanvas(QWidget):
             self.owner.sync_marks(self.selected)
             if hit:
                 self.dragging_id = hit.id
-                self.owner.checkpoint()
+                self._drag_origin = deepcopy(hit)
 
     def mouseMoveEvent(self, event):
         if self.start is None:
@@ -236,13 +249,29 @@ class PictureCanvas(QWidget):
         if self.tool == "select" and self.dragging_id:
             mark = next((x for x in self.owner.visual.marks if x.id == self.dragging_id), None)
             if mark:
-                dx, dy = value[0] - self.current[0], value[1] - self.current[1]
-                mark.x, mark.x2 = _clamp(mark.x + dx), _clamp(mark.x2 + dx)
-                mark.y, mark.y2 = _clamp(mark.y + dy), _clamp(mark.y2 + dy)
-                mark.points = [(_clamp(x + dx), _clamp(y + dy))
-                               for x, y in mark.points]
-                self.update_image()
-        elif self.tool == "pen" and len(self.trace) < 500:
+                # Use the original press geometry and cursor delta, not the
+                # previous event's (possibly clipped) position. Otherwise a
+                # drag pinned to an edge drifts backward too early.
+                original = self._drag_origin
+                dx, dy = value[0] - self.start[0], value[1] - self.start[1]
+                vertices = [(original.x, original.y),
+                            (original.x2, original.y2), *original.points]
+                xs, ys = zip(*vertices)
+                dx = max(-min(xs), min(dx, 1 - max(xs)))
+                dy = max(-min(ys), min(dy, 1 - max(ys)))
+                if (mark.x != original.x + dx or mark.y != original.y + dy):
+                    # Selection (or a zero-length drag) must not consume Undo
+                    # or clear Redo. A real drag is one history transaction.
+                    if not self._drag_checkpointed:
+                        self.owner.checkpoint()
+                        self._drag_checkpointed = True
+                    mark.x = original.x + dx
+                    mark.x2 = original.x2 + dx
+                    mark.y = original.y + dy
+                    mark.y2 = original.y2 + dy
+                    mark.points = [(x + dx, y + dy) for x, y in original.points]
+                    self.update_image()
+        elif self.tool == "pen" and len(self.trace) < MAX_PEN_POINTS:
             self.trace.append(value)
         self.current = value
         self.update()
@@ -256,6 +285,8 @@ class PictureCanvas(QWidget):
         self.current = None
         if self.tool == "select":
             self.dragging_id = None
+            self._drag_origin = None
+            self._drag_checkpointed = False
             self.update_image()
             return
         if self.tool == "crop":
@@ -265,6 +296,11 @@ class PictureCanvas(QWidget):
                 self.owner.checkpoint()
                 self.owner.visual.crop = (x, y, min(w, 1-x), min(h, 1-y))
         else:
+            if len(self.owner.visual.marks) >= MAX_PHOTO_MARKS:
+                QMessageBox.warning(self, "Annotation limit",
+                                    "This picture already has the maximum number of annotations.")
+                self.update_image()
+                return
             if self.tool not in ("text", "callout") and hypot(
                 finish[0] - start[0], finish[1] - start[1]) < 0.006:
                 self.update_image()

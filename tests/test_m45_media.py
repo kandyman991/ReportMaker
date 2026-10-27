@@ -147,6 +147,16 @@ class M45MediaContainerTests(unittest.TestCase):
                       if name.startswith("assets/")}
         manifest.pop("media_library")
         manifest["version"] = 1
+        # Reconstruct actual pre-v3 records, not a v3 manifest with a
+        # version number changed: historical photo blocks had no visual key.
+        def strip_visuals(module):
+            for block in module["blocks"]:
+                if block["kind"] == "photo":
+                    block.pop("visual", None)
+                elif block["kind"] == "module":
+                    strip_visuals(block["module"])
+        for module in (*manifest["report"]["modules"], manifest["report"]["conclusion"]):
+            strip_visuals(module)
         with ZipFile(self.dest, "w", ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", json.dumps(manifest))
             for name, data in assets.items():
