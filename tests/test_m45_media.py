@@ -214,7 +214,7 @@ class M45MediaContainerTests(unittest.TestCase):
         with patch("reportmaker.media_import.convert_picture", wraps=convert_picture) as decode:
             staged = stage_pictures([source])
             self.assertEqual(decode.call_count, 1)
-            self.assertTrue(staged[0].photo.source_preview.startswith(b"\\x89PNG"))
+            self.assertTrue(staged[0].photo.source_preview.startswith(bytes([137, 80, 78, 71])))
             approved = staged[0].photo.data
             source.write_bytes(b"replaced after preview; not an image")
             keys = commit_staged_pictures(self.project, staged)
