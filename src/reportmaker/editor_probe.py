@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from zipfile import ZipFile, ZIP_DEFLATED
+import json
 from unittest.mock import patch
 
 from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
 from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QFileDialog, QListWidget, QPushButton, QMessageBox
 
 from .engine import module_outline
 from .model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, PhotoBlock, TableBlock
@@ -86,10 +88,40 @@ def run() -> int:
             assert saved.assets["synthetic-image"] == bytes(buffer.data())
             assert not doc.dirty
 
+            # M4.5: exercise the real picture manager offline with a synthetic
+            # import, confirm external source bytes are never changed, and
+            # verify unplaced library pictures survive project Save/Open.
+            from PIL import Image as PILImage
+            source = root / "synthetic-external.jpg"
+            PILImage.new("RGB", (100, 60), "blue").save(source)
+            source_bytes = source.read_bytes()
+            def drive_picture_dialog(dialog):
+                if dialog.objectName() == "pictureImportComparisonDialog":
+                    assert dialog.findChild(QComboBox, "pictureComparisonSelector") is not None
+                    return QDialog.DialogCode.Accepted
+                import_button = dialog.findChild(QPushButton, "importProjectPicturesAction")
+                assert import_button is not None
+                import_button.click()
+                library = dialog.findChild(QListWidget, "projectPictureLibrary")
+                assert library is not None and library.count() == 1
+                return QDialog.DialogCode.Accepted
+            with patch.object(QFileDialog, "getOpenFileNames",
+                              return_value=([str(source)], "")), \
+                 patch.object(QMessageBox, "question",
+                              return_value=QMessageBox.StandardButton.Yes), \
+                 patch.object(QDialog, "exec", drive_picture_dialog):
+                assert doc.manage_pictures()
+            assert source.read_bytes() == source_bytes
+            assert len(doc.media_library) == 1
+            assert doc.dirty
+            assert doc.save_to_path(path)
+            assert load_project(path).media_library == doc.media_library
+
             doc.editor.add_module(Module(LocalizedText("en", "Unsaved")))
             doc.dirty = True
             doc.refresh()
             assert doc.open_from_path(path)
+            assert len(doc.media_library) == 1
             assert not doc.dirty
             assert len(doc.report.modules) == 1
 
@@ -213,6 +245,30 @@ def run() -> int:
             assert doc.save_to_path(path)
             assert load_project(path).report.other_intervention_detail == \
                 "Synthetic operator verification"
+
+            # M45-F02: a genuine v1 file stays byte-identical after the
+            # native editor refuses Save; Save As creates an independent v2.
+            legacy = root / "legacy-v1.rmproj"
+            with ZipFile(path) as bundle:
+                original_manifest = json.loads(bundle.read("manifest.json"))
+                blobs = {name: bundle.read(name) for name in bundle.namelist()
+                         if name.startswith("assets/")}
+            original_manifest["version"] = 1
+            original_manifest.pop("media_library")
+            with ZipFile(legacy, "w", ZIP_DEFLATED) as bundle:
+                bundle.writestr("manifest.json", json.dumps(original_manifest))
+                for name, blob in blobs.items():
+                    bundle.writestr(name, blob)
+            original_v1 = legacy.read_bytes()
+            assert doc.open_from_path(legacy)
+            with patch.object(QMessageBox, "warning",
+                              return_value=QMessageBox.StandardButton.Ok):
+                assert not doc.save_to_path(legacy)
+            assert legacy.read_bytes() == original_v1
+            upgraded = root / "independent-upgraded-copy.rmproj"
+            assert doc.save_to_path(upgraded)
+            assert legacy.read_bytes() == original_v1
+            assert load_project(upgraded).loaded_version == 2
         finally:
             doc.dirty = False
             window.close()

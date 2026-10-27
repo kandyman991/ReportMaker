@@ -32,6 +32,7 @@ def run() -> int:
             assert window.findChild(QAction, "exportDOCXAction") is not None
             assert window.findChild(QAction, "exportPDFAction") is not None
             assert window.findChild(QAction, "exportBrandingAction") is not None
+            assert window.findChild(QAction, "pictureManagerAction") is not None
             logo = root / "company-logo.png"
             Image.new("RGBA", (250, 75), (36, 90, 140, 255)).save(logo)
             window.settings.setValue("export/company_name", "Synthetic Export Company")
