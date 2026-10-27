@@ -978,9 +978,11 @@ class VisualReportEditor:
             if isinstance(block, NestedModuleBlock):
                 self._warn("Use module tree", "Delete a submodule from the module tree.")
                 return
-            self._edit_block_id = None
-            self._block_pending = False
-            self._change(lambda: self.editor.remove_block(self._module_id, block.id))
+            # Flush/validate drafts before deleting. A rejected operation must
+            # never clear the selected block's unapplied text or rich formatting.
+            if self._change(lambda: self.editor.remove_block(self._module_id, block.id)):
+                self._edit_block_id = None
+                self.refresh()
 
     def move_block_dialog(self):
         item = self.blocks.currentItem()
