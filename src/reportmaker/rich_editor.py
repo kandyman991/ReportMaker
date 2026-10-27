@@ -326,7 +326,12 @@ class RichTextRibbon(QWidget):
         self.apply_char(lambda f: f.setFontPointSize(max(6, min(96, size + direction))))
 
     def toggle(self, value):
-        fmt = self.editor.currentCharFormat()
+        # QTextEdit.currentCharFormat can describe an insertion override rather
+        # than the existing characters when a selection is active. Inspect the
+        # selected text itself before toggling a span-level command.
+        cursor = self.editor.textCursor()
+        fmt = cursor.charFormat() if cursor.hasSelection() else self.editor.currentCharFormat()
+        print("RICHDIAG: toggle",value,"selected",cursor.hasSelection(),"text weight",fmt.fontWeight(),"edit weight",self.editor.currentCharFormat().fontWeight(),flush=True)
         if value == "bold":
             self.apply_char(lambda f: f.setFontWeight(
                 QFont.Weight.Normal if fmt.fontWeight() >= QFont.Weight.Bold else QFont.Weight.Bold))
