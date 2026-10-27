@@ -140,6 +140,46 @@ class TemplateImportTests(unittest.TestCase):
             with self.assertRaisesRegex(TemplateError, "External"):
                 import_word_template(path)
 
+    def test_absolute_relationship_targets_rejected_even_without_external_mode(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "spoofed.docx"
+            for mode in ('', ' TargetMode="Internal"', ' TargetMode="Bogus"'):
+                create_sample(path)
+                def link(parts):
+                    return [(name, payload.replace(
+                        b"</Relationships>",
+                        ('<Relationship Id="spoof" '
+                         'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+                         'Target="https://example.invalid/private"' + mode +
+                         '/></Relationships>').encode("utf-8")
+                    ) if name == "word/_rels/document.xml.rels" else payload)
+                            for name, payload in parts]
+                mutate_package(path, link)
+                with self.assertRaisesRegex(TemplateError, "External"):
+                    import_word_template(path)
+
+    def test_header_image_private_metadata_is_not_saved_in_profile(self):
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            image = Image.new("RGB", (48, 24), "green")
+            exif = image.getexif()
+            exif[270] = "PRIVATE_CUSTOMER_SITE"
+            raw = BytesIO()
+            image.save(raw, "JPEG", exif=exif)
+            self.assertIn(b"PRIVATE_CUSTOMER_SITE", raw.getvalue())
+            source = root / "private.docx"
+            doc = Document()
+            doc.sections[0].header.paragraphs[0].add_run().add_picture(BytesIO(raw.getvalue()))
+            doc.save(source)
+            imported = import_word_template(source)
+            self.assertNotIn(b"PRIVATE_CUSTOMER_SITE", imported.template.logo)
+            output = root / "clean.rmtemplate"
+            save_template(DocumentTemplate(logo=raw.getvalue()), output)
+            clean = load_template(output)
+            self.assertTrue(clean.logo)
+            self.assertNotIn(b"PRIVATE_CUSTOMER_SITE", clean.logo)
+            self.assertNotIn(b"PRIVATE_CUSTOMER_SITE", output.read_bytes())
+
     def test_macro_part_zip_traversal_and_xml_dtd_rejected(self):
         with TemporaryDirectory() as folder:
             root = Path(folder)
@@ -200,7 +240,7 @@ class TemplateImportTests(unittest.TestCase):
         try:
             from PySide6.QtCore import QSettings
             from PySide6.QtWidgets import (
-                QApplication, QFileDialog, QHBoxLayout, QMainWindow,
+                QApplication, QFileDialog, QHBoxLayout, QLabel, QMainWindow,
                 QMessageBox, QVBoxLayout, QWidget,
             )
             from reportmaker.visual_editor import VisualReportEditor
@@ -233,6 +273,9 @@ class TemplateImportTests(unittest.TestCase):
             self.assertEqual(active.heading_size_pt, 17)
             self.assertEqual(editor.page.layout_template.page_width_cm, 18)
             self.assertIn("SYNTHETIC", active.company_name)
+            self.assertIsNotNone(editor.page.findChild(QLabel, "pageTemplateLogo"))
+            self.assertTrue(any("SYNTHETIC COMPANY" in label.text()
+                                for label in editor.page.findChildren(QLabel)))
             self.assertEqual(load_template(out).page_width_cm, 18)
             self.assertTrue(editor.clear_document_template())
             self.assertEqual(editor._export_style().page_width_cm, 21)
