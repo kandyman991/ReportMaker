@@ -1497,6 +1497,7 @@ class VisualReportEditor:
         # source and session token BEFORE adopting another project's assets.
         if self._picture_gallery is not None:
             self._picture_gallery.close()
+            self._picture_gallery.deleteLater()  # release cached thumbnails on project switch
         self._picture_gallery = None
         self._picture_list = None
         self._gallery_populate = None
