@@ -29,7 +29,7 @@ from .model import (
     ParagraphBlock, PhotoBlock, Report, TableBlock,
 )
 from .project_io import MAX_ASSET, ReportProject, default_projects_directory, load_project, save_project
-from .export import ExportError, export_project
+from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
 from .reference import CustomerSnapshot, manual_snapshot
 
 
@@ -338,6 +338,11 @@ class VisualReportEditor:
             action.triggered.connect(slot)
             toolbar.addAction(action)
             self.owner.addAction(action)
+        branding_action = QAction("Export branding", self.owner)
+        branding_action.setObjectName("exportBrandingAction")
+        branding_action.triggered.connect(self.configure_export_branding)
+        toolbar.addAction(branding_action)
+        self.owner.addAction(branding_action)
         for fmt in ("docx", "pdf"):
             action = QAction("Export " + fmt.upper(), self.owner)
             action.setObjectName("export" + fmt.upper() + "Action")
@@ -1000,6 +1005,74 @@ class VisualReportEditor:
                 return False
         return self.save_to_path(target)
 
+    def configure_export_branding(self):
+        """Local export profile: company text and logo path never enter .rmproj."""
+        settings = self.owner.settings
+        dialog = QDialog(self.owner)
+        dialog.setWindowTitle("Export branding — DOCX and PDF")
+        form = QFormLayout(dialog)
+        company = QLineEdit(str(settings.value("export/company_name", "")))
+        company.setObjectName("exportBrandCompany")
+        footer = QLineEdit(str(settings.value("export/footer_note", "")))
+        footer.setObjectName("exportBrandFooter")
+        logo = QLineEdit(str(settings.value("export/logo_path", "")))
+        logo.setObjectName("exportBrandLogoPath")
+        form.addRow("Company name", company)
+        form.addRow("Footer text", footer)
+        form.addRow("Local logo image", logo)
+        buttons = QHBoxLayout()
+        browse = QPushButton("Browse…")
+        clear = QPushButton("Remove logo")
+        def choose_logo():
+            name, _ = QFileDialog.getOpenFileName(
+                dialog, "Choose a local company logo", str(Path.home()),
+                "Images (*.png *.jpg *.jpeg *.webp *.bmp)")
+            if name:
+                logo.setText(name)
+        browse.clicked.connect(choose_logo)
+        clear.clicked.connect(lambda: logo.setText(""))
+        buttons.addWidget(browse)
+        buttons.addWidget(clear)
+        form.addRow(buttons)
+        actions = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        actions.accepted.connect(dialog.accept)
+        actions.rejected.connect(dialog.reject)
+        form.addRow(actions)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return False
+        try:
+            # Validate all settings before persisting any of them.
+            from .export import _validate_style
+            selected = Path(logo.text()) if logo.text().strip() else None
+            raw = b""
+            if selected is not None:
+                if not selected.is_file() or selected.stat().st_size > MAX_BRAND_LOGO_BYTES:
+                    raise ExportError("Company logo missing or exceeds the 2 MiB limit")
+                raw = selected.read_bytes()
+            _validate_style(ExportStyle(company.text(), footer.text(), raw))
+        except (OSError, ValueError) as exc:
+            self._warn("Invalid export branding", exc)
+            return False
+        settings.setValue("export/company_name", company.text())
+        settings.setValue("export/footer_note", footer.text())
+        settings.setValue("export/logo_path", logo.text().strip())
+        settings.sync()
+        return True
+
+    def _export_style(self):
+        settings = self.owner.settings
+        logo_path = str(settings.value("export/logo_path", "")).strip()
+        raw = b""
+        if logo_path:
+            path = Path(logo_path)
+            if not path.is_file() or path.stat().st_size > MAX_BRAND_LOGO_BYTES:
+                raise ExportError("Configured company logo is missing or exceeds 2 MiB")
+            raw = path.read_bytes()
+        return ExportStyle(
+            str(settings.value("export/company_name", "")),
+            str(settings.value("export/footer_note", "")), raw)
+
     def export_to_path(self, path, format):
         """Export the current validated draft without saving/changing .rmproj."""
         if not self._flush_block() or not self._flush_info():
@@ -1009,7 +1082,8 @@ class VisualReportEditor:
             self._warn("Customer required", "Enter a customer before exporting.")
             return False
         try:
-            export_project(ReportProject(self.report, dict(self.assets)), path, format=format)
+            export_project(ReportProject(self.report, dict(self.assets)), path,
+                           format=format, style=self._export_style())
         except (ExportError, ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot export report", exc)
             return False

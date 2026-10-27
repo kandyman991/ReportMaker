@@ -97,3 +97,10 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - PR #13 `feature/m4-editable-docx-pdf-export` reviewed at `77f12e217c612e03b75db1b66873fce1f55ee5dc`; all three hosted Windows CI workflows passed at that exact head, but installed Windows acceptance remains open.
 - Four independently identified issues (PDF TOC literal text loss, non-Latin snapshot metadata font, uncaught PDF table LayoutError, missing per-photo byte bound) corrected on `review/pr13-m4-export-corrections` targeting PR #13, never main. See `docs/PR13_REVIEW.md` for reproduction and test coverage.
 - Check final correction SHA/CI, review stacked PR, only then decide whether to integrate corrections into PR #13 and seek explicit main merge authorization. No installer/release or real customer data involved.
+
+
+## CP-M4-PRESENTATION — fixed branding and layout completion (2026-10-27)
+- PR #13 (M4) and stacked corrections PR #14 were merged to main at `46443b425c1dd6c7e2399b0c8d04293e59895f24`; all merged-head Windows core, M1 UI and continuity workflows passed. The continuity bot advanced `main` to `4f409c34a98a8dd6c15bfc3a9330218e69dd0b9a`, changing `handoff/state.json` only.
+- Draft PR #15, `feature/m4-branding-layout-completion`, targets main and implements ADR-0007: optional device-local company name/footer/logo, repeated Word/PDF headers/footers, Word PAGE field, bounded no-upscale photo geometry and caption grouping. No persistent report/project format change, website automation or real assets.
+- Synthetic regressions: `tests/test_m4_branding.py` and extended offline Qt M4 export probe. Source checkpoints precede final PR documentation commit; verify **live** PR #15 head and exact-head hosted Windows CI before claiming success.
+- Installed M0–M4 Windows acceptance, desktop Word field recalculation and print/layout validation remain pending. Review PR #15 separately; **do not merge/publish an installer without explicit authorization**.

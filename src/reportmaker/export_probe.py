@@ -10,6 +10,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QMessageBox
 from docx import Document
 from pypdf import PdfReader
+from PIL import Image
 
 from .project_io import load_project
 from .ui import MainWindow
@@ -30,6 +31,12 @@ def run() -> int:
         try:
             assert window.findChild(QAction, "exportDOCXAction") is not None
             assert window.findChild(QAction, "exportPDFAction") is not None
+            assert window.findChild(QAction, "exportBrandingAction") is not None
+            logo = root / "company-logo.png"
+            Image.new("RGBA", (250, 75), (36, 90, 140, 255)).save(logo)
+            window.settings.setValue("export/company_name", "Synthetic Export Company")
+            window.settings.setValue("export/footer_note", "Test-only document")
+            window.settings.setValue("export/logo_path", str(logo))
             doc.info["customer"].setText("Sample Export Customer")
             doc.info["other"].setText("Synthetic inspection")
             doc.types["other"].setChecked(True)
@@ -43,6 +50,10 @@ def run() -> int:
             pdf = root / "report.pdf"
             assert doc.export_to_path(word, "docx")
             assert doc.export_to_path(pdf, "pdf")
+            assert "Synthetic Export Company" in Document(word).sections[0].header.paragraphs[0].text
+            assert "Test-only document" in Document(word).sections[0].footer.paragraphs[0].text
+            assert "Synthetic Export Company" in PdfReader(pdf).pages[0].extract_text()
+            assert "Test-only document" in PdfReader(pdf).pages[-1].extract_text()
             assert doc.path == source
             assert doc.dirty  # Export must not masquerade as project Save.
             assert source.read_bytes() == original
@@ -53,8 +64,15 @@ def run() -> int:
             assert "M4-CHANGED-UNSAVED" in "\n".join(
                 page.extract_text() for page in PdfReader(pdf).pages
             )
-            # Invalid draft/format must not destroy an existing export.
+            # A missing configured logo must fail without altering an earlier export.
             before = word.read_bytes()
+            window.settings.setValue("export/logo_path", str(root / "missing.png"))
+            with patch.object(QMessageBox, "warning",
+                              return_value=QMessageBox.StandardButton.Ok):
+                assert not doc.export_to_path(word, "docx")
+            assert word.read_bytes() == before
+            window.settings.setValue("export/logo_path", str(logo))
+            # Invalid draft/format must not destroy an existing export.
             doc.types["other"].setChecked(False)
             doc.info["other"].setText("inconsistent detail")
             doc._set_info_pending()

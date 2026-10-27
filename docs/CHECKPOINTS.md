@@ -133,3 +133,10 @@ Next reproducible action:
 - Four findings PR13-F01..F04 documented in `docs/PR13_REVIEW.md`: literal PDF Summary title loss, Unicode customer metadata font, unhandled oversized-table PDF LayoutError, and missing per-photo export byte bound.
 - Stacked branch `review/pr13-m4-export-corrections` targets the M4 feature branch, not main. Corrective source/tests and synthetic regressions committed for independent review; check live final head and Windows CI after this documentation update.
 - Native installed-Windows M0–M4 acceptance remains pending; Word field refresh, company-branded header/footer/layout work and installer approval are still open. No merge or prerelease publication authorized.
+
+
+## CP-M4-PRESENTATION — optional export branding/layout, PR #15 (2026-10-27)
+- Base: live main `4f409c34a98a8dd6c15bfc3a9330218e69dd0b9a`; earlier PR #13 merge `46443b425c1dd6c7e2399b0c8d04293e59895f24` and PR #14 corrections integrated, post-merge Windows CI green. Branch `feature/m4-branding-layout-completion`, draft PR #15 -> main.
+- Change: ADR-0007 opt-in local QSettings branding (company name, footer and image path), `ExportStyle` to both DOCX/PDF with repeating headers and page labels, scaled photo/caption layout, strict bounded decoding and no-clobber semantics; `.rmproj` stays canonical. Same derived hierarchy and Conclusion-last invariant.
+- Added synthetic DOCX/PDF/Qt smoke regressions and updated `docs/WINDOWS_ACCEPTANCE_M0_M4.md` for installed acceptance. Exact branch CI outcome must be independently retrieved at final head; no claim of Windows-native installed test yet.
+- Next: fix any CI findings on PR #15, targeted independent technical review, then seek explicit approval for integration; only afterward run consolidated installed-Windows tests and inspect M4 print/layout with desktop Word. No private reports, public logo assets, credentials, installers or releases involved.
