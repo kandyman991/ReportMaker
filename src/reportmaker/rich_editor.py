@@ -68,7 +68,7 @@ def _format_from_qt(fmt: QTextCharFormat, start: int, end: int) -> TextRun:
     print("RICHDIAG: font family read",flush=True)
     point_size = fmt.fontPointSize()
     vertical = fmt.verticalAlignment()
-    return TextRun(start=start, end=end,
+    result = TextRun(start=start, end=end,
                    family=base if base and base != DEFAULT_FONT else "",
                    size=round(point_size, 2) if point_size >= 6 else 0,
                    bold=fmt.fontWeight() >= QFont.Weight.Bold,
@@ -79,6 +79,8 @@ def _format_from_qt(fmt: QTextCharFormat, start: int, end: int) -> TextRun:
                              else "normal"),
                    color=fmt.foreground().color().name() if fmt.hasProperty(QTextFormat.Property.ForegroundBrush) else "",
                    highlight=fmt.background().color().name() if fmt.hasProperty(QTextFormat.Property.BackgroundBrush) else "")
+    print("RICHDIAG: candidate",repr(result),"weight",fmt.fontWeight(),flush=True)
+    return result
 
 
 def _para_to_qt(spec: ParagraphStyle):
@@ -186,6 +188,7 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                             result.runs[-1].end = right
                         else:
                             result.runs.append(candidate)
+            print("RICHDIAG: current rich runs",repr(result.runs),flush=True)
             print("RICHDIAG: before iterator++",flush=True)
             iterator += 1
             print("RICHDIAG: after iterator++",flush=True)
@@ -287,7 +290,7 @@ class RichTextRibbon(QWidget):
         fmt = QTextCharFormat()
         setter(fmt)
         cur = self.editor.textCursor()
-        print('RICHDIAG: pre selection merge',flush=True)
+        print('RICHDIAG: pre selection merge',cur.selectionStart(),cur.selectionEnd(),fmt.fontWeight(),flush=True)
         cur.mergeCharFormat(fmt)
         print('RICHDIAG: post selection merge',flush=True)
         self.editor.mergeCurrentCharFormat(fmt)
