@@ -33,6 +33,9 @@ controls for photo placement, module reordering and report metadata.
   No parallel project text/HTML, index-based mapping or second Summary exists.
 - Only changed widgets are captured; one ProjectEditor.apply() transaction
   validates the full candidate and provides report-level Undo/Redo.
+- If both the upper block editor and paper change the same canonical field,
+  the user explicitly chooses which unsaved draft to keep; cancellation and
+  failed page validation preserve both drafts instead of silently overwriting.
 - Changed LocalizedText.original uses update_original(), marking every existing
   translation stale. Unchanged cells/fields retain translations and styles.
 - Text typography is re-captured as RichFormatting with Unicode code-point

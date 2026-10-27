@@ -592,6 +592,19 @@ class VisualReportEditor:
     def _flush_block(self):
         return not self._block_pending or self.apply_block()
 
+    def _page_conflict_key(self):
+        if not self._block_pending or not self._edit_block_id:
+            return None
+        module = self._selected_module()
+        if module is None:
+            return None
+        block = next((b for b in module.blocks if b.id == self._edit_block_id), None)
+        kind = ("text" if isinstance(block, (ParagraphBlock, HeadingBlock)) else
+                "caption" if isinstance(block, PhotoBlock) else
+                "table" if isinstance(block, TableBlock) else None)
+        key = (self._module_id, self._edit_block_id, kind)
+        return key if kind and key in self.page.pending else None
+
     def _flush_page(self):
         if not self.page.pending:
             return True
@@ -604,6 +617,24 @@ class VisualReportEditor:
         return True
 
     def commit_page(self):
+        if self._page_conflict_key():
+            choice = QMessageBox.question(
+                self.owner, "Conflicting text drafts",
+                "The block editor also has unapplied changes to this field. "
+                "Keep the page edits and discard that uncommitted block-editor draft?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel)
+            if choice != QMessageBox.StandardButton.Yes:
+                return False
+            # Validate and commit the chosen page source *before* throwing away
+            # the other draft; invalid page input must not lose block-editor work.
+            if not self._flush_page():
+                return False
+            self._block_pending = False
+            if not self._flush_info():
+                return False
+            self.refresh()
+            return True
         if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         self.refresh()
@@ -630,7 +661,20 @@ class VisualReportEditor:
     def apply_block(self):
         if not self._block_pending or not self._edit_block_id:
             return True
+        overlap = self._page_conflict_key()
+        if overlap:
+            choice = QMessageBox.question(
+                self.owner, "Conflicting text drafts",
+                "The editable page also has unapplied changes to this field. "
+                "Keep the block-editor edits and discard that page draft?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel)
+            if choice != QMessageBox.StandardButton.Yes:
+                return False
+            self.page.pending.discard(overlap)
         if not self._flush_page():
+            if overlap:
+                self.page.pending.add(overlap)  # validation failed: retain page draft
             return False
         identifier = self._edit_block_id
         module_id = self._module_id
@@ -665,6 +709,8 @@ class VisualReportEditor:
         try:
             self.editor.apply(update)
         except (ValueError, LookupError, StopIteration) as exc:
+            if overlap:
+                self.page.pending.add(overlap)
             self._warn("Invalid block", exc)
             return False
         self._block_pending = False

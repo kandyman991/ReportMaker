@@ -180,6 +180,48 @@ class EditablePageTests(unittest.TestCase):
                              "Intervention")
             owner.close()
 
+    def test_simultaneous_page_and_block_edits_need_explicit_resolution(self):
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import (
+            QHBoxLayout, QMainWindow, QMessageBox, QVBoxLayout, QWidget,
+        )
+        from reportmaker.visual_editor import VisualReportEditor
+        with TemporaryDirectory() as folder:
+            owner = QMainWindow()
+            owner.settings = QSettings(str(Path(folder) / "conflicts.ini"),
+                                       QSettings.Format.IniFormat)
+            parent = QWidget()
+            owner.setCentralWidget(parent)
+            row = QHBoxLayout(parent)
+            left, center = QVBoxLayout(), QVBoxLayout()
+            row.addLayout(left)
+            row.addLayout(center)
+            controller = VisualReportEditor(owner, left, center)
+            module = controller.report.modules[0]
+            key = (module.id, module.blocks[0].id, "text")
+            controller.text_edit.insertPlainText("block draft")
+            controller.page.fields[key].insertPlainText("page draft")
+            self.assertEqual(controller._page_conflict_key(), key)
+            with patch.object(QMessageBox, "question",
+                              return_value=QMessageBox.StandardButton.Cancel):
+                self.assertFalse(controller.commit_page())
+            self.assertEqual(controller.report.modules[0].blocks[0].text.original, "")
+            self.assertTrue(controller._block_pending)
+            self.assertTrue(controller.page.pending)
+            with patch.object(QMessageBox, "question",
+                              return_value=QMessageBox.StandardButton.Yes):
+                self.assertTrue(controller.commit_page())
+            self.assertEqual(controller.report.modules[0].blocks[0].text.original,
+                             "page draft")
+            controller.text_edit.insertPlainText("block revision ")
+            controller.page.fields[key].insertPlainText("page revision ")
+            with patch.object(QMessageBox, "question",
+                              return_value=QMessageBox.StandardButton.Yes):
+                self.assertTrue(controller.apply_block())
+            self.assertIn("block revision", controller.report.modules[0].blocks[0].text.original)
+            self.assertNotIn("page revision", controller.report.modules[0].blocks[0].text.original)
+            owner.close()
+
     def test_invalid_edit_rolls_back_atomically(self):
         report, ids, assets = make_sample()
         editor = ProjectEditor(report)
