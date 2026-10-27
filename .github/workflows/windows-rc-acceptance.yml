@@ -1,0 +1,138 @@
+name: Windows v0.5.0 acceptance RC (pinned merged source)
+
+on:
+  push:
+    branches:
+      - release/rc-m45-windows-acceptance
+    paths:
+      - .github/workflows/windows-rc-acceptance.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reportmaker-v0.5.0-rc.1
+  cancel-in-progress: false
+
+env:
+  SOURCE_SHA: 1e092c175857bfd5969202201b2595604bb27b2f
+  RC_TAG: reportmaker-v0.5.0-rc.1
+  RC_ASSET: ReportMaker-0.5.0-Setup.exe
+
+jobs:
+  frozen-windows-rc:
+    if: github.ref == 'refs/heads/release/rc-m45-windows-acceptance'
+    runs-on: windows-latest
+    timeout-minutes: 75
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact merged ReportMaker product source
+        uses: actions/checkout@v4
+        with:
+          ref: 1e092c175857bfd5969202201b2595604bb27b2f
+          persist-credentials: true
+      - name: Verify exact source checkout before packaging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:SOURCE_SHA) { throw "Unexpected application source $actual" }
+          Write-Host "Building exact merged product source: $actual"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Install desktop app and pinned build tooling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install -e '.[desktop]'
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop install failed' }
+          python -m pip install -r packaging/windows/requirements-build.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Build-tool install failed' }
+      - name: Verify local synthetic HEIC decoder and project regression suite
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = 'src'
+          python -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { throw 'Core, project, HEIC and export regressions failed' }
+      - name: Freeze actual M4.5.2 Windows desktop
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMaker --hidden-import=PySide6.QtWebEngineWidgets --hidden-import=PySide6.QtWebEngineCore --collect-all pillow_heif packaging/windows/launcher.py
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller freeze failed' }
+          if (!(Test-Path 'dist/ReportMaker/ReportMaker.exe')) { throw 'Frozen executable absent' }
+      - name: Test frozen browser, panes, customer DB, report editor and export
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $PWD 'dist/ReportMaker/ReportMaker.exe'
+          foreach ($switch in @('--self-test','--layout-self-test','--customer-self-test','--visual-editor-self-test','--export-self-test')) {
+            Write-Host "Executing frozen Windows offline smoke: $switch"
+            $test = Start-Process -FilePath $exe -ArgumentList $switch -Wait -PassThru
+            if ($test.ExitCode -ne 0) { throw "Frozen test $switch failed, exit $($test.ExitCode)" }
+          }
+      - name: Create distinct v0.5.0 candidate packaging from existing Inno script
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iss = 'packaging/windows/ReportMaker.iss'
+          $source = Get-Content $iss -Raw
+          $oldVersion = '#define MyAppVersion "0.0.1"'
+          $oldName = 'OutputBaseFilename=ReportMaker-M0-Setup'
+          if (!$source.Contains($oldVersion) -or !$source.Contains($oldName)) { throw 'M0 packaging contract changed; refusing blind replacement' }
+          $updated = $source.Replace($oldVersion, '#define MyAppVersion "0.5.0"').Replace($oldName, 'OutputBaseFilename=ReportMaker-0.5.0-Setup')
+          Set-Content -Path $iss -Value $updated -Encoding utf8
+          $compiler = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (!$compiler) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup dependency unavailable' }
+            $compiler = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (!$compiler) { throw 'ISCC compiler not found' }
+          New-Item -ItemType Directory -Force 'dist-installer' | Out-Null
+          & $compiler $iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup packaging failed' }
+          if (!(Test-Path "dist-installer/$env:RC_ASSET")) { throw 'Candidate installer absent' }
+      - name: Write candidate SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $asset = "dist-installer/$env:RC_ASSET"
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $asset).Hash.ToLowerInvariant()
+          "$hash  $env:RC_ASSET" | Out-File 'dist-installer/SHA256SUMS.txt' -Encoding ascii
+          Write-Host "Candidate hash: $hash"
+      - name: Publish prerelease for native Windows acceptance, never overwrite M0
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh release view $env:RC_TAG --repo $env:GITHUB_REPOSITORY --json id *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'RC tag already published. Immutable acceptance binaries must not be overwritten; create a new RC number.' }
+          $notesPath = Join-Path $env:RUNNER_TEMP 'reportmaker-rc-notes.md'
+          @(
+            '# ReportMaker v0.5.0 — Windows acceptance candidate'
+            '',
+            '**Release candidate only — not an approved production release.**'
+            'Replaces the M0 prototype as the suggested test download; the historical M0 prerelease remains available unchanged.'
+            "Pinned merged application source: $env:SOURCE_SHA",
+            "Windows build workflow run: $env:GITHUB_RUN_ID",
+            '',
+            'Assets: ReportMaker-0.5.0-Setup.exe and SHA256SUMS.txt. Verify checksum before installing. Unsigned per-user Windows x64 application; do not disable security tools.'
+            'This is the same Windows AppId/install location as M0 (an upgrade), not an independent parallel installation. Back up existing local .rmproj/SQLite/profile data privately before upgrade.'
+            'Supported for acceptance: customer/site/machine database, report editor and portable .rmproj, DOCX/PDF with unedited pictures, offline HEIC/Pictures library, and in-project picture annotations.'
+            'LIMITATION: DOCX/PDF of a visually edited photo is deliberately blocked until M4.5.4, not silently flattened. M4.5.3 internal comment threads, M5 translations and M6 templates are not available.'
+            'Embedded ChatGPT login depends on site compatibility; default-browser fallback is supported. Login is manual only.'
+            'Native installed-Windows and actual Microsoft Word/PDF acceptance are NOT complete. Report any blocker before stable release promotion.'
+            'Stable release must reuse the exact tested installer bytes/hash without rebuilding and requires explicit user acceptance.'
+            '',
+            'Installation checklist: https://github.com/kandyman991/ReportMaker/blob/release/rc-m45-windows-acceptance/docs/RELEASE_CANDIDATE_ACCEPTANCE.md'
+          ) | Set-Content -Path $notesPath -Encoding utf8
+          gh release create $env:RC_TAG "dist-installer/$env:RC_ASSET" 'dist-installer/SHA256SUMS.txt' --repo $env:GITHUB_REPOSITORY --target $env:SOURCE_SHA --title 'ReportMaker v0.5.0 — Windows Acceptance RC1' --notes-file $notesPath --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'RC GitHub release publication failed' }
+          $assets = @(gh release view $env:RC_TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0 -or $assets -notcontains $env:RC_ASSET -or $assets -notcontains 'SHA256SUMS.txt') { throw 'RC release assets verification failed' }
+          Write-Host "Immutable Windows acceptance RC: https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$env:RC_TAG"
