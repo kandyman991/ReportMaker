@@ -46,6 +46,7 @@ def edit_template_layout(owner, source: DocumentTemplate,
         ("header_distance_cm", "Header position (cm)", (.3, 7)),
         ("footer_distance_cm", "Footer position (cm)", (.3, 7)),
         ("normal_size_pt", "Normal text (pt)", (6, 72)),
+        ("heading_size_pt", "Heading 1 text (pt)", (8, 40)),
     ):
         spin = QDoubleSpinBox(dialog)
         spin.setObjectName("template_" + name)
@@ -60,6 +61,7 @@ def edit_template_layout(owner, source: DocumentTemplate,
         ("header_text", "Header text"),
         ("footer_text", "Footer text"),
         ("normal_font", "Normal Word font"),
+        ("heading_font", "Heading 1 Word font"),
     ):
         control = QLineEdit(getattr(source, name))
         control.setObjectName("template_" + name)
