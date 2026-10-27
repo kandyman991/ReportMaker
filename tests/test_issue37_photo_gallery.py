@@ -122,9 +122,15 @@ class ProjectGalleryTests(unittest.TestCase):
         zoom.setValue(180)
         self.app.processEvents()
         self.assertEqual(pictures.iconSize().width(), 180)
+        for index in range(0, pictures.count(), 10):
+            pictures.scrollToItem(pictures.item(index))
+            self.app.processEvents()
         pictures.scrollToItem(pictures.item(pictures.count() - 1))
         self.app.processEvents()
         self.assertLessEqual(len(pictures._cached), 80)
+        # QIcons must also be evicted from the list items, not just the LRU.
+        self.assertLessEqual(
+            sum(not pictures.item(i).icon().isNull() for i in range(pictures.count())), 80)
         self.assertEqual(self.editor.manage_pictures(), True)
         self.assertIs(self.editor._picture_gallery, gallery)
 
