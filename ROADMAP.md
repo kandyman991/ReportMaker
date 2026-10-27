@@ -38,12 +38,12 @@ See `docs/M2_PROJECT_ENGINE.md`.
 - [ ] Independent technical review, exact-final-head CI, installed-Windows acceptance, keyboard accessibility and true WYSIWYG print/pagination validation.
 See `docs/M3_VISUAL_EDITOR.md`.
 
-## M4 — Word/PDF output (draft PR #13; installed-PC acceptance pending)
-- [x] Source implementation of editable DOCX text/headings/tables/photos/captions and manual page breaks; generated canonical-hierarchy Summary with dynamic Word PAGEREF fields.
-- [x] Local multipass PDF pagination/TOC with current page footers; export from the same canonical plan, no Word/LibreOffice prerequisite.
-- [x] Native Qt export actions, atomic output replacement and synthetic export/Qt smoke regression gates.
-- [ ] Exact-current-head hosted Windows CI, independent export/security review and corrective PRs.
-- [ ] Installed Windows/Word/PDF manual acceptance. M4 branded header/footer design, image anchoring and pagination polish remain open; they cannot be called complete without an approved design. Full DOCX template import/designer is M6; translation workflows are M5.
+## M4 — Word/PDF output (PR #13 merged; remaining layout in review)
+- [x] Editable DOCX source text/headings/tables/photos/captions and manual page breaks; canonical-hierarchy Summary and Word PAGEREF fields.
+- [x] Local multipass PDF pagination/TOC and page numbering, without Word/LibreOffice.
+- [x] Qt export actions, atomic output replacement, synthetic export tests and independent corrections PR #14; post-merge main hosted Windows CI passed.
+- [ ] Review the M4 presentation follow-up PR: optional locally configured company logo/name/footer shared by both renderers, repeated Word/PDF headers and page labels, inline photo sizing/caption attachment with no upscaling. See ADR-0007.
+- [ ] Consolidated installed Windows/Word/PDF acceptance, page-field refresh, real visual wrapping/printing and long-table/typography cases. Template import and arbitrary floating-image/page-layout design remain M6; language translations remain M5.
 See `docs/M4_EXPORT.md` and `docs/WINDOWS_ACCEPTANCE_M0_M4.md`.
 
 ## M5 — Open-ended languages
