@@ -115,6 +115,21 @@ class EditableDocumentPage(QScrollArea):
             else:
                 layout.setContentsMargins(38, 34, 38, 40)
             layout.setSpacing(9)
+            if template:
+                # Make the active local, report-independent letterhead visible;
+                # otherwise a profile selected for another customer could be
+                # applied at export without an obvious on-page indication.
+                self._heading("Active page template (local export setting)", layout, 10)
+                if template.logo:
+                    image = QPixmap()
+                    if image.loadFromData(template.logo):
+                        logo_label = QLabel()
+                        logo_label.setObjectName("pageTemplateLogo")
+                        logo_label.setPixmap(image.scaledToWidth(
+                            190, Qt.TransformationMode.SmoothTransformation))
+                        layout.addWidget(logo_label)
+                if template.header_text:
+                    self._heading(template.header_text, layout, 12)
             self._heading(report.title.original, layout, 22)
             self._heading("Report information · protected (edit in Report Information)", layout, 11)
             metadata = report.customer_snapshot
@@ -219,6 +234,9 @@ class EditableDocumentPage(QScrollArea):
             for module in report.modules:
                 draw(module, 0)
             draw(report.conclusion, 0)
+            if template:
+                self._heading((template.footer_text + "   " if template.footer_text else "")
+                              + "Page 1 (schematic)", layout, 10)
             layout.addStretch(1)
             outer.addWidget(paper, alignment=Qt.AlignmentFlag.AlignHCenter)
             outer.addStretch(1)
