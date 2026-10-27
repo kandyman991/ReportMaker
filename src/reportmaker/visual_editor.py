@@ -1078,7 +1078,8 @@ class VisualReportEditor:
         except (ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot open project", exc)
             return False
-        self._replace(ReportProject(replacement.report, project.assets), Path(path))
+        self._replace(ReportProject(replacement.report, project.assets,
+                                    project.media_library), Path(path))
         return True
 
     def open_dialog(self):
