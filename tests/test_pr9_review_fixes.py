@@ -93,6 +93,10 @@ class ReviewedM2SafetyTests(TestCase):
         with ZipFile(self.path) as archive:
             manifest = json.loads(archive.read("manifest.json"))
             original_image = archive.read("assets/photo-1")
+        # Construct an actual historical v1 manifest. New saves use v2,
+        # where undeclared/orphan assets are intentionally forbidden.
+        manifest["version"] = 1
+        manifest.pop("media_library")
         manifest["assets"].append({"id": "obsolete", "length": len(unused),
                                    "sha256": sha256(unused).hexdigest()})
         with ZipFile(self.path, "w", ZIP_DEFLATED) as archive:
