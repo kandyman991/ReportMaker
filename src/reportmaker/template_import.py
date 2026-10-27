@@ -83,6 +83,12 @@ def validate_template(template: DocumentTemplate) -> DocumentTemplate:
     if (not 0.3 <= offsets[0] <= margins[2] or
         not 0.3 <= offsets[1] <= margins[3]):
         raise TemplateError("Header/footer position exceeds page margins")
+    # Reports include a repeated page-number footer even without a template
+    # note. Validate these export layout constraints *before* saving a profile.
+    if margins[3] < 1.5:
+        raise TemplateError("Page numbers require at least 1.5 cm bottom margin")
+    if (template.header_text or template.logo) and margins[2] < 1.6:
+        raise TemplateError("Header requires at least 1.6 cm top margin")
     for value, limit in ((template.header_text, 120), (template.footer_text, 120),
                          (template.normal_font, 96), (template.heading_font, 96)):
         if (not isinstance(value, str) or len(value) > limit or
