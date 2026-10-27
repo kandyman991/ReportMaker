@@ -147,8 +147,12 @@ def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
                 if low.endswith(".rels"):
                     for relationship in root:
                         reltype = relationship.attrib.get("Type", "").casefold()
+                        # OPC relationship URIs normally contain /package/;
+                        # inspect the terminal relationship *kind*, not the
+                        # URI namespace, or every valid Word file is rejected.
+                        kind = reltype.rsplit("/", 1)[-1]
                         if (relationship.attrib.get("TargetMode", "").casefold() == "external"
-                            or any(part in reltype for part in _DANGEROUS_REL)):
+                            or any(part in kind for part in _DANGEROUS_REL)):
                             raise TemplateError("External or active Word relationship rejected")
                 if name == "[Content_Types].xml":
                     for node in root:
@@ -204,10 +208,6 @@ def import_word_template(path: str | Path) -> ImportResult:
         warnings.append("Odd/even header and footer variants are not imported")
     if doc.paragraphs or doc.tables:
         warnings.append("Source body paragraphs/tables are not imported as report content")
-    for partname in ("word/document.xml",):
-        if (b"<w:drawing" in blob or b"<w:pict" in blob):
-            # Body shapes are not rewritten into report blocks.
-            break
     def plain(part):
         return " ".join(p.text.strip() for p in part.paragraphs if p.text.strip())
     header = plain(sec.header)
