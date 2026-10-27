@@ -13,7 +13,6 @@ import json
 import os
 from pathlib import Path
 import re
-from urllib.parse import urlsplit
 import tempfile
 from zipfile import BadZipFile, ZipFile, ZIP_DEFLATED
 from xml.etree import ElementTree as ET
@@ -171,7 +170,7 @@ def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
                         if (mode != "Internal" or not target or
                             target.startswith("//") or "\\" in target or
                             any(ord(char) < 32 or ord(char) == 127 for char in target) or
-                            urlsplit(target).scheme or
+                            re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target) or
                             any(part in kind for part in _DANGEROUS_REL)):
                             raise TemplateError("External or active Word relationship rejected")
                 if name == "[Content_Types].xml":
