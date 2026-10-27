@@ -41,6 +41,9 @@ class ReportProject:
     # Explicit project media-library membership persists even without PhotoBlocks.
     # Unlike legacy v1 orphans, these images are intentionally user-owned content.
     media_library: dict[str, str] = field(default_factory=dict)  # asset ID -> display name
+    # Session-only provenance; never serialized to project or browser data.
+    loaded_version: int = VERSION
+    loaded_from: Path | None = None
 
 
 def default_projects_directory() -> Path:
@@ -313,6 +316,10 @@ def save_project(project: ReportProject, destination: str | Path) -> Path:
     target = Path(destination)
     if target.is_symlink() or target.is_dir():
         raise ValueError("Project target cannot be a symlink or directory")
+    if (project.loaded_version == LEGACY_VERSION and project.loaded_from is not None
+        and os.path.normcase(os.path.abspath(target)) ==
+            os.path.normcase(os.path.abspath(project.loaded_from))):
+        raise ValueError("This v1 project must be upgraded with Save As to a new file; original v1 project was preserved")
     manifest, metadata = _assets_checked(project)
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".reportmaker-", suffix=".tmp",
@@ -425,7 +432,7 @@ def load_project(source: str | Path) -> ReportProject:
                 raise ValueError("Undeclared project image asset")
             project = ReportProject(report, {
                 identifier: assets[identifier] for identifier in keep
-            }, library)
+            }, library, manifest["version"], source.absolute())
             _assets_checked(project)
             return project
     except (zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError,
