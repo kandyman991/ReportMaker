@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import QDate, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QImage, QKeySequence, QTextDocument
+from PySide6.QtGui import QAction, QImage, QKeySequence, QPixmap, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
     QDialogButtonBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
@@ -28,8 +28,11 @@ from .model import (
     HeadingBlock, LocalizedText, Module, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, Report, TableBlock,
 )
-from .project_io import MAX_ASSET, ReportProject, default_projects_directory, load_project, save_project
+from .project_io import (LEGACY_VERSION, VERSION, MAX_ASSET, ReportProject,
+                         default_projects_directory, load_project, save_project)
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
+from .media_import import (PictureImportError, stage_pictures, commit_staged_pictures,
+                           remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 
 
@@ -172,6 +175,9 @@ class VisualReportEditor:
         self.owner = owner
         self.path: Path | None = None
         self.assets: dict[str, bytes] = {}
+        self.media_library: dict[str, str] = {}
+        self.loaded_version = VERSION
+        self.loaded_from: Path | None = None
         self.editor = ProjectEditor(new_report().report)
         self.dirty = False
         self._loading = False
@@ -338,6 +344,11 @@ class VisualReportEditor:
             action.triggered.connect(slot)
             toolbar.addAction(action)
             self.owner.addAction(action)
+        pictures_action = QAction("Pictures", self.owner)
+        pictures_action.setObjectName("pictureManagerAction")
+        pictures_action.triggered.connect(self.manage_pictures)
+        toolbar.addAction(pictures_action)
+        self.owner.addAction(pictures_action)
         branding_action = QAction("Export branding", self.owner)
         branding_action.setObjectName("exportBrandingAction")
         branding_action.triggered.connect(self.configure_export_branding)
@@ -603,23 +614,190 @@ class VisualReportEditor:
         self._add_block(PageBreakBlock())
 
     def add_photo(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self.owner, "Choose a local photo", "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.webp)")
-        if not path:
-            return
-        try:
-            if Path(path).stat().st_size > MAX_ASSET:
-                raise ValueError("Photo exceeds 32 MiB project asset limit")
-            blob = Path(path).read_bytes()
-            if not blob or QImage.fromData(blob).isNull():
-                raise ValueError("Unsupported or invalid image")
-        except (OSError, ValueError) as exc:
-            self._warn("Cannot add photo", exc)
-            return
-        key = uuid4().hex
-        self.assets[key] = blob
-        self._add_block(PhotoBlock(key, LocalizedText(self.report.primary_language, "")))
+        """Insert an already imported picture, or import into the media library."""
+        self.manage_pictures()
+
+    def manage_pictures(self):
+        """Local project-owned picture container; no external paths persisted."""
+        if not self._flush_block() or not self._flush_info():
+            return False
+        dialog = QDialog(self.owner)
+        dialog.setWindowTitle("Project Pictures — optimized working copies")
+        dialog.resize(630, 540)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Pictures belong to this project; external originals stay unchanged."))
+        choices = QHBoxLayout()
+        preset = QComboBox()
+        preset.setObjectName("pictureImportPreset")
+        for value, label in (("balanced", "Balanced · 2500 px / JPEG 88"),
+                             ("compact", "Compact · 1600 px / JPEG 75"),
+                             ("high", "High quality · 4000 px / JPEG 94")):
+            preset.addItem(label, value)
+        fmt = QComboBox()
+        fmt.setObjectName("pictureImportFormat")
+        for value, label in (("auto", "Automatic JPEG / alpha PNG"),
+                             ("jpeg", "JPEG"), ("png", "PNG"), ("webp", "WebP")):
+            fmt.addItem(label, value)
+        choices.addWidget(preset)
+        choices.addWidget(fmt)
+        layout.addLayout(choices)
+        pictures = QListWidget()
+        pictures.setObjectName("projectPictureLibrary")
+        layout.addWidget(pictures, 1)
+        thumbnail = QLabel("Select a project picture to preview it.")
+        thumbnail.setMinimumHeight(200)
+        thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(thumbnail)
+
+        def selected_key():
+            item = pictures.currentItem()
+            return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+        def show_preview():
+            key = selected_key()
+            image = QImage.fromData(self.assets.get(key, b"")) if key else QImage()
+            if image.isNull():
+                thumbnail.setText("Select a project picture to preview it.")
+                thumbnail.setPixmap(QPixmap())
+            else:
+                thumbnail.setPixmap(QPixmap.fromImage(image.scaled(
+                    500, 210, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)))
+
+        pictures.currentItemChanged.connect(lambda *_: show_preview())
+
+        def populate():
+            pictures.clear()
+            for key, name in sorted(self.media_library.items(), key=lambda p: p[1].lower()):
+                item = QListWidgetItem(name)
+                item.setData(Qt.ItemDataRole.UserRole, key)
+                pictures.addItem(item)
+            if pictures.count():
+                pictures.setCurrentRow(0)
+
+        buttons = QHBoxLayout()
+        do_import = QPushButton("Import pictures…")
+        do_import.setObjectName("importProjectPicturesAction")
+        insert = QPushButton("Insert selected")
+        remove = QPushButton("Remove unused")
+        close = QPushButton("Close")
+        for button in (do_import, insert, remove, close):
+            buttons.addWidget(button)
+        layout.addLayout(buttons)
+
+        def approve_staged(staged):
+            """Review true source/converted previews; approval commits exact bytes."""
+            comparison = QDialog(dialog)
+            comparison.setObjectName("pictureImportComparisonDialog")
+            comparison.setWindowTitle("Compare original and optimized working pictures")
+            comparison.resize(780, 475)
+            content = QVBoxLayout(comparison)
+            selector = QComboBox()
+            selector.setObjectName("pictureComparisonSelector")
+            for entry in staged:
+                selector.addItem(entry.name)
+            content.addWidget(selector)
+            views = QHBoxLayout()
+            source_panel = QVBoxLayout()
+            target_panel = QVBoxLayout()
+            source_panel.addWidget(QLabel("Original (preview only)"))
+            target_panel.addWidget(QLabel("Optimized project copy"))
+            source_image = QLabel()
+            target_image = QLabel()
+            for widget in (source_image, target_image):
+                widget.setMinimumSize(300, 210)
+                widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            source_panel.addWidget(source_image)
+            target_panel.addWidget(target_image)
+            views.addLayout(source_panel)
+            views.addLayout(target_panel)
+            content.addLayout(views)
+            details = QLabel()
+            content.addWidget(details)
+
+            def show_comparison(*_):
+                entry = staged[selector.currentIndex()]
+                photo = entry.photo
+                for widget, image_bytes in (
+                    (source_image, photo.source_preview), (target_image, photo.data)
+                ):
+                    image = QImage.fromData(image_bytes)
+                    widget.setPixmap(QPixmap.fromImage(image.scaled(
+                        330, 240, Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation))
+                        if not image.isNull() else QPixmap())
+                details.setText(
+                    f"{entry.name}: {photo.original_width}×{photo.original_height} "
+                    f"({photo.source_bytes / 1048576:.2f} MiB) → "
+                    f"{photo.width}×{photo.height} {photo.format.upper()} "
+                    f"({len(photo.data) / 1048576:.2f} MiB)")
+            selector.currentIndexChanged.connect(show_comparison)
+            show_comparison()
+            old = sum(entry.photo.source_bytes for entry in staged)
+            new = sum(len(entry.photo.data) for entry in staged)
+            content.addWidget(QLabel(
+                f"Total: {len(staged)} photos; source {old / 1048576:.2f} MiB → "
+                f"project {new / 1048576:.2f} MiB. Source files stay unchanged."))
+            actions = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                       QDialogButtonBox.StandardButton.Cancel)
+            actions.accepted.connect(comparison.accept)
+            actions.rejected.connect(comparison.reject)
+            content.addWidget(actions)
+            return comparison.exec() == QDialog.DialogCode.Accepted
+
+        def import_selected():
+            paths, _ = QFileDialog.getOpenFileNames(
+                dialog, "Import independent project copies", "",
+                "Images (*.heic *.heif *.jpg *.jpeg *.png *.bmp *.webp)")
+            if not paths:
+                return
+            try:
+                # Stage once. The preview and committed working copy use the
+                # identical image bytes; source originals are never reopened.
+                staged = stage_pictures(paths, preset=preset.currentData(),
+                                        output_format=fmt.currentData())
+                if not approve_staged(staged):
+                    return
+                commit_staged_pictures(
+                    ReportProject(self.report, self.assets, self.media_library), staged)
+            except (PictureImportError, ValueError, OSError) as exc:
+                self._warn("Cannot import pictures", exc)
+                return
+            self.dirty = True
+            populate()
+            self.refresh()
+
+        def insert_selected():
+            key = selected_key()
+            if not key:
+                return
+            if not self._module_id:
+                self._warn("Select a module", "Select a report module before inserting a picture.")
+                return
+            self._add_block(PhotoBlock(key, LocalizedText(self.report.primary_language, "")))
+            dialog.accept()
+
+        def delete_selected():
+            key = selected_key()
+            if key is None:
+                return
+            try:
+                remove_library_picture(ReportProject(self.report, self.assets,
+                                                     self.media_library), key)
+            except PictureImportError as exc:
+                self._warn("Cannot remove picture", exc)
+                return
+            self.dirty = True
+            populate()
+            self.refresh()
+
+        do_import.clicked.connect(import_selected)
+        insert.clicked.connect(insert_selected)
+        remove.clicked.connect(delete_selected)
+        close.clicked.connect(dialog.accept)
+        populate()
+        dialog.exec()
+        return True
 
     def remove_block(self):
         item = self.blocks.currentItem()
@@ -937,6 +1115,9 @@ class VisualReportEditor:
     def _replace(self, project, path):
         self.editor = ProjectEditor(project.report)
         self.assets = dict(project.assets)
+        self.media_library = dict(project.media_library)
+        self.loaded_version = project.loaded_version
+        self.loaded_from = project.loaded_from
         self.path = path
         self.dirty = False
         self._module_id = None
@@ -953,7 +1134,9 @@ class VisualReportEditor:
         except (ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot open project", exc)
             return False
-        self._replace(ReportProject(replacement.report, project.assets), Path(path))
+        self._replace(ReportProject(replacement.report, project.assets,
+                                    project.media_library, project.loaded_version,
+                                    project.loaded_from), Path(path))
         return True
 
     def open_dialog(self):
@@ -972,12 +1155,23 @@ class VisualReportEditor:
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
             self._warn("Customer required", "Enter a customer name or select one from the database.")
             return False
+        if (self.loaded_version == LEGACY_VERSION and self.loaded_from is not None
+            and Path(path).absolute() == self.loaded_from.absolute()):
+            self._warn("Save upgraded project as a copy",
+                       "This report uses the original v1 project format. "
+                       "Choose Save As and a new filename to preserve your "
+                       "original file for rollback.")
+            return False
         try:
-            saved = save_project(ReportProject(self.editor.report, self.assets), path)
+            saved = save_project(ReportProject(self.editor.report, self.assets,
+                                               self.media_library, self.loaded_version,
+                                               self.loaded_from), path)
         except (ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot save project", exc)
             return False
         self.path = saved
+        self.loaded_version = VERSION
+        self.loaded_from = saved.absolute()
         self.dirty = False
         self.refresh()
         return True

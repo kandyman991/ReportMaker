@@ -48,12 +48,12 @@ See `docs/M4_EXPORT.md` and `docs/WINDOWS_ACCEPTANCE_M0_M4.md`.
 
 ## M4.5 — Project Picture Manager and editable annotations (agreed requirements; not implemented)
 - [ ] Design review of ADR-0008 and docs/M45_MEDIA_WORKSPACE.md; no code implementation or merge authorized by this documentation PR.
-- [ ] Portable .rmproj media library containing independent optimized copies while leaving original external photos untouched; handle unused-but-declared library assets via reviewed versioned M2 migration.
-- [ ] Offline HEIC/HEIF import and local configurable conversion, default JPEG quality 88 / max 2500 px long edge, with batch ingest, safe bounds, format preview, privacy and metadata controls.
+- [x] M4.5.1 code proposed in draft PR #17: version-2 portable .rmproj media library, imported working copies, v1 loading and declared-unused-media storage. Exact-head CI/review and real Windows acceptance still required.
+- [x] M4.5.1 code proposed: offline HEIC/HEIF conversion, JPEG Q88 / max 2500 px, batch import, safe bounds, format selection, size confirmation and metadata removal. A visual original-vs-converted quality comparison remains pending.
 - [ ] Non-destructive crop/rotate/flip/image layout plus editable visible arrows, shapes, highlights and translatable callouts. Same media asset reusable across modules with independent per-placement edits.
 - [ ] Separate optional pinned internal comment threads/replies/status, excluded from customer DOCX/PDF and preview by default.
 - [ ] Source-preserving DOCX/PDF composed-image output without unconditional PNG inflation, synthetic CI plus actual Windows packaging/interactive verification.
-- [ ] Independent M4.5 review; never treat M0–M4 installed-Windows acceptance or installer/release approval as complete by implication.
+- [ ] Independent M4.5.1 code/security and schema-migration review, exact-final-head CI, installed-Windows validation; M0–M4 installed-Windows acceptance and installer/release approval remain separate gates.
 See docs/M45_MEDIA_WORKSPACE.md and ADR-0008.
 
 ## M5 — Open-ended languages

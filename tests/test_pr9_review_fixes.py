@@ -93,6 +93,10 @@ class ReviewedM2SafetyTests(TestCase):
         with ZipFile(self.path) as archive:
             manifest = json.loads(archive.read("manifest.json"))
             original_image = archive.read("assets/photo-1")
+        # Construct an actual historical v1 manifest. New saves use v2,
+        # where undeclared/orphan assets are intentionally forbidden.
+        manifest["version"] = 1
+        manifest.pop("media_library")
         manifest["assets"].append({"id": "obsolete", "length": len(unused),
                                    "sha256": sha256(unused).hexdigest()})
         with ZipFile(self.path, "w", ZIP_DEFLATED) as archive:
@@ -101,8 +105,13 @@ class ReviewedM2SafetyTests(TestCase):
             archive.writestr("assets/obsolete", unused)
         imported = load_project(self.path)
         self.assertEqual(set(imported.assets), {"photo-1"})
-        save_project(imported, self.path)
-        with ZipFile(self.path) as archive:
+        source_v1 = self.path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "Save As"):
+            save_project(imported, self.path)
+        self.assertEqual(self.path.read_bytes(), source_v1)
+        upgraded = self.path.with_name("migrated.rmproj")
+        save_project(imported, upgraded)
+        with ZipFile(upgraded) as archive:
             self.assertEqual(set(archive.namelist()), {"manifest.json", "assets/photo-1"})
 
     def test_f02_invalid_mutations_leave_undo_and_source_unchanged(self):

@@ -110,13 +110,19 @@ def _image_bytes(payload: bytes) -> bytes:
         with Image.open(BytesIO(payload)) as im:
             if im.width < 1 or im.height < 1 or im.width * im.height > MAX_IMAGE_PIXELS:
                 raise ExportError("Photograph dimensions exceed safe export limits")
+            source_format = im.format
             im = ImageOps.exif_transpose(im)
             im.load()
             if im.mode not in ("RGB", "RGBA"):
                 im = im.convert("RGB")
             im.thumbnail((1800, 1800), Image.Resampling.LANCZOS)
             stream = BytesIO()
-            im.save(stream, format="PNG")
+            # Strip all source metadata, retaining efficient JPEG for photos.
+            if source_format == "JPEG":
+                im.convert("RGB").save(stream, format="JPEG", quality=90,
+                                        optimize=True, subsampling=0)
+            else:
+                im.save(stream, format="PNG")
             return stream.getvalue()
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
         raise ExportError("Photograph is not a supported, safe local image") from exc

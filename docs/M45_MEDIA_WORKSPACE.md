@@ -1,6 +1,14 @@
 # M4.5 — Picture Manager, local HEIC conversion and editable image layers
 
-Status: **User-approved feature requirements, documentation PR only.** No M4.5 implementation, code CI evidence, installed-Windows acceptance or installer approval is implied. Source: 2026-10-27 project discussion. Binding architecture proposal: [ADR-0008](adr/0008-m45-media-workspace.md).
+Status: **User-approved feature requirements with a separate M4.5.1 implementation PR under review**. PR #16 records the design; stacked draft PR #17 implements the first media container, offline HEIC conversion and basic Qt Pictures UI. M4.5.2–.4 (annotation layers, private comment editing and composed annotation exports) remain unimplemented. Installed-Windows acceptance and installer approval remain pending. Binding architecture: [ADR-0008](adr/0008-m45-media-workspace.md).
+
+## M4.5.1 implementation checkpoint (draft PR #17)
+
+- New version-2 `.rmproj` metadata stores explicit picture-library members **with byte-verified format and dimensions**, while preserving logical photo reuse and the report hierarchy. Old v1 projects open but **Save As to a different file** is mandatory for conversion; normal in-place Save is blocked, leaving the original v1 archive intact for rollback. Legacy orphan v1 assets continue to be discarded; v2 undeclared hidden assets fail closed.
+- Local offline HEIC/HEIF decoding via desktop-packaged `pillow-heif`; standard input image types also convert into independent project JPEG/PNG/WebP working copies with safe bounds, selected image-quality presets and metadata removal. No original external file is overwritten or required when reopening.
+- Native **Pictures** dialog allows up to 64 photos per batch, preset/format choice, **per-image original-vs-optimized visual comparison and explicit approval**, library preview, insertion into a module, and removal of unused library images. Staging performs the conversion once, and only approved exact bytes are committed. Per-placement photo annotations, review pins and a crop editor remain future gates.
+- DOCX/PDF exporter no longer inflates every JPEG into PNG; it continues to recompress/normalize output locally and atomically. Full annotated-image export remains pending.
+- Synthetic unit tests cover v1 migration and rollback, v2 strict image metadata and asset membership, undo restoration without hidden media on disk, source preservation, single-pass approved staging, ICC failure, portable library persistence, reuse, alpha, invalid input and HEIC, plus offline Qt Pictures/comparison smoke regression. The correction is proposed in [PR #18](https://github.com/kandyman991/ReportMaker/pull/18), with detailed ledger at [PR17_REVIEW.md](PR17_REVIEW.md). Hosted Windows CI and independent review must be checked at PR #18's exact final head before any merge.
 
 ## User workflow
 
