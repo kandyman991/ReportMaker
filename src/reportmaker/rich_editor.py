@@ -62,7 +62,10 @@ def _format_to_qt(info: TextRun) -> QTextCharFormat:
 
 
 def _format_from_qt(fmt: QTextCharFormat, start: int, end: int) -> TextRun:
-    base = fmt.fontFamily()
+    print("RICHDIAG: format from Qt enter",flush=True)
+    families = fmt.fontFamilies() if fmt.hasProperty(QTextFormat.Property.FontFamilies) else []
+    base = families[0] if families else ""
+    print("RICHDIAG: font family read",flush=True)
     point_size = fmt.fontPointSize()
     vertical = fmt.verticalAlignment()
     return TextRun(start=start, end=end,
@@ -165,8 +168,11 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
         if pf != ParagraphStyle(start):
             result.paragraphs.append(pf)
         iterator = block.begin()
+        print("RICHDIAG: before fragment iteration",flush=True)
         while not iterator.atEnd():
+            print("RICHDIAG: fragment begin",flush=True)
             fragment = iterator.fragment()
+            print("RICHDIAG: fragment got",flush=True)
             if fragment.isValid() and fragment.length():
                 left = _py_index(positions, fragment.position())
                 right = _py_index(positions, fragment.position() + fragment.length())
@@ -180,7 +186,9 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                             result.runs[-1].end = right
                         else:
                             result.runs.append(candidate)
+            print("RICHDIAG: before iterator++",flush=True)
             iterator += 1
+            print("RICHDIAG: after iterator++",flush=True)
         block = block.next()
     print('RICHDIAG: before capture validation',flush=True)
     validate_rich(result, text)
@@ -290,7 +298,10 @@ class RichTextRibbon(QWidget):
         print('RICHDIAG: sync enter',flush=True)
         self.family.blockSignals(True)
         print('RICHDIAG: before sync family',flush=True)
-        self.family.setCurrentFont(QFont(fmt.fontFamily() or DEFAULT_FONT))
+        families = fmt.fontFamilies() if fmt.hasProperty(QTextFormat.Property.FontFamilies) else []
+        selected_family = families[0] if families else DEFAULT_FONT
+        if self.family.currentFont().family() != selected_family:
+            self.family.setCurrentFont(QFont(selected_family))
         print('RICHDIAG: after sync family',flush=True)
         self.family.blockSignals(False)
         self.size.blockSignals(True)
