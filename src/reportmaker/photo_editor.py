@@ -105,7 +105,7 @@ def render_photo(data: bytes, visual: PhotoVisual, max_edge: int = 1000) -> QIma
     validate_photo_visual(visual)
     if not isinstance(max_edge, int) or not 32 <= max_edge <= 2400:
         raise ValueError("Invalid rendered photo size")
-    source = QImage.fromData(data)
+    source = data if isinstance(data, QImage) else QImage.fromData(data)
     if source.isNull():
         raise ValueError("Invalid project photograph")
     region = _source_rectangle(source, visual)
@@ -134,9 +134,10 @@ class PictureCanvas(QWidget):
         super().__init__(owner)
         self.owner = owner
         self.image_bytes = image_bytes
+        self.source_image = QImage.fromData(image_bytes)
         self.preview = QImage()
         self.base_size = (1, 1)
-        self.rect = QRectF()
+        self._display_rect = QRectF()
         self.selected: str | None = None
         self.tool = "select"
         self.start = None
@@ -149,8 +150,8 @@ class PictureCanvas(QWidget):
 
     def update_image(self):
         visual = self.owner.visual
-        self.preview = render_photo(self.image_bytes, visual, 900)
-        source = QImage.fromData(self.image_bytes)
+        self.preview = render_photo(self.source_image, visual, 900)
+        source = self.source_image
         region = _source_rectangle(source, visual)
         factor = min(1.0, 900 / max(region.width(), region.height()))
         self.base_size = (max(1, int(region.width() * factor)),
@@ -159,15 +160,15 @@ class PictureCanvas(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.fillRect(self.rect if False else self.contentsRect(), QColor("#24282c"))
+        painter.fillRect(self.contentsRect(), QColor("#24282c"))
         if self.preview.isNull():
             return
         scale = min((self.width() - 16) / self.preview.width(),
                     (self.height() - 16) / self.preview.height())
         w, h = self.preview.width() * scale, self.preview.height() * scale
-        self.rect = QRectF((self.width() - w) / 2, (self.height() - h) / 2, w, h)
+        self._display_rect = QRectF((self.width() - w) / 2, (self.height() - h) / 2, w, h)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        painter.drawImage(self.rect, self.preview)
+        painter.drawImage(self._display_rect, self.preview)
         if self.start and self.current and self.tool != "select":
             a, b = self._onscreen(self.start), self._onscreen(self.current)
             painter.setPen(QPen(QColor("#00d4ff"), 2, Qt.PenStyle.DashLine))
@@ -179,11 +180,11 @@ class PictureCanvas(QWidget):
         painter.end()
 
     def _coordinate(self, pos):
-        if self.rect.isNull() or not self.rect.contains(QPointF(pos)):
+        if self._display_rect.isNull() or not self._display_rect.contains(QPointF(pos)):
             return None
-        rendered = QPointF((pos.x() - self.rect.x()) / self.rect.width() *
+        rendered = QPointF((pos.x() - self._display_rect.x()) / self._display_rect.width() *
                            self.preview.width(),
-                           (pos.y() - self.rect.y()) / self.rect.height() *
+                           (pos.y() - self._display_rect.y()) / self._display_rect.height() *
                            self.preview.height())
         matrix = QImage.trueMatrix(_transformation(self.owner.visual), *self.base_size)
         inverse, ok = matrix.inverted()
@@ -201,8 +202,8 @@ class PictureCanvas(QWidget):
                       (value[1] - y0) / ch * self.base_size[1])
         matrix = QImage.trueMatrix(_transformation(self.owner.visual), *self.base_size)
         out = matrix.map(pos)
-        return QPointF(self.rect.left() + out.x() / self.preview.width() * self.rect.width(),
-                       self.rect.top() + out.y() / self.preview.height() * self.rect.height())
+        return QPointF(self._display_rect.left() + out.x() / self.preview.width() * self._display_rect.width(),
+                       self._display_rect.top() + out.y() / self.preview.height() * self._display_rect.height())
 
     def mousePressEvent(self, event):
         if event.button() != Qt.MouseButton.LeftButton:
