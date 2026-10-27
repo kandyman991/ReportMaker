@@ -37,6 +37,7 @@ from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
 from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
 from .rich_text import safe_html
+from .page_editor import EditableDocumentPage
 
 
 def new_report() -> ReportProject:
@@ -280,7 +281,7 @@ class VisualReportEditor:
         preview_box = QWidget()
         preview_layout = QVBoxLayout(preview_box)
         preview_header = QHBoxLayout()
-        preview_header.addWidget(QLabel("DOCUMENT PREVIEW — readable local layout, not final Word/PDF pagination"))
+        preview_header.addWidget(QLabel("EDITABLE DOCUMENT PAGE — source blocks on paper; printed pagination may differ"))
         preview_header.addStretch(1)
         zoom_out = QPushButton("A−")
         zoom_out.setObjectName("previewZoomOut")
@@ -289,6 +290,24 @@ class VisualReportEditor:
         preview_header.addWidget(zoom_out)
         preview_header.addWidget(zoom_in)
         preview_layout.addLayout(preview_header)
+        self.page_tabs = QTabWidget()
+        self.page_tabs.setObjectName("documentPageTabs")
+        self.page = EditableDocumentPage()
+        self.page.on_style_request = self._select_page_block
+        page_container = QWidget()
+        page_layout = QVBoxLayout(page_container)
+        page_controls = QHBoxLayout()
+        page_controls.addWidget(QLabel(
+            "Edit text, headings, table cells and photo captions on the page. "
+            "Module titles and Summary are protected."))
+        page_controls.addStretch()
+        apply_page = QPushButton("Apply page edits")
+        apply_page.setObjectName("applyPageEdits")
+        apply_page.clicked.connect(self.commit_page)
+        page_controls.addWidget(apply_page)
+        page_layout.addLayout(page_controls)
+        page_layout.addWidget(self.page, 1)
+        self.page_tabs.addTab(page_container, "Editable page")
         self.preview = QTextBrowser()
         self.preview.setObjectName("documentPreview")
         self.preview.setOpenExternalLinks(False)
@@ -302,7 +321,9 @@ class VisualReportEditor:
         self.preview.setMinimumHeight(175)
         zoom_out.clicked.connect(lambda: self.preview.zoomOut(1))
         zoom_in.clicked.connect(lambda: self.preview.zoomIn(1))
-        preview_layout.addWidget(self.preview)
+        self.page_tabs.addTab(self.preview, "Print preview (read-only)")
+        self.page_tabs.currentChanged.connect(self._page_tab_changed)
+        preview_layout.addWidget(self.page_tabs, 1)
         vertical.addWidget(preview_box)
         vertical.setSizes([420, 420])
         self.tabs.addTab(body, "Content & Preview")
@@ -398,7 +419,7 @@ class VisualReportEditor:
         QMessageBox.warning(self.owner, title, str(error))
 
     def _change(self, operation):
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         try:
             operation()
@@ -571,9 +592,46 @@ class VisualReportEditor:
     def _flush_block(self):
         return not self._block_pending or self.apply_block()
 
+    def _flush_page(self):
+        if not self.page.pending:
+            return True
+        try:
+            self.page.commit(self.editor)
+        except (ValueError, LookupError, TypeError, RuntimeError) as exc:
+            self._warn("Invalid page edit", exc)
+            return False
+        self.dirty = True
+        return True
+
+    def commit_page(self):
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            return False
+        self.refresh()
+        return True
+
+    def _page_tab_changed(self, index):
+        if index != 1 or self._loading:
+            return
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            self.page_tabs.setCurrentIndex(0)
+            return
+        self.refresh()  # print preview, ribbon and paper now share one model
+
+    def _select_page_block(self, module_id, block_id):
+        # Style controls live in the existing rich ribbon; locate by stable IDs.
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            return False
+        self._module_id = module_id
+        self._edit_block_id = block_id
+        self.refresh()
+        self.text_edit.setFocus()
+        return True
+
     def apply_block(self):
         if not self._block_pending or not self._edit_block_id:
             return True
+        if not self._flush_page():
+            return False
         identifier = self._edit_block_id
         module_id = self._module_id
         text, rich = capture_rich(self.text_edit)
@@ -1167,11 +1225,14 @@ class VisualReportEditor:
                 QTextDocument.ResourceType.ImageResource,
                 QUrl("rmasset:" + identifier), image)
         self.preview.viewport().update()
+        # Avoid dropping uncommitted direct page edits when the other pane redraws.
+        if not self.page.pending:
+            self.page.rebuild(report, self.assets)
 
     def _confirm_discard(self):
         # Discard must remain available even if the pending form is invalid.
         # Only the Save branch validates/commits draft edits.
-        if not (self.dirty or self._block_pending or self._info_pending):
+        if not (self.dirty or self._block_pending or self._info_pending or self.page.pending):
             return True
         choice = QMessageBox.question(
             self.owner, "Unsaved project",
@@ -1200,6 +1261,7 @@ class VisualReportEditor:
         self._edit_block_id = None
         self._block_pending = False
         self._info_pending = False
+        self.page.pending.clear()  # deliberate Open/New discards the previous draft
         self.refresh()
 
     def open_from_path(self, path):
@@ -1225,7 +1287,7 @@ class VisualReportEditor:
             self.open_from_path(path)
 
     def save_to_path(self, path):
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         if (self.report.customer_id is None and
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
@@ -1345,7 +1407,7 @@ class VisualReportEditor:
 
     def export_to_path(self, path, format):
         """Export the current validated draft without saving/changing .rmproj."""
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         if (self.report.customer_id is None and
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
@@ -1357,6 +1419,7 @@ class VisualReportEditor:
         except (ExportError, ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot export report", exc)
             return False
+        self.refresh()
         return True
 
     def export_as(self, format):
@@ -1386,14 +1449,14 @@ class VisualReportEditor:
 
     def undo(self):
         # Preserve pending Report Information before any history navigation.
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return
         if self.editor.undo():
             self.dirty = True
             self.refresh()
 
     def redo(self):
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return
         if self.editor.redo():
             self.dirty = True
