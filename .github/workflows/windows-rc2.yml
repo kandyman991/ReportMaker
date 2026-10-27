@@ -1,12 +1,10 @@
 name: ReportMaker Windows RC2 pinned installer
 
 # This workflow is intentionally separate from windows-installer.yml (historical M0).
-# The only automatic RC2 build is the PR merge that first installs this workflow.
+# RC2 was initially started by the workflow's first push to main (run 40518468145).
+# After the verified RC2 release, manual dispatch avoids rebuilding an immutable tag
+# just because the publisher implementation/documentation was corrected.
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/windows-rc2.yml
   workflow_dispatch:
 
 permissions:
@@ -203,8 +201,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Draft RC2 creation failed" }
           gh release upload $tag $setup $manifest --repo $repo
           if ($LASTEXITCODE -ne 0) { throw "RC2 asset upload failed; draft retained" }
-          $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) { throw "RC2 release asset lookup failed" }
+          # GitHub's public releases/tags API returns 404 for unpublished drafts.
+          # gh release view resolves drafts by tag for the authenticated publisher.
+          $releaseJson = gh release view $tag --repo $repo --json assets,isDraft,isPrerelease
+          if ($LASTEXITCODE -ne 0) { throw "RC2 draft release asset lookup failed" }
+          $release = $releaseJson | ConvertFrom-Json
+          if (-not $release.isDraft -or -not $release.isPrerelease) {
+            throw "Unexpected RC2 release state prior to publication"
+          }
           $remoteSetup = $release.assets | Where-Object { $_.name -eq $env:RC2_ASSET }
           $remoteManifest = $release.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' }
           if (@($remoteSetup).Count -ne 1 -or @($remoteManifest).Count -ne 1) {
@@ -216,9 +220,11 @@ jobs:
           }
           gh release edit $tag --repo $repo --draft=false --prerelease
           if ($LASTEXITCODE -ne 0) { throw "RC2 public prerelease promotion failed" }
-          $published = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $published.draft -or -not $published.prerelease) {
+          $publishedJson = gh release view $tag --repo $repo --json isDraft,isPrerelease,tagName,url
+          if ($LASTEXITCODE -ne 0) { throw "RC2 published release lookup failed" }
+          $published = $publishedJson | ConvertFrom-Json
+          if ($published.isDraft -or -not $published.isPrerelease -or $published.tagName -ne $tag) {
             throw "RC2 published release verification failed"
           }
-          "RC2 prerelease: https://github.com/$repo/releases/tag/$tag" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Host "RC2 prerelease successfully published: $($published.html_url)"
+          "RC2 prerelease: $($published.url)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Host "RC2 prerelease successfully published: $($published.url)"
