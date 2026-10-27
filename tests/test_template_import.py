@@ -184,7 +184,7 @@ class TemplateImportTests(unittest.TestCase):
             from PySide6.QtCore import QSettings
             from PySide6.QtWidgets import (
                 QApplication, QFileDialog, QHBoxLayout, QMainWindow,
-                QVBoxLayout, QWidget,
+                QMessageBox, QVBoxLayout, QWidget,
             )
             from reportmaker.visual_editor import VisualReportEditor
         except ImportError:
@@ -207,7 +207,9 @@ class TemplateImportTests(unittest.TestCase):
             with (patch.object(QFileDialog, "getOpenFileName", return_value=(str(source), "")),
                   patch.object(QFileDialog, "getSaveFileName", return_value=(str(out), "")),
                   patch("reportmaker.visual_editor.edit_template_layout",
-                        side_effect=lambda owner, template, warnings=(): template)):
+                        side_effect=lambda owner, template, warnings=(): template),
+                  patch.object(QMessageBox, "warning",
+                               side_effect=AssertionError("Unexpected template modal warning"))):
                 self.assertTrue(editor.import_document_template())
             active = editor._export_style()
             self.assertEqual(active.page_width_cm, 18)
