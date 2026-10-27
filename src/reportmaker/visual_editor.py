@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import QDate, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QImage, QKeySequence, QTextDocument
+from PySide6.QtGui import QAction, QImage, QKeySequence, QPixmap, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
     QDialogButtonBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
@@ -30,6 +30,8 @@ from .model import (
 )
 from .project_io import MAX_ASSET, ReportProject, default_projects_directory, load_project, save_project
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
+from .media_import import (PictureImportError, convert_picture, import_pictures,
+                           remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 
 
@@ -172,6 +174,7 @@ class VisualReportEditor:
         self.owner = owner
         self.path: Path | None = None
         self.assets: dict[str, bytes] = {}
+        self.media_library: dict[str, str] = {}
         self.editor = ProjectEditor(new_report().report)
         self.dirty = False
         self._loading = False
@@ -338,6 +341,11 @@ class VisualReportEditor:
             action.triggered.connect(slot)
             toolbar.addAction(action)
             self.owner.addAction(action)
+        pictures_action = QAction("Pictures", self.owner)
+        pictures_action.setObjectName("pictureManagerAction")
+        pictures_action.triggered.connect(self.manage_pictures)
+        toolbar.addAction(pictures_action)
+        self.owner.addAction(pictures_action)
         branding_action = QAction("Export branding", self.owner)
         branding_action.setObjectName("exportBrandingAction")
         branding_action.triggered.connect(self.configure_export_branding)
@@ -603,23 +611,139 @@ class VisualReportEditor:
         self._add_block(PageBreakBlock())
 
     def add_photo(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self.owner, "Choose a local photo", "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.webp)")
-        if not path:
-            return
-        try:
-            if Path(path).stat().st_size > MAX_ASSET:
-                raise ValueError("Photo exceeds 32 MiB project asset limit")
-            blob = Path(path).read_bytes()
-            if not blob or QImage.fromData(blob).isNull():
-                raise ValueError("Unsupported or invalid image")
-        except (OSError, ValueError) as exc:
-            self._warn("Cannot add photo", exc)
-            return
-        key = uuid4().hex
-        self.assets[key] = blob
-        self._add_block(PhotoBlock(key, LocalizedText(self.report.primary_language, "")))
+        """Insert an already imported picture, or import into the media library."""
+        self.manage_pictures()
+
+    def manage_pictures(self):
+        """Local project-owned picture container; no external paths persisted."""
+        if not self._flush_block() or not self._flush_info():
+            return False
+        dialog = QDialog(self.owner)
+        dialog.setWindowTitle("Project Pictures — optimized working copies")
+        dialog.resize(630, 540)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Pictures belong to this project; external originals stay unchanged."))
+        choices = QHBoxLayout()
+        preset = QComboBox()
+        preset.setObjectName("pictureImportPreset")
+        for value, label in (("balanced", "Balanced · 2500 px / JPEG 88"),
+                             ("compact", "Compact · 1600 px / JPEG 75"),
+                             ("high", "High quality · 4000 px / JPEG 94")):
+            preset.addItem(label, value)
+        fmt = QComboBox()
+        fmt.setObjectName("pictureImportFormat")
+        for value, label in (("auto", "Automatic JPEG / alpha PNG"),
+                             ("jpeg", "JPEG"), ("png", "PNG"), ("webp", "WebP")):
+            fmt.addItem(label, value)
+        choices.addWidget(preset)
+        choices.addWidget(fmt)
+        layout.addLayout(choices)
+        pictures = QListWidget()
+        pictures.setObjectName("projectPictureLibrary")
+        layout.addWidget(pictures, 1)
+        thumbnail = QLabel("Select a project picture to preview it.")
+        thumbnail.setMinimumHeight(200)
+        thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(thumbnail)
+
+        def selected_key():
+            item = pictures.currentItem()
+            return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+        def show_preview():
+            key = selected_key()
+            image = QImage.fromData(self.assets.get(key, b"")) if key else QImage()
+            if image.isNull():
+                thumbnail.setText("Select a project picture to preview it.")
+                thumbnail.setPixmap(QPixmap())
+            else:
+                thumbnail.setPixmap(QPixmap.fromImage(image.scaled(
+                    500, 210, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)))
+
+        pictures.currentItemChanged.connect(lambda *_: show_preview())
+
+        def populate():
+            pictures.clear()
+            for key, name in sorted(self.media_library.items(), key=lambda p: p[1].lower()):
+                item = QListWidgetItem(name)
+                item.setData(Qt.ItemDataRole.UserRole, key)
+                pictures.addItem(item)
+            if pictures.count():
+                pictures.setCurrentRow(0)
+
+        buttons = QHBoxLayout()
+        do_import = QPushButton("Import pictures…")
+        do_import.setObjectName("importProjectPicturesAction")
+        insert = QPushButton("Insert selected")
+        remove = QPushButton("Remove unused")
+        close = QPushButton("Close")
+        for button in (do_import, insert, remove, close):
+            buttons.addWidget(button)
+        layout.addLayout(buttons)
+
+        def import_selected():
+            paths, _ = QFileDialog.getOpenFileNames(
+                dialog, "Import independent project copies", "",
+                "Images (*.heic *.heif *.jpg *.jpeg *.png *.bmp *.webp)")
+            if not paths:
+                return
+            try:
+                profile = preset.currentData()
+                output = fmt.currentData()
+                converted = [convert_picture(path, preset=profile, output_format=output)
+                             for path in paths]
+                old = sum(p.source_bytes for p in converted)
+                new = sum(len(p.data) for p in converted)
+                answer = QMessageBox.question(
+                    dialog, "Import optimized working copies",
+                    f"{len(paths)} picture(s) · source {old / 1048576:.2f} MiB → "
+                    f"project {new / 1048576:.2f} MiB. Import copies?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes)
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
+                import_pictures(ReportProject(self.report, self.assets,
+                                              self.media_library), paths,
+                                preset=profile, output_format=output)
+            except (PictureImportError, ValueError, OSError) as exc:
+                self._warn("Cannot import pictures", exc)
+                return
+            self.dirty = True
+            populate()
+            self.refresh()
+
+        def insert_selected():
+            key = selected_key()
+            if not key:
+                return
+            if not self._module_id:
+                self._warn("Select a module", "Select a report module before inserting a picture.")
+                return
+            self._add_block(PhotoBlock(key, LocalizedText(self.report.primary_language, "")))
+            dialog.accept()
+
+        def delete_selected():
+            key = selected_key()
+            if key is None:
+                return
+            try:
+                remove_library_picture(ReportProject(self.report, self.assets,
+                                                     self.media_library), key)
+            except PictureImportError as exc:
+                self._warn("Cannot remove picture", exc)
+                return
+            self.dirty = True
+            populate()
+            self.refresh()
+
+        do_import.clicked.connect(import_selected)
+        insert.clicked.connect(insert_selected)
+        remove.clicked.connect(delete_selected)
+        close.clicked.connect(dialog.accept)
+        populate()
+        dialog.exec()
+        return True
 
     def remove_block(self):
         item = self.blocks.currentItem()
@@ -937,6 +1061,7 @@ class VisualReportEditor:
     def _replace(self, project, path):
         self.editor = ProjectEditor(project.report)
         self.assets = dict(project.assets)
+        self.media_library = dict(project.media_library)
         self.path = path
         self.dirty = False
         self._module_id = None
@@ -973,7 +1098,8 @@ class VisualReportEditor:
             self._warn("Customer required", "Enter a customer name or select one from the database.")
             return False
         try:
-            saved = save_project(ReportProject(self.editor.report, self.assets), path)
+            saved = save_project(ReportProject(self.editor.report, self.assets,
+                                               self.media_library), path)
         except (ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot save project", exc)
             return False
