@@ -16,6 +16,7 @@ import re
 import tempfile
 from zipfile import BadZipFile, ZipFile, ZIP_DEFLATED
 from xml.etree import ElementTree as ET
+from xml.parsers.expat import ParserCreate, ExpatError
 
 MAX_SOURCE = 24 * 1024 * 1024
 MAX_UNPACKED = 40 * 1024 * 1024
@@ -110,6 +111,26 @@ def validate_template(template: DocumentTemplate) -> DocumentTemplate:
     return template
 
 
+def _verify_xml_without_dtd(raw: bytes) -> None:
+    """Reject DTD/entity declarations before ElementTree expands any entities.
+
+    Byte searches alone miss UTF-16 encoded <!DOCTYPE>; Expat detects DTDs
+    regardless of the XML encoding declared by the untrusted document.
+    """
+    parser = ParserCreate()
+
+    def refuse(*_args):
+        raise TemplateError("DTD/entities are forbidden in Word XML")
+
+    parser.StartDoctypeDeclHandler = refuse
+    parser.EntityDeclHandler = refuse
+    parser.ExternalEntityRefHandler = refuse
+    try:
+        parser.Parse(raw, True)
+    except ExpatError as exc:
+        raise TemplateError("Malformed Word XML") from exc
+
+
 def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
     if len(blob) > MAX_SOURCE or len(blob) < 40:
         raise TemplateError("Word template size is unsupported")
@@ -149,8 +170,7 @@ def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
                 raise TemplateError("Executable or binary Word parts are not accepted")
             if low.endswith((".xml", ".rels")) or name == "[Content_Types].xml":
                 raw = archive.read(name)
-                if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
-                    raise TemplateError("DTD/entities are forbidden in Word XML")
+                _verify_xml_without_dtd(raw)
                 try:
                     root = ET.fromstring(raw)
                 except ET.ParseError as exc:
@@ -162,8 +182,16 @@ def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
                         # inspect the terminal relationship *kind*, not the
                         # URI namespace, or every valid Word file is rejected.
                         kind = reltype.rsplit("/", 1)[-1]
-                        if (relationship.attrib.get("TargetMode", "").casefold() == "external"
-                            or any(part in kind for part in _DANGEROUS_REL)):
+                        # Never trust TargetMode alone: unmarked absolute URIs,
+                        # protocol-relative references and invalid modes must
+                        # not cross the local-only import boundary.
+                        mode = relationship.attrib.get("TargetMode", "Internal")
+                        target = relationship.attrib.get("Target", "")
+                        if (mode != "Internal" or not target or
+                            target.startswith("//") or "\\" in target or
+                            any(ord(char) < 32 or ord(char) == 127 for char in target) or
+                            re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target) or
+                            any(part in kind for part in _DANGEROUS_REL)):
                             raise TemplateError("External or active Word relationship rejected")
                 if name == "[Content_Types].xml":
                     for node in root:
@@ -240,7 +268,11 @@ def import_word_template(path: str | Path) -> ImportResult:
                     raise TemplateError("Invalid embedded header image")
                 raw = related.blob
                 if not logo:
-                    logo = raw
+                    from .export import _image_bytes, ExportError
+                    try:
+                        logo = _image_bytes(raw)
+                    except ExportError as exc:
+                        raise TemplateError("Invalid embedded header logo") from exc
                 else:
                     warnings.append("Additional header artwork is not imported")
     if sec.header._element.xpath(".//wp:anchor") or sec.header._element.xpath(".//w:pict"):
@@ -273,7 +305,7 @@ def import_word_template(path: str | Path) -> ImportResult:
         heading_size_pt=round(heading.font.size.pt, 2) if heading.font.size else 16.0,
         logo=logo,
     )
-    validate_template(template)
+    template = validate_template(template)
     if "Page" in footer:
         warnings.append("Word dynamic page-number fields are replaced with ReportMaker PAGE fields")
     if normal.font.name:
@@ -288,7 +320,14 @@ def save_template(template: DocumentTemplate, destination: str | Path) -> Path:
     if path.suffix.lower() != ".rmtemplate" or not path.parent.is_dir():
         raise TemplateError("Template requires a .rmtemplate file in an existing folder")
     record = asdict(template)
-    record["logo"] = b64encode(template.logo).decode("ascii")
+    # Never persist opaque source image metadata or trailing polyglot payloads.
+    # _image_bytes bounds/decodes and re-encodes the pixels without the
+    # original EXIF, comments or appended content.
+    if template.logo:
+        from .export import _image_bytes
+        record["logo"] = b64encode(_image_bytes(template.logo)).decode("ascii")
+    else:
+        record["logo"] = ""
     payload = json.dumps({"format": FORMAT, "version": VERSION, "layout": record},
                          ensure_ascii=False, sort_keys=True).encode("utf-8")
     if len(payload) > MAX_TEMPLATE:
