@@ -51,6 +51,8 @@ class DocumentTemplate:
     footer_text: str = ""
     normal_font: str = ""
     normal_size_pt: float = 11.0
+    heading_font: str = ""
+    heading_size_pt: float = 16.0
     logo: bytes = b""
 
 
@@ -69,7 +71,7 @@ def validate_template(template: DocumentTemplate) -> DocumentTemplate:
                template.top_margin_cm, template.bottom_margin_cm)
     offsets = (template.header_distance_cm, template.footer_distance_cm)
     if any(type(x) not in (int, float) or not isfinite(x) for x in
-           dimensions + margins + offsets + (template.normal_size_pt,)):
+           dimensions + margins + offsets + (template.normal_size_pt, template.heading_size_pt)):
         raise TemplateError("Nonfinite or invalid layout geometry")
     if not (15 <= dimensions[0] <= 43 and 15 <= dimensions[1] <= 60):
         raise TemplateError("Unsupported page dimensions")
@@ -82,14 +84,15 @@ def validate_template(template: DocumentTemplate) -> DocumentTemplate:
         not 0.3 <= offsets[1] <= margins[3]):
         raise TemplateError("Header/footer position exceeds page margins")
     for value, limit in ((template.header_text, 120), (template.footer_text, 120),
-                         (template.normal_font, 96)):
+                         (template.normal_font, 96), (template.heading_font, 96)):
         if (not isinstance(value, str) or len(value) > limit or
             any(ord(char) < 32 or ord(char) == 127 for char in value)):
             raise TemplateError("Unsupported header/footer/font text")
-    if template.normal_font and not re.fullmatch(r"[\w .-]{1,96}", template.normal_font):
-        raise TemplateError("Unsupported normal font name")
-    if not 6 <= template.normal_size_pt <= 72:
-        raise TemplateError("Unsupported normal font point size")
+    for face in (template.normal_font, template.heading_font):
+        if face and not re.fullmatch(r"[\w .-]{1,96}", face):
+            raise TemplateError("Unsupported Word font name")
+    if not 6 <= template.normal_size_pt <= 72 or not 8 <= template.heading_size_pt <= 40:
+        raise TemplateError("Unsupported Word font point size")
     if not isinstance(template.logo, bytes) or len(template.logo) > MAX_LOGO:
         raise TemplateError("Embedded logo exceeds size limit")
     if template.logo:
@@ -236,6 +239,7 @@ def import_word_template(path: str | Path) -> ImportResult:
     if doc.element.body.xpath(".//w:tbl"):
         warnings.append("Word body tables are not imported as layout")
     normal = doc.styles["Normal"]
+    heading = doc.styles["Heading 1"]
     template = DocumentTemplate(
         page_width_cm=round(sec.page_width / Cm(1), 3),
         page_height_cm=round(sec.page_height / Cm(1), 3),
@@ -248,6 +252,8 @@ def import_word_template(path: str | Path) -> ImportResult:
         header_text=header, footer_text=footer,
         normal_font=normal.font.name or "",
         normal_size_pt=round(normal.font.size.pt, 2) if normal.font.size else 11.0,
+        heading_font=heading.font.name or "",
+        heading_size_pt=round(heading.font.size.pt, 2) if heading.font.size else 16.0,
         logo=logo,
     )
     validate_template(template)
