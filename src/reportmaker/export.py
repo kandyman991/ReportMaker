@@ -34,6 +34,51 @@ TYPE_LABELS = {
     "other": "Other",
 }
 MAX_IMAGE_PIXELS = 36_000_000
+MAX_BRAND_LOGO_BYTES = 2 * 1024 * 1024
+PHOTO_MAX_WIDTH_CM = 15.6
+PHOTO_MAX_HEIGHT_CM = 19.5
+
+
+@dataclass(frozen=True)
+class ExportStyle:
+    """Optional local presentation. Never written to a project or browser profile."""
+    company_name: str = ""
+    footer_note: str = ""
+    logo: bytes = b""
+
+
+def _validate_style(style: ExportStyle | None) -> ExportStyle:
+    if style is None:
+        return ExportStyle()
+    if not isinstance(style, ExportStyle):
+        raise ExportError("Invalid export branding configuration")
+    for value, label, limit in ((style.company_name, "Company name", 80),
+                                (style.footer_note, "Footer note", 120)):
+        if (not isinstance(value, str) or len(value) > limit or
+            any(ord(c) < 32 or ord(c) == 127 for c in value)):
+            raise ExportError(label + " contains unsupported characters or is too long")
+    if not isinstance(style.logo, bytes) or len(style.logo) > MAX_BRAND_LOGO_BYTES:
+        raise ExportError("Company logo exceeds the 2 MiB export limit")
+    logo = _image_bytes(style.logo) if style.logo else b""
+    return ExportStyle(style.company_name, style.footer_note, logo)
+
+
+def _photo_dimensions(image: bytes) -> tuple[float, float]:
+    """Natural 96-dpi size downscaled to A4, with no forced enlargement."""
+    from PIL import Image
+    with Image.open(BytesIO(image)) as im:
+        width, height = im.size
+    scale = min(2.54 / 96.0, PHOTO_MAX_WIDTH_CM / width,
+                PHOTO_MAX_HEIGHT_CM / height)
+    return width * scale, height * scale
+
+
+def _logo_dimensions(image: bytes) -> tuple[float, float]:
+    from PIL import Image
+    with Image.open(BytesIO(image)) as im:
+        width, height = im.size
+    scale = min(2.54 / 96.0, 2.6 / width, 1.05 / height)
+    return width * scale, height * scale
 
 
 @dataclass(frozen=True)
@@ -206,9 +251,9 @@ def _word_bookmark(paragraph, module_id: str, number: int) -> str:
     return key
 
 
-def _write_docx(plan: ExportPlan, destination: Path) -> None:
+def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     from docx import Document
-    from docx.enum.text import WD_BREAK, WD_TAB_ALIGNMENT, WD_TAB_LEADER
+    from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
     from docx.shared import Cm, Pt
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -217,7 +262,23 @@ def _write_docx(plan: ExportPlan, destination: Path) -> None:
     sec = document.sections[0]
     sec.page_width, sec.page_height = Cm(21), Cm(29.7)
     sec.left_margin = sec.right_margin = Cm(2.1)
-    sec.top_margin, sec.bottom_margin = Cm(2), Cm(2)
+    sec.top_margin, sec.bottom_margin = Cm(3), Cm(2.5)
+    sec.header_distance, sec.footer_distance = Cm(0.9), Cm(0.9)
+    # Repeated Word header/footer, with a live PAGE field.
+    if style.company_name or style.logo:
+        header = sec.header.paragraphs[0]
+        if style.logo:
+            logo_w, logo_h = _logo_dimensions(style.logo)
+            header.add_run().add_picture(BytesIO(style.logo),
+                                         width=Cm(logo_w), height=Cm(logo_h))
+            header.add_run("  ")
+        header.add_run(style.company_name).bold = True
+    footer = sec.footer.paragraphs[0]
+    footer.paragraph_format.tab_stops.add_tab_stop(
+        Cm(16.8), WD_TAB_ALIGNMENT.RIGHT)
+    footer.add_run(style.footer_note)
+    footer.add_run("\tPage ")
+    _word_field(footer, " PAGE ", "1")
     document.core_properties.title = plan.title
     document.add_heading(plan.title, 0)
     document.add_heading("Report information", level=2)
@@ -242,7 +303,6 @@ def _write_docx(plan: ExportPlan, destination: Path) -> None:
     document.settings.element.append(setting)
     document.add_page_break()
 
-    from PIL import Image as PILImage
     entry_map = {e.module_id: e for e in plan.outline}
     bookmark_numbers = {entry.module_id: i for i, entry in enumerate(plan.outline, 1)}
     for item in plan.items:
@@ -276,14 +336,15 @@ def _write_docx(plan: ExportPlan, destination: Path) -> None:
                 for j, value in enumerate(row):
                     table.cell(i, j).text = value
         elif item.kind == "photo":
-            with PILImage.open(BytesIO(item.image)) as im:
-                # Respect a conservative 96 dpi source size; never inflate a tiny
-                # image to a full-page photograph.
-                width_cm = min(16.0, 20.0 * im.width / im.height,
-                               max(3.0, im.width * 2.54 / 96.0))
-            document.add_picture(BytesIO(item.image), width=Cm(width_cm))
+            photo_w, photo_h = _photo_dimensions(item.image)
+            picture = document.add_paragraph()
+            picture.paragraph_format.keep_together = True
+            picture.paragraph_format.keep_with_next = bool(item.text)
+            picture.add_run().add_picture(BytesIO(item.image),
+                                          width=Cm(photo_w), height=Cm(photo_h))
             if item.text:
-                document.add_paragraph(item.text, style="Caption")
+                caption = document.add_paragraph(item.text, style="Caption")
+                caption.paragraph_format.keep_together = True
         elif item.kind == "page_break":
             document.add_page_break()
         else:
@@ -291,7 +352,7 @@ def _write_docx(plan: ExportPlan, destination: Path) -> None:
     document.save(destination)
 
 
-def _write_pdf(plan: ExportPlan, destination: Path) -> None:
+def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
     from reportlab.lib.pagesizes import A4
@@ -304,6 +365,7 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
     from reportlab.platypus.tableofcontents import TableOfContents
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont, TTFError
+    from reportlab.lib.utils import ImageReader
 
     body_font, bold_font = "Helvetica", "Helvetica-Bold"
     # Embed a local system Unicode font where present. No font/user data is
@@ -327,18 +389,46 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
     class ReportPDF(BaseDocTemplate):
         def __init__(self, path):
             super().__init__(str(path), pagesize=A4, leftMargin=2*cm,
-                             rightMargin=2*cm, topMargin=2.1*cm, bottomMargin=2*cm,
+                             rightMargin=2*cm, topMargin=3*cm, bottomMargin=2.5*cm,
                              title=plan.title)
             frame = Frame(self.leftMargin, self.bottomMargin, self.width, self.height,
                           leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
             self.addPageTemplates(PageTemplate(id="report", frames=[frame],
-                                               onPage=self.footer))
+                                               onPage=self.page_decoration))
 
-        def footer(self, canvas, doc):
+        def page_decoration(self, canvas, doc):
             canvas.saveState()
-            canvas.setFont(body_font, 9)
-            canvas.drawRightString(A4[0] - 2*cm, 1.1*cm, "Page " + str(doc.page))
-            canvas.restoreState()
+            try:
+                text_x = 2*cm
+                if style.logo:
+                    logo_w, logo_h = _logo_dimensions(style.logo)
+                    canvas.drawImage(ImageReader(BytesIO(style.logo)),
+                                     text_x, A4[1] - 1.2*cm - logo_h*cm,
+                                     width=logo_w*cm, height=logo_h*cm,
+                                     mask="auto")
+                    text_x += (logo_w + .25)*cm
+                if style.company_name:
+                    header_style = ParagraphStyle(
+                        "RMHeader", fontName=bold_font, fontSize=9, leading=11)
+                    header = Paragraph(escape(style.company_name), header_style)
+                    avail = A4[0] - 2*cm - text_x
+                    _, height = header.wrap(avail, 1.2*cm)
+                    if height > 1.2*cm:
+                        raise ExportError("Company name does not fit the PDF header")
+                    header.drawOn(canvas, text_x, A4[1] - 1.35*cm - height)
+                if style.footer_note:
+                    note_style = ParagraphStyle(
+                        "RMFooter", fontName=body_font, fontSize=8, leading=10)
+                    note = Paragraph(escape(style.footer_note), note_style)
+                    _, height = note.wrap(12*cm, .85*cm)
+                    if height > .85*cm:
+                        raise ExportError("Footer note does not fit the PDF footer")
+                    note.drawOn(canvas, 2*cm, 1.0*cm)
+                canvas.setFont(body_font, 9)
+                canvas.drawRightString(A4[0] - 2*cm, 1.1*cm,
+                                       "Page " + str(doc.page))
+            finally:
+                canvas.restoreState()
 
         def afterFlowable(self, flowable):
             entry = getattr(flowable, "_rm_entry", None)
@@ -421,13 +511,9 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
             ]))
             story.extend([tbl, Spacer(1, 8)])
         elif item.kind == "photo":
-            from PIL import Image as PILImage
-            with PILImage.open(BytesIO(item.image)) as im:
-                pixels = im.size
-            ratio = min(max(72.0/96.0, 3*cm/pixels[0]),
-                        17*cm/pixels[0], 20*cm/pixels[1])
-            image = Image(BytesIO(item.image), width=pixels[0]*ratio,
-                          height=pixels[1]*ratio)
+            photo_w, photo_h = _photo_dimensions(item.image)
+            image = Image(BytesIO(item.image), width=photo_w*cm,
+                          height=photo_h*cm)
             if item.text:
                 story.append(KeepTogether([image, Paragraph(escape(item.text),
                                                            normal)]))
@@ -447,16 +533,17 @@ def _write_pdf(plan: ExportPlan, destination: Path) -> None:
 
 
 def export_project(project: ReportProject, destination: str | Path,
-                   *, format: str) -> Path:
+                   *, format: str, style: ExportStyle | None = None) -> Path:
     """Create DOCX or PDF atomically; caller owns the source project's Save."""
     if format not in {"docx", "pdf"}:
         raise ExportError("Unsupported export format")
-    # Validate and decode all assets before touching an existing output file.
+    # Validate and decode all assets and branding before replacing any output.
     plan = prepare_export(project)
+    style = _validate_style(style)
     destination = Path(destination)
     with _atomic_destination(destination, "." + format) as temporary:
         if format == "docx":
-            _write_docx(plan, temporary)
+            _write_docx(plan, temporary, style)
         else:
-            _write_pdf(plan, temporary)
+            _write_pdf(plan, temporary, style)
     return destination
