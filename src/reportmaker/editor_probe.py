@@ -5,6 +5,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile, ZIP_DEFLATED
 import json
+import faulthandler
+import os
+import threading
 from unittest.mock import patch
 
 from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
@@ -20,6 +23,14 @@ from .ui import MainWindow
 
 
 def run() -> int:
+    # On a blocking Qt dialog/reentrant rich-text event, dump the CI Python
+    # stack and exit. A never-ending GUI probe must not exhaust Windows runners.
+    def report_hang():
+        faulthandler.dump_traceback(all_threads=True)
+        os._exit(62)
+    watchdog = threading.Timer(60, report_hang)
+    watchdog.daemon = True
+    watchdog.start()
     app = QApplication.instance() or QApplication([])
     with TemporaryDirectory(prefix="reportmaker-m3-") as directory:
         root = Path(directory)
@@ -336,4 +347,5 @@ def run() -> int:
             doc.dirty = False
             window.close()
             app.processEvents()
+    watchdog.cancel()
     return 0
