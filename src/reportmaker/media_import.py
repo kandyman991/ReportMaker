@@ -167,3 +167,28 @@ def remove_library_picture(project: ReportProject, asset_id: str) -> None:
         raise PictureImportError("Remove the picture from report modules before deleting it")
     del project.media_library[asset_id]
     project.assets.pop(asset_id, None)
+
+
+def import_pictures(project: ReportProject, paths: list[str | Path], *,
+                    preset: str = "balanced",
+                    output_format: str = "auto") -> list[str]:
+    """All-or-nothing batch import, including the project size validation."""
+    if not isinstance(project, ReportProject) or not isinstance(paths, list):
+        raise PictureImportError("Invalid batch picture import")
+    if not paths:
+        return []
+    if len(paths) > MAX_ENTRIES - 1:
+        raise PictureImportError("Too many pictures selected")
+    assets = dict(project.assets)
+    library = dict(project.media_library)
+    keys = []
+    for path in paths:
+        photo = convert_picture(path, preset=preset, output_format=output_format)
+        key = uuid4().hex
+        assets[key] = photo.data
+        library[key] = Path(path).stem[:200]
+        keys.append(key)
+    _assets_checked(ReportProject(project.report, assets, library))
+    project.assets.update({key: assets[key] for key in keys})
+    project.media_library.update({key: library[key] for key in keys})
+    return keys
