@@ -20,7 +20,7 @@ The report/project canonical hierarchy and language provenance stay authoritativ
 - [x] Synthetic Qt GUI/model tests for selection, edit, rollback, undo, save/reopen, TOC synchronization and DOCX/PDF export; original offscreen preview smoke retained.
 - [ ] Installed Windows mouse/keyboard, high-DPI, real Word/PDF and multi-page visual acceptance (not represented by Qt offscreen tests). See EDITABLE_PAGE_CONTRACT.md.
 - [x] Implementation in staged draft PR #29, code SHA 0d08f351bb5a4c5bc430562a8c8aa9cd4710a9a6; exact Windows M0 #40499581827 and M1 #40499582022 SUCCESS; local 102 tests + offline GUI smoke PASS.
-- [ ] Independent review of PR #29 and approval before integration into PR #25.
+- [x] Independent PR #29 review completed at `b7bbd7cfa99bce593fa25f287ccbf98e8bbc3193`, findings F01/F02 corrected in PR #30 (`1c1dbceef0223c31733cab93c44055cd08a1ef56`) and merged into PR #29 at `98292dbad63ebf22ac060cf1adff75656660407d`; reviewed code integrated into PR #25 at `6281b54352e2e7ff7324a6c88104cf6ca29662f9`. Windows M0 #40502217998 and M1 #40502217764 both SUCCESS at exact integrated PR #25 merge head; 104 synthetic tests.
 
 ## Step 3 — Safe local DOCX/DOTX template import (new staged PR)
 - [ ] Bounded OOXML ZIP and relationships inspection; no external content fetching, macros, embedded scripts or silent template data transmission.
@@ -33,4 +33,4 @@ The report/project canonical hierarchy and language provenance stay authoritativ
 - [ ] Install exact built candidate on Windows and verify font faces/sizes, page editing, save/reopen, database, images/HEIC, DOCX in Word, PDF print, template import, dark/light themes and DPI.
 - [ ] Publish/promote one current release only when critical installed-Windows acceptance passes and user approves.
 
-Steps 2–4 remain pending and are not implied by Step 1 CI.
+Step 2 is integrated at code level into draft PR #25. **Step 2 installed-Windows visual/keyboard/DPI/Word/PDF acceptance**, Step 3 DOCX/DOTX template import, and Step 4 consolidated Windows/release gates remain pending. No main merge or installer approval.
