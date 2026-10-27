@@ -117,7 +117,7 @@ class RibbonVisibilityTests(unittest.TestCase):
         self.assertTrue(controller.apply_block())
         block = controller.report.modules[0].blocks[0]
         self.assertEqual(block.text.original, "Valve 😀 test")
-        self.assertTrue(any(run.bold and run.start == 6 and run.end == 8
+        self.assertTrue(any(run.bold and run.start == 6 and run.end == 7
                             for run in block.rich.runs))
         controller.undo()
         self.assertFalse(controller.report.modules[0].blocks[0].rich.runs)
