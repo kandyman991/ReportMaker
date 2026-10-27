@@ -190,6 +190,48 @@ class TemplateImportTests(unittest.TestCase):
             self.assertIn("Phone: 000 000 000", text)
             self.assertIn("Page 1", text)
 
+    def test_nested_and_cross_paragraph_dynamic_fields_never_import_cached_values(self):
+        with TemporaryDirectory() as folder:
+            source = Path(folder) / "nested-fields.docx"
+            doc = Document()
+            footer = doc.sections[0].footer
+            first = footer.paragraphs[0]
+            first.add_run("Static leading ")
+
+            def marker(paragraph, kind):
+                char = OxmlElement("w:fldChar")
+                char.set(qn("w:fldCharType"), kind)
+                paragraph.add_run()._r.append(char)
+
+            marker(first, "begin")
+            first.add_run("STALE_OUTER_1")
+            middle = footer.add_paragraph()
+            middle.add_run("STALE_OUTER_2")
+            marker(middle, "begin")
+            middle.add_run("STALE_INNER")
+            marker(middle, "end")
+            middle.add_run("STALE_OUTER_3")
+            last = footer.add_paragraph()
+            last.add_run("STALE_OUTER_4")
+            marker(last, "end")
+            last.add_run(" Static trailing")
+            doc.save(source)
+            imported = import_word_template(source)
+            self.assertEqual(imported.template.footer_text,
+                             "Static leading \\n\\n Static trailing".replace("\\n", "\n"))
+            self.assertNotIn("STALE", imported.template.footer_text)
+            self.assertTrue(any("Dynamic" in message for message in imported.warnings))
+
+            # Malformed complex fields fail explicitly rather than dropping
+            # static content or accidentally preserving untrusted caches.
+            for kind, expected in (("begin", "Unclosed"), ("end", "Unmatched")):
+                invalid = Document()
+                marker(invalid.sections[0].footer.paragraphs[0], kind)
+                invalid.save(source)
+                with self.subTest(kind=kind):
+                    with self.assertRaisesRegex(TemplateError, expected):
+                        import_word_template(source)
+
     def test_field_limits_and_control_characters_are_explicit(self):
         with TemporaryDirectory() as folder:
             root = Path(folder)
