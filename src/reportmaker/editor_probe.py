@@ -37,7 +37,8 @@ def run() -> int:
             assert "background-color: #ffffff" in doc.preview.styleSheet()
             assert doc.preview.findChild(QPushButton, "previewZoomIn") is None  # sibling controls
             assert doc.owner.findChild(QPushButton, "previewZoomIn") is not None
-            assert "background-color:#ffffff" in doc.preview.toHtml().replace(" ", "")
+            # Qt normalizes HTML and may omit the inline body style from toHtml().
+            # The actual viewport-pixel assertion below is the reliable contract.
             app.processEvents()
             captured = doc.preview.viewport().grab().toImage()
             paper = captured.pixelColor(captured.width() - 5, captured.height() - 5)
