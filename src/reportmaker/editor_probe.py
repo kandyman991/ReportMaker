@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
 from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QListWidget, QPushButton, QMessageBox
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QFileDialog, QListWidget, QPushButton, QMessageBox
 
 from .engine import module_outline
 from .model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, PhotoBlock, TableBlock
@@ -94,6 +94,9 @@ def run() -> int:
             PILImage.new("RGB", (100, 60), "blue").save(source)
             source_bytes = source.read_bytes()
             def drive_picture_dialog(dialog):
+                if dialog.objectName() == "pictureImportComparisonDialog":
+                    assert dialog.findChild(QComboBox, "pictureComparisonSelector") is not None
+                    return QDialog.DialogCode.Accepted
                 import_button = dialog.findChild(QPushButton, "importProjectPicturesAction")
                 assert import_button is not None
                 import_button.click()
