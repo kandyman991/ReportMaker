@@ -161,6 +161,16 @@ class TemplateImportTests(unittest.TestCase):
             with self.assertRaisesRegex(TemplateError, "DTD"):
                 import_word_template(path)
 
+    def test_benign_zip_directories_and_corruption_handling(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "word.docx"
+            create_sample(path)
+            mutate_package(path, lambda parts: parts + [("additional/", b"")])
+            self.assertEqual(import_word_template(path).template.page_width_cm, 18)
+            path.write_bytes(b"PK" + b"broken" * 10)
+            with self.assertRaises(TemplateError):
+                import_word_template(path)
+
     def test_corrupt_profile_and_geometry_rejected_without_overwriting(self):
         with TemporaryDirectory() as folder:
             root = Path(folder)
