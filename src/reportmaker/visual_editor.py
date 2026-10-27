@@ -1287,6 +1287,15 @@ class VisualReportEditor:
                 QTextDocument.ResourceType.ImageResource,
                 QUrl("rmasset:" + identifier), image)
         self.preview.viewport().update()
+        # Imported geometry is a view/export concern, not a second report model.
+        path = str(self.owner.settings.value("export/page_template", "")).strip()
+        try:
+            self.page.layout_template = load_template(path) if path else None
+            self.page.setToolTip("" if not path else
+                "Active local page template: " + Path(path).name)
+        except (TemplateError, OSError):
+            self.page.layout_template = None
+            self.page.setToolTip("Selected page template is invalid: exports will be blocked")
         # Avoid dropping uncommitted direct page edits when the other pane redraws.
         if not self.page.pending:
             self.page.rebuild(report, self.assets)
@@ -1488,6 +1497,8 @@ class VisualReportEditor:
             return False
         self.owner.settings.setValue("export/page_template", str(target.resolve()))
         self.owner.settings.sync()
+        if not self.page.pending:
+            self.refresh()
         return True
 
     def edit_document_template(self):
@@ -1501,6 +1512,8 @@ class VisualReportEditor:
             if edited is None:
                 return False
             save_template(edited, filename)
+            if not self.page.pending:
+                self.refresh()
         except (TemplateError, OSError, ValueError) as exc:
             self._warn("Cannot edit page template", exc)
             return False
@@ -1510,6 +1523,8 @@ class VisualReportEditor:
         # A cleared selection never deletes the separately saved portable profile.
         self.owner.settings.remove("export/page_template")
         self.owner.settings.sync()
+        if not self.page.pending:
+            self.refresh()
         return True
 
     def _export_style(self):
