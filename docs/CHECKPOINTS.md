@@ -126,3 +126,10 @@ Next reproducible action:
 - Tests: `tests/test_m4_export.py` and offline Qt `--export-self-test`. Hosted Windows M4 export + preexisting M0–M3 core tests, M1 GUI regression and continuity **PASS** at exact implementation commit `438fab02fa6982429227e418957e5ef3ac613342`: [core #40410579198](https://github.com/kandyman991/ReportMaker/actions/runs/40410579198), [M1 #40410579254](https://github.com/kandyman991/ReportMaker/actions/runs/40410579254), [continuity #40410579187](https://github.com/kandyman991/ReportMaker/actions/runs/40410579187). Subsequent checkpoint-only commits can advance branch HEAD; verify the resulting live head and CI before review.
 - Installed native Windows: **NOT done**. Required consolidate M0–M4 checklist and actual desktop Word/PDF validation in `docs/WINDOWS_ACCEPTANCE_M0_M4.md`; no installer or prerelease published.
 - Privacy: synthetic fixtures only, local asset bytes, no browser/AI/report uploads; M0 rolling prerelease stays pinned. Next: exact-head CI and independent review before seeking merge approval. **NO MERGE/RELEASE AUTHORIZATION.**
+
+
+## CP-M4-R1 — independent review corrections for PR #13 (2026-10-27)
+- Reviewed PR #13 head `77f12e217c612e03b75db1b66873fce1f55ee5dc` against `main`, with verified successful hosted Windows workflows #40410962651, #40410962767 and #40410962905. The project source was not merged.
+- Four findings PR13-F01..F04 documented in `docs/PR13_REVIEW.md`: literal PDF Summary title loss, Unicode customer metadata font, unhandled oversized-table PDF LayoutError, and missing per-photo export byte bound.
+- Stacked branch `review/pr13-m4-export-corrections` targets the M4 feature branch, not main. Corrective source/tests and synthetic regressions committed for independent review; check live final head and Windows CI after this documentation update.
+- Native installed-Windows M0–M4 acceptance remains pending; Word field refresh, company-branded header/footer/layout work and installer approval are still open. No merge or prerelease publication authorized.
