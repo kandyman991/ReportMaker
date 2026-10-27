@@ -72,7 +72,9 @@ class EditableDocumentPage(QScrollArea):
 
     @staticmethod
     def _heading(value, layout, size=15):
-        label = QLabel(value)
+        label = QLabel()
+        label.setTextFormat(Qt.TextFormat.PlainText)
+        label.setText(value)
         label.setWordWrap(True)
         label.setStyleSheet("font-weight: 700; font-size: %dpx;" % size)
         layout.addWidget(label)
@@ -112,13 +114,17 @@ class EditableDocumentPage(QScrollArea):
                  if "other" in report.intervention_types else ""),
             ):
                 if value:
-                    data = QLabel(label + ": " + value)
+                    data = QLabel()
+                    data.setTextFormat(Qt.TextFormat.PlainText)
+                    data.setText(label + ": " + value)
                     data.setWordWrap(True)
                     layout.addWidget(data)
             self._heading("Summary · generated from module tree", layout, 15)
             for entry in module_outline(report):
                 line = (entry.number + " " if entry.number else "") + entry.title
-                item = QLabel(line)
+                item = QLabel()
+                item.setTextFormat(Qt.TextFormat.PlainText)
+                item.setText(line)
                 item.setWordWrap(True)
                 item.setContentsMargins(min(entry.depth, 12) * 14, 0, 0, 0)
                 layout.addWidget(item)

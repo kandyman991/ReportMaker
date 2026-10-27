@@ -222,6 +222,61 @@ class EditablePageTests(unittest.TestCase):
             self.assertNotIn("page revision", controller.report.modules[0].blocks[0].text.original)
             owner.close()
 
+    def test_protected_page_labels_are_literal_plain_text(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QLabel
+        from reportmaker.reference import manual_snapshot
+        report = new_report().report
+        report.title.update_original("<b>Untrusted report title</b>")
+        report.modules[0].title.update_original("<i>Untrusted module</i>")
+        report.customer_snapshot = manual_snapshot("<b>Untrusted customer</b>")
+        page = EditableDocumentPage()
+        page.rebuild(report, {})
+        labels = page.findChildren(QLabel)
+        for original in ("<b>Untrusted report title</b>",
+                         "<i>Untrusted module</i>",
+                         "Customer: <b>Untrusted customer</b>"):
+            matches = [label for label in labels if label.text() == original]
+            self.assertTrue(matches, original)
+            self.assertTrue(all(label.textFormat() == Qt.TextFormat.PlainText
+                                for label in matches))
+
+    def test_rejected_deletion_keeps_block_and_page_drafts(self):
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import (
+            QHBoxLayout, QMainWindow, QVBoxLayout, QWidget,
+        )
+        from reportmaker.visual_editor import VisualReportEditor
+        with TemporaryDirectory() as folder:
+            owner = QMainWindow()
+            owner.settings = QSettings(str(Path(folder) / "delete.ini"),
+                                       QSettings.Format.IniFormat)
+            root = QWidget()
+            owner.setCentralWidget(root)
+            row = QHBoxLayout(root)
+            left, center = QVBoxLayout(), QVBoxLayout()
+            row.addLayout(left)
+            row.addLayout(center)
+            controller = VisualReportEditor(owner, left, center)
+            controller.add_paragraph()
+            module = controller.report.modules[0]
+            first_key = (module.id, module.blocks[0].id, "text")
+            selected_id = module.blocks[1].id
+            controller.page.fields[first_key].insertPlainText("unsaved paper draft")
+            controller.text_edit.insertPlainText("unsaved block draft")
+            # Simulate page validation failing during a structural removal.
+            with patch.object(controller, "_flush_page", return_value=False):
+                controller.remove_block()
+            blocks = controller.report.modules[0].blocks
+            self.assertEqual(len(blocks), 2)
+            self.assertEqual(blocks[1].id, selected_id)
+            self.assertTrue(controller._block_pending)
+            self.assertEqual(controller._edit_block_id, selected_id)
+            self.assertIn("unsaved block draft", controller.text_edit.toPlainText())
+            self.assertEqual(blocks[1].text.original, "")
+            self.assertIn(first_key, controller.page.pending)
+            owner.close()
+
     def test_invalid_edit_rolls_back_atomically(self):
         report, ids, assets = make_sample()
         editor = ProjectEditor(report)
