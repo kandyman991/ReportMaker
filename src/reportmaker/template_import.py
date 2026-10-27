@@ -102,7 +102,7 @@ def validate_template(template: DocumentTemplate) -> DocumentTemplate:
                 f"({len(value)} characters); shorten the {label.lower()}")
         # Retain paragraph breaks and inline tabs. Forbid all other C0/DEL
         # controls in portable templates and export output.
-        if any((ord(char) < 32 and char not in "\\n\\t") or ord(char) == 127
+        if any((ord(char) < 32 and char not in "\n\t") or ord(char) == 127
                for char in value):
             raise TemplateError(f"{label} text contains unsupported control characters")
     for label, value in (("Normal", template.normal_font),
@@ -291,11 +291,11 @@ def import_word_template(path: str | Path) -> ImportResult:
                         if node.tag == qn("w:t"):
                             pieces.append(node.text or "")
                         elif node.tag in (qn("w:br"), qn("w:cr")):
-                            pieces.append("\\n")
+                            pieces.append("\n")
                         elif node.tag == qn("w:tab"):
-                            pieces.append("\\t")
+                            pieces.append("\t")
             lines.append("".join(pieces))
-        return "\\n".join(lines)
+        return "\n".join(lines)
     header = plain(sec.header)
     footer = plain(sec.footer)
     for label, text in (("Header", header), ("Footer", footer)):
@@ -307,7 +307,7 @@ def import_word_template(path: str | Path) -> ImportResult:
            for part in (sec.header, sec.footer)):
         warnings.append("Dynamic Word header/footer fields are omitted; "
                         "ReportMaker adds its own live PAGE footer field")
-    if "\\t" in header or "\\t" in footer:
+    if "\t" in header or "\t" in footer:
         warnings.append("Word tab-stop alignment is not reconstructed; tab text is retained")
     logo = b""
     for paragraph in sec.header.paragraphs:
