@@ -35,6 +35,8 @@ from .media_import import (PictureImportError, stage_pictures, commit_staged_pic
                            remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
+from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
+from .rich_text import safe_html
 
 
 def new_report() -> ReportProject:
@@ -238,9 +240,16 @@ class VisualReportEditor:
         top_layout.addWidget(self.blocks, 2)
         self.block_hint = QLabel("Select a content block to edit; use drag and drop to reorder.")
         top_layout.addWidget(self.block_hint)
-        self.text_edit = QPlainTextEdit()
+        self.text_edit = SafeRichTextEdit()
         self.text_edit.setObjectName("blockTextEditor")
+        self.text_edit.setAcceptRichText(False)
         self.text_edit.textChanged.connect(self._set_pending)
+        self.rich_ribbon = RichTextRibbon(self.text_edit)
+        self.rich_ribbon.setObjectName("reportFontParagraphRibbon")
+        for button in self.rich_ribbon.findChildren(QPushButton):
+            if button.objectName() != "richShowMarks":
+                button.clicked.connect(self._set_pending)
+        top_layout.addWidget(self.rich_ribbon)
         top_layout.addWidget(self.text_edit, 1)
         self.photo_caption = QLineEdit()
         self.photo_caption.setPlaceholderText("Photo caption")
@@ -521,6 +530,7 @@ class VisualReportEditor:
             is_photo = isinstance(block, PhotoBlock)
             is_table = isinstance(block, TableBlock)
             self.text_edit.setVisible(is_text)
+            self.rich_ribbon.setVisible(is_text)
             self.photo_caption.setVisible(is_photo)
             self.picture_edit.setVisible(is_photo)
             self.table.setVisible(is_table)
@@ -528,7 +538,12 @@ class VisualReportEditor:
             self.block_hint.setText("Submodules are edited through the module tree." if isinstance(block, NestedModuleBlock)
                                     else "Edit the block below, then Apply." if block else
                                     "Add or select a content block.")
-            self.text_edit.setPlainText(block.text.original if is_text else "")
+            if is_text:
+                apply_rich(self.text_edit, block.text.original, block.rich)
+            else:
+                self.text_edit.blockSignals(True)
+                self.text_edit.clear()
+                self.text_edit.blockSignals(False)
             self.photo_caption.setText(block.caption.original if is_photo and block.caption else "")
             if is_table:
                 self.table.setRowCount(len(block.rows))
@@ -561,7 +576,7 @@ class VisualReportEditor:
             return True
         identifier = self._edit_block_id
         module_id = self._module_id
-        text = self.text_edit.toPlainText()
+        text, rich = capture_rich(self.text_edit)
         caption = self.photo_caption.text()
         cells = [[self.table.item(i, j).text() if self.table.item(i, j) else ""
                   for j in range(self.table.columnCount())]
@@ -571,6 +586,7 @@ class VisualReportEditor:
             block = next(b for b in module.blocks if b.id == identifier)
             if isinstance(block, (ParagraphBlock, HeadingBlock)):
                 block.text.update_original(text)
+                block.rich = deepcopy(rich)
             elif isinstance(block, PhotoBlock):
                 if block.caption is None:
                     block.caption = LocalizedText(report.primary_language, caption)
@@ -1108,10 +1124,9 @@ class VisualReportEditor:
             sections.append("<h%d>%s</h%d>" % (min(level, 6), escape(title), min(level, 6)))
             for block in module.blocks:
                 if isinstance(block, ParagraphBlock):
-                    sections.append("<p>%s</p>" % escape(block.text.original).replace("\n", "<br/>"))
+                    sections.append(safe_html(block.text.original, block.rich))
                 elif isinstance(block, HeadingBlock):
-                    sections.append("<h%d>%s</h%d>" % (min(block.level + 1, 6),
-                                      escape(block.text.original), min(block.level + 1, 6)))
+                    sections.append("<div style=\"font-weight:bold\">" + safe_html(block.text.original, block.rich) + "</div>")
                 elif isinstance(block, TableBlock):
                     sections.append("<table border='1' cellspacing='0' cellpadding='5'>")
                     for row in block.rows:
@@ -1216,7 +1231,7 @@ class VisualReportEditor:
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
             self._warn("Customer required", "Enter a customer name or select one from the database.")
             return False
-        if (self.loaded_version in (LEGACY_VERSION, PREVIOUS_VERSION) and self.loaded_from is not None
+        if (self.loaded_version != VERSION and self.loaded_from is not None
             and Path(path).absolute() == self.loaded_from.absolute()):
             self._warn("Save upgraded project as a copy",
                        "This report uses an older project format. "
