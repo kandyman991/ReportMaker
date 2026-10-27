@@ -24,6 +24,9 @@ MAX_XML = 8 * 1024 * 1024
 MAX_ITEMS = 400
 MAX_TEMPLATE = 3 * 1024 * 1024
 MAX_LOGO = 2 * 1024 * 1024
+# Individual plain-text fields, not a DOCX package/unpacked-XML budget.
+# Ordinary multi-line contact details must never be rejected at 121 characters.
+MAX_HEADER_FOOTER_CHARS = 2048
 FORMAT = "reportmaker.layout-template"
 VERSION = 1
 
@@ -90,11 +93,23 @@ def validate_template(template: DocumentTemplate) -> DocumentTemplate:
         raise TemplateError("Page numbers require at least 1.5 cm bottom margin")
     if (template.header_text or template.logo) and margins[2] < 1.6:
         raise TemplateError("Header requires at least 1.6 cm top margin")
-    for value, limit in ((template.header_text, 120), (template.footer_text, 120),
-                         (template.normal_font, 96), (template.heading_font, 96)):
-        if (not isinstance(value, str) or len(value) > limit or
+    for label, value in (("Header", template.header_text), ("Footer", template.footer_text)):
+        if not isinstance(value, str):
+            raise TemplateError(f"{label} text must be a string")
+        if len(value) > MAX_HEADER_FOOTER_CHARS:
+            raise TemplateError(
+                f"{label} text exceeds the {MAX_HEADER_FOOTER_CHARS}-character limit "
+                f"({len(value)} characters); shorten the {label.lower()}")
+        # Retain paragraph breaks and inline tabs. Forbid all other C0/DEL
+        # controls in portable templates and export output.
+        if any((ord(char) < 32 and char not in "\n\t") or ord(char) == 127
+               for char in value):
+            raise TemplateError(f"{label} text contains unsupported control characters")
+    for label, value in (("Normal", template.normal_font),
+                         ("Heading 1", template.heading_font)):
+        if (not isinstance(value, str) or len(value) > 96 or
             any(ord(char) < 32 or ord(char) == 127 for char in value)):
-            raise TemplateError("Unsupported header/footer/font text")
+            raise TemplateError(f"{label} Word font name is unsupported (maximum 96 characters)")
     for face in (template.normal_font, template.heading_font):
         if face and not re.fullmatch(r"[\w .-]{1,96}", face):
             raise TemplateError("Unsupported Word font name")
@@ -253,11 +268,54 @@ def import_word_template(path: str | Path) -> ImportResult:
     if doc.paragraphs or doc.tables:
         warnings.append("Source body paragraphs/tables are not imported as report content")
     def plain(part):
-        return " ".join(p.text.strip() for p in part.paragraphs if p.text.strip())
+        # Preserve Word paragraph boundaries, blank lines, manual breaks and
+        # tabs. For field-bearing paragraphs, omit cached dynamic field results
+        # (e.g. a stale PAGE value), retaining surrounding static runs.
+        lines = []
+        # Complex fields can span paragraphs and can be nested. A per-run
+        # boolean resets too early (or on an inner END), leaking cached
+        # dynamic results into the new static header/footer text.
+        field_depth = 0
+        for paragraph in part.paragraphs:
+            if field_depth == 0 and not (paragraph._p.xpath(".//w:fldChar") or
+                                         paragraph._p.xpath(".//w:fldSimple")):
+                lines.append(paragraph.text)
+                continue
+            pieces = []
+            for run in paragraph.runs:
+                for node in run._r:
+                    if node.tag == qn("w:fldChar"):
+                        kind = node.get(qn("w:fldCharType"))
+                        if kind == "begin":
+                            field_depth += 1
+                        elif kind == "end":
+                            if field_depth == 0:
+                                raise TemplateError("Unmatched dynamic Word field end")
+                            field_depth -= 1
+                    elif field_depth == 0:
+                        if node.tag == qn("w:t"):
+                            pieces.append(node.text or "")
+                        elif node.tag in (qn("w:br"), qn("w:cr")):
+                            pieces.append("\n")
+                        elif node.tag == qn("w:tab"):
+                            pieces.append("\t")
+            lines.append("".join(pieces))
+        if field_depth:
+            raise TemplateError("Unclosed dynamic Word header/footer field")
+        return "\n".join(lines)
     header = plain(sec.header)
     footer = plain(sec.footer)
-    if len(header) > 120 or len(footer) > 120:
-        raise TemplateError("Header/footer text exceeds supported length")
+    for label, text in (("Header", header), ("Footer", footer)):
+        if len(text) > MAX_HEADER_FOOTER_CHARS:
+            raise TemplateError(
+                f"{label} text exceeds the {MAX_HEADER_FOOTER_CHARS}-character limit "
+                f"({len(text)} characters); shorten the {label.lower()}")
+    if any(part._element.xpath(".//w:fldChar") or part._element.xpath(".//w:fldSimple")
+           for part in (sec.header, sec.footer)):
+        warnings.append("Dynamic Word header/footer fields are omitted; "
+                        "ReportMaker adds its own live PAGE footer field")
+    if "\t" in header or "\t" in footer:
+        warnings.append("Word tab-stop alignment is not reconstructed; tab text is retained")
     logo = b""
     for paragraph in sec.header.paragraphs:
         for run in paragraph.runs:
@@ -306,8 +364,6 @@ def import_word_template(path: str | Path) -> ImportResult:
         logo=logo,
     )
     template = validate_template(template)
-    if "Page" in footer:
-        warnings.append("Word dynamic page-number fields are replaced with ReportMaker PAGE fields")
     if normal.font.name:
         warnings.append("PDF embeds a supported local font where available; imported Word font may be substituted")
     return ImportResult(template, tuple(dict.fromkeys(warnings)))

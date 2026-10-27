@@ -86,7 +86,7 @@ class M4BrandingTests(unittest.TestCase):
                 target = Path(directory) / ("existing." + kind)
                 target.write_bytes(b"previous approved export")
                 for style in (
-                    ExportStyle(company_name="bad\ncompany"),
+                    ExportStyle(company_name="bad\x00company"),
                     ExportStyle(logo=b"not an image"),
                     ExportStyle(logo=b"x" * (2*1024*1024 + 1)),
                 ):
@@ -95,6 +95,24 @@ class M4BrandingTests(unittest.TestCase):
                             export_project(project, target, format=kind, style=style)
                         self.assertEqual(target.read_bytes(), b"previous approved export")
                 self.assertFalse(list(Path(directory).glob(".reportmaker-export-*")))
+            crowded = Path(directory) / "crowded.pdf"
+            crowded.write_bytes(b"previous approved export")
+            with self.assertRaisesRegex(ExportError, "Footer text does not fit"):
+                export_project(
+                    project, crowded, format="pdf",
+                    style=ExportStyle(footer_note="Synthetic long footer " * 75))
+            self.assertEqual(crowded.read_bytes(), b"previous approved export")
+            # A logo must not extend into the PDF body even when the nominal
+            # margin passes template validation (short top-margin headroom).
+            obstructed = Path(directory) / "logo-overlap.pdf"
+            obstructed.write_bytes(b"previous approved export")
+            with self.assertRaisesRegex(ExportError, "Header logo does not fit"):
+                export_project(
+                    project, obstructed, format="pdf",
+                    style=ExportStyle(logo=synthetic_logo(),
+                                      top_margin_cm=1.6, header_distance_cm=1.25))
+            self.assertEqual(obstructed.read_bytes(), b"previous approved export")
+            self.assertFalse(list(Path(directory).glob(".reportmaker-export-*")))
 
 
 if __name__ == "__main__":
