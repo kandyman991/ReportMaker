@@ -269,6 +269,30 @@ def _photo_ids(report):
     return ids
 
 
+def _image_signature(blob: bytes) -> dict:
+    """Derive and validate portable media format/dimensions from actual bytes.
+
+    Only explicit v2 media-library assets require recognized decodable images.
+    Existing legacy PhotoBlocks may contain older image formats or test fixtures.
+    """
+    from io import BytesIO
+    from PIL import Image, UnidentifiedImageError
+    if not isinstance(blob, bytes) or not blob or len(blob) > MAX_ASSET:
+        raise ValueError("Invalid project media bytes")
+    try:
+        with Image.open(BytesIO(blob)) as image:
+            fmt = image.format
+            width, height = image.size
+            if (fmt not in {"JPEG", "PNG", "WEBP"}
+                or type(width) is not int or type(height) is not int
+                or width <= 0 or height <= 0 or width * height > 60_000_000):
+                raise ValueError("Unsupported project media image format or dimensions")
+            image.verify()
+    except (OSError, SyntaxError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
+        raise ValueError("Damaged or unsupported project media image") from exc
+    return {"format": fmt, "width": width, "height": height}
+
+
 def _assets_checked(project):
     if not isinstance(project, ReportProject) or not isinstance(project.assets, dict):
         raise ValueError("Expected a report project")
@@ -283,7 +307,10 @@ def _assets_checked(project):
             or not isinstance(name, str) or not name.strip() or len(name) > 200
             or any(ord(char) < 32 or ord(char) == 127 for char in name)):
             raise ValueError("Invalid media-library entry")
-        library.append({"id": identifier, "name": name})
+        # Media metadata is derived from image bytes, never hand-maintained.
+        # Check it again on load against the manifest to detect mismatches.
+        signature = _image_signature(project.assets.get(identifier))
+        library.append({"id": identifier, "name": name, **signature})
     referenced = _photo_ids(project.report) | set(project.media_library)
     for identifier in project.assets:
         if not isinstance(identifier, str) or ASSET_ID.fullmatch(identifier) is None:
@@ -387,15 +414,24 @@ def load_project(source: str | Path) -> ReportProject:
                 if not isinstance(entries, list) or len(entries) > MAX_ENTRIES - 1:
                     raise ValueError("Invalid media library")
                 library = {}
+                library_signatures = {}
                 for entry in entries:
-                    entry = _shape(entry, ("id", "name"))
+                    entry = _shape(entry, ("id", "name", "format", "width", "height"))
                     identifier, name = entry["id"], entry["name"]
                     if (not isinstance(identifier, str) or ASSET_ID.fullmatch(identifier) is None
                         or not isinstance(name, str) or not name.strip() or len(name) > 200
                         or any(ord(char) < 32 or ord(char) == 127 for char in name)
                         or identifier in library):
                         raise ValueError("Invalid or duplicated media-library member")
+                    signature = {key: entry[key] for key in ("format", "width", "height")}
+                    if (signature["format"] not in ("JPEG", "PNG", "WEBP")
+                        or type(signature["width"]) is not int
+                        or type(signature["height"]) is not int
+                        or signature["width"] <= 0 or signature["height"] <= 0
+                        or signature["width"] * signature["height"] > 60_000_000):
+                        raise ValueError("Invalid declared project media metadata")
                     library[identifier] = name
+                    library_signatures[identifier] = signature
             if not isinstance(manifest["assets"], list):
                 raise ValueError("Project asset records must be an array")
             expected = {"manifest.json"}
@@ -430,6 +466,10 @@ def load_project(source: str | Path) -> ReportProject:
                 raise ValueError("Declared picture is missing from archive")
             if manifest["version"] == VERSION and set(assets) != keep:
                 raise ValueError("Undeclared project image asset")
+            if manifest["version"] == VERSION:
+                for identifier, signature in library_signatures.items():
+                    if _image_signature(assets[identifier]) != signature:
+                        raise ValueError("Project media metadata disagrees with image bytes")
             project = ReportProject(report, {
                 identifier: assets[identifier] for identifier in keep
             }, library, manifest["version"], source.absolute())
