@@ -14,6 +14,7 @@ from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextBlockFormat, QTex
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QFontComboBox,
     QPushButton, QToolButton, QColorDialog, QLabel, QInputDialog, QTextEdit,
+    QScrollArea,
 )
 
 from .rich_text import TextRun, ParagraphStyle, RichFormatting, validate_rich
@@ -190,12 +191,24 @@ class RichTextRibbon(QWidget):
         super().__init__(parent)
         self.editor = editor
         self.setObjectName("richTextRibbon")
-        vertical = QVBoxLayout(self)
+        container = QVBoxLayout(self)
+        container.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setObjectName("richRibbonScroller")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidgetResizable(False)
+        scroll.setMaximumHeight(102)
+        inner = QWidget()
+        vertical = QVBoxLayout(inner)
         vertical.setSpacing(3)
         vertical.setContentsMargins(2, 2, 2, 2)
         first, second = QHBoxLayout(), QHBoxLayout()
         vertical.addLayout(first)
         vertical.addLayout(second)
+        scroll.setWidget(inner)
+        container.addWidget(scroll)
+        self.setMinimumWidth(0)
         self.family = QFontComboBox()
         self.family.setObjectName("richFontFamily")
         self.family.setCurrentFont(QFont(DEFAULT_FONT))
@@ -240,6 +253,7 @@ class RichTextRibbon(QWidget):
         self.button(second, "Shade", self.shade, "richShading")
         self.button(second, "Border", self.border, "richBorder")
         second.addStretch(1)
+        inner.adjustSize()
         self.editor.currentCharFormatChanged.connect(self.sync)
 
     def button(self, layout, label, callback, ident):
