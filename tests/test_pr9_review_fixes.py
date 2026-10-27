@@ -101,6 +101,8 @@ class ReviewedM2SafetyTests(TestCase):
         # version number changed: historical photo blocks had no visual key.
         def strip_visuals(module):
             for block in module["blocks"]:
+                if block["kind"] in ("paragraph", "heading"):
+                    block.pop("rich", None)
                 if block["kind"] == "photo":
                     block.pop("visual", None)
                 elif block["kind"] == "module":

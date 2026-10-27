@@ -35,6 +35,13 @@ from .media_import import (PictureImportError, stage_pictures, commit_staged_pic
                            remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
+from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
+from .rich_text import safe_html
+from .page_editor import EditableDocumentPage
+from .template_import import (
+    DocumentTemplate, TemplateError, import_word_template, load_template, save_template,
+)
+from .template_dialog import edit_template_layout
 
 
 def new_report() -> ReportProject:
@@ -238,9 +245,16 @@ class VisualReportEditor:
         top_layout.addWidget(self.blocks, 2)
         self.block_hint = QLabel("Select a content block to edit; use drag and drop to reorder.")
         top_layout.addWidget(self.block_hint)
-        self.text_edit = QPlainTextEdit()
+        self.text_edit = SafeRichTextEdit()
         self.text_edit.setObjectName("blockTextEditor")
+        self.text_edit.setAcceptRichText(False)
         self.text_edit.textChanged.connect(self._set_pending)
+        self.rich_ribbon = RichTextRibbon(self.text_edit)
+        self.rich_ribbon.setObjectName("reportFontParagraphRibbon")
+        for button in self.rich_ribbon.findChildren(QPushButton):
+            if button.objectName() != "richShowMarks":
+                button.clicked.connect(self._set_pending)
+        top_layout.addWidget(self.rich_ribbon)
         top_layout.addWidget(self.text_edit, 1)
         self.photo_caption = QLineEdit()
         self.photo_caption.setPlaceholderText("Photo caption")
@@ -271,7 +285,7 @@ class VisualReportEditor:
         preview_box = QWidget()
         preview_layout = QVBoxLayout(preview_box)
         preview_header = QHBoxLayout()
-        preview_header.addWidget(QLabel("DOCUMENT PREVIEW — readable local layout, not final Word/PDF pagination"))
+        preview_header.addWidget(QLabel("EDITABLE DOCUMENT PAGE — source blocks on paper; printed pagination may differ"))
         preview_header.addStretch(1)
         zoom_out = QPushButton("A−")
         zoom_out.setObjectName("previewZoomOut")
@@ -280,6 +294,24 @@ class VisualReportEditor:
         preview_header.addWidget(zoom_out)
         preview_header.addWidget(zoom_in)
         preview_layout.addLayout(preview_header)
+        self.page_tabs = QTabWidget()
+        self.page_tabs.setObjectName("documentPageTabs")
+        self.page = EditableDocumentPage()
+        self.page.on_style_request = self._select_page_block
+        page_container = QWidget()
+        page_layout = QVBoxLayout(page_container)
+        page_controls = QHBoxLayout()
+        page_controls.addWidget(QLabel(
+            "Edit text, headings, table cells and photo captions on the page. "
+            "Module titles and Summary are protected."))
+        page_controls.addStretch()
+        apply_page = QPushButton("Apply page edits")
+        apply_page.setObjectName("applyPageEdits")
+        apply_page.clicked.connect(self.commit_page)
+        page_controls.addWidget(apply_page)
+        page_layout.addLayout(page_controls)
+        page_layout.addWidget(self.page, 1)
+        self.page_tabs.addTab(page_container, "Editable page")
         self.preview = QTextBrowser()
         self.preview.setObjectName("documentPreview")
         self.preview.setOpenExternalLinks(False)
@@ -293,7 +325,9 @@ class VisualReportEditor:
         self.preview.setMinimumHeight(175)
         zoom_out.clicked.connect(lambda: self.preview.zoomOut(1))
         zoom_in.clicked.connect(lambda: self.preview.zoomIn(1))
-        preview_layout.addWidget(self.preview)
+        self.page_tabs.addTab(self.preview, "Print preview (read-only)")
+        self.page_tabs.currentChanged.connect(self._page_tab_changed)
+        preview_layout.addWidget(self.page_tabs, 1)
         vertical.addWidget(preview_box)
         vertical.setSizes([420, 420])
         self.tabs.addTab(body, "Content & Preview")
@@ -378,6 +412,16 @@ class VisualReportEditor:
         branding_action.triggered.connect(self.configure_export_branding)
         toolbar.addAction(branding_action)
         self.owner.addAction(branding_action)
+        for label, object_name, handler in (
+            ("Import Word page template", "importWordTemplateAction", self.import_document_template),
+            ("Edit active page template", "editWordTemplateAction", self.edit_document_template),
+            ("Clear page template", "clearWordTemplateAction", self.clear_document_template),
+        ):
+            action = QAction(label, self.owner)
+            action.setObjectName(object_name)
+            action.triggered.connect(handler)
+            toolbar.addAction(action)
+            self.owner.addAction(action)
         for fmt in ("docx", "pdf"):
             action = QAction("Export " + fmt.upper(), self.owner)
             action.setObjectName("export" + fmt.upper() + "Action")
@@ -389,7 +433,7 @@ class VisualReportEditor:
         QMessageBox.warning(self.owner, title, str(error))
 
     def _change(self, operation):
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         try:
             operation()
@@ -521,6 +565,7 @@ class VisualReportEditor:
             is_photo = isinstance(block, PhotoBlock)
             is_table = isinstance(block, TableBlock)
             self.text_edit.setVisible(is_text)
+            self.rich_ribbon.setVisible(is_text)
             self.photo_caption.setVisible(is_photo)
             self.picture_edit.setVisible(is_photo)
             self.table.setVisible(is_table)
@@ -528,7 +573,12 @@ class VisualReportEditor:
             self.block_hint.setText("Submodules are edited through the module tree." if isinstance(block, NestedModuleBlock)
                                     else "Edit the block below, then Apply." if block else
                                     "Add or select a content block.")
-            self.text_edit.setPlainText(block.text.original if is_text else "")
+            if is_text:
+                apply_rich(self.text_edit, block.text.original, block.rich)
+            else:
+                self.text_edit.blockSignals(True)
+                self.text_edit.clear()
+                self.text_edit.blockSignals(False)
             self.photo_caption.setText(block.caption.original if is_photo and block.caption else "")
             if is_table:
                 self.table.setRowCount(len(block.rows))
@@ -556,12 +606,93 @@ class VisualReportEditor:
     def _flush_block(self):
         return not self._block_pending or self.apply_block()
 
+    def _page_conflict_key(self):
+        if not self._block_pending or not self._edit_block_id:
+            return None
+        module = self._selected_module()
+        if module is None:
+            return None
+        block = next((b for b in module.blocks if b.id == self._edit_block_id), None)
+        kind = ("text" if isinstance(block, (ParagraphBlock, HeadingBlock)) else
+                "caption" if isinstance(block, PhotoBlock) else
+                "table" if isinstance(block, TableBlock) else None)
+        key = (self._module_id, self._edit_block_id, kind)
+        return key if kind and key in self.page.pending else None
+
+    def _flush_page(self):
+        if not self.page.pending:
+            return True
+        try:
+            self.page.commit(self.editor)
+        except (ValueError, LookupError, TypeError, RuntimeError) as exc:
+            self._warn("Invalid page edit", exc)
+            return False
+        self.dirty = True
+        return True
+
+    def commit_page(self):
+        if self._page_conflict_key():
+            choice = QMessageBox.question(
+                self.owner, "Conflicting text drafts",
+                "The block editor also has unapplied changes to this field. "
+                "Keep the page edits and discard that uncommitted block-editor draft?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel)
+            if choice != QMessageBox.StandardButton.Yes:
+                return False
+            # Validate and commit the chosen page source *before* throwing away
+            # the other draft; invalid page input must not lose block-editor work.
+            if not self._flush_page():
+                return False
+            self._block_pending = False
+            if not self._flush_info():
+                return False
+            self.refresh()
+            return True
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            return False
+        self.refresh()
+        return True
+
+    def _page_tab_changed(self, index):
+        if index != 1 or self._loading:
+            return
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            self.page_tabs.setCurrentIndex(0)
+            return
+        self.refresh()  # print preview, ribbon and paper now share one model
+
+    def _select_page_block(self, module_id, block_id):
+        # Style controls live in the existing rich ribbon; locate by stable IDs.
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
+            return False
+        self._module_id = module_id
+        self._edit_block_id = block_id
+        self.refresh()
+        self.text_edit.setFocus()
+        return True
+
     def apply_block(self):
         if not self._block_pending or not self._edit_block_id:
             return True
+        overlap = self._page_conflict_key()
+        if overlap:
+            choice = QMessageBox.question(
+                self.owner, "Conflicting text drafts",
+                "The editable page also has unapplied changes to this field. "
+                "Keep the block-editor edits and discard that page draft?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel)
+            if choice != QMessageBox.StandardButton.Yes:
+                return False
+            self.page.pending.discard(overlap)
+        if not self._flush_page():
+            if overlap:
+                self.page.pending.add(overlap)  # validation failed: retain page draft
+            return False
         identifier = self._edit_block_id
         module_id = self._module_id
-        text = self.text_edit.toPlainText()
+        text, rich = capture_rich(self.text_edit)
         caption = self.photo_caption.text()
         cells = [[self.table.item(i, j).text() if self.table.item(i, j) else ""
                   for j in range(self.table.columnCount())]
@@ -571,6 +702,7 @@ class VisualReportEditor:
             block = next(b for b in module.blocks if b.id == identifier)
             if isinstance(block, (ParagraphBlock, HeadingBlock)):
                 block.text.update_original(text)
+                block.rich = deepcopy(rich)
             elif isinstance(block, PhotoBlock):
                 if block.caption is None:
                     block.caption = LocalizedText(report.primary_language, caption)
@@ -591,6 +723,8 @@ class VisualReportEditor:
         try:
             self.editor.apply(update)
         except (ValueError, LookupError, StopIteration) as exc:
+            if overlap:
+                self.page.pending.add(overlap)
             self._warn("Invalid block", exc)
             return False
         self._block_pending = False
@@ -858,9 +992,11 @@ class VisualReportEditor:
             if isinstance(block, NestedModuleBlock):
                 self._warn("Use module tree", "Delete a submodule from the module tree.")
                 return
-            self._edit_block_id = None
-            self._block_pending = False
-            self._change(lambda: self.editor.remove_block(self._module_id, block.id))
+            # Flush/validate drafts before deleting. A rejected operation must
+            # never clear the selected block's unapplied text or rich formatting.
+            if self._change(lambda: self.editor.remove_block(self._module_id, block.id)):
+                self._edit_block_id = None
+                self.refresh()
 
     def move_block_dialog(self):
         item = self.blocks.currentItem()
@@ -1108,10 +1244,9 @@ class VisualReportEditor:
             sections.append("<h%d>%s</h%d>" % (min(level, 6), escape(title), min(level, 6)))
             for block in module.blocks:
                 if isinstance(block, ParagraphBlock):
-                    sections.append("<p>%s</p>" % escape(block.text.original).replace("\n", "<br/>"))
+                    sections.append(safe_html(block.text.original, block.rich))
                 elif isinstance(block, HeadingBlock):
-                    sections.append("<h%d>%s</h%d>" % (min(block.level + 1, 6),
-                                      escape(block.text.original), min(block.level + 1, 6)))
+                    sections.append("<div style=\"font-weight:bold\">" + safe_html(block.text.original, block.rich) + "</div>")
                 elif isinstance(block, TableBlock):
                     sections.append("<table border='1' cellspacing='0' cellpadding='5'>")
                     for row in block.rows:
@@ -1152,11 +1287,23 @@ class VisualReportEditor:
                 QTextDocument.ResourceType.ImageResource,
                 QUrl("rmasset:" + identifier), image)
         self.preview.viewport().update()
+        # Imported geometry is a view/export concern, not a second report model.
+        path = str(self.owner.settings.value("export/page_template", "")).strip()
+        try:
+            self.page.layout_template = load_template(path) if path else None
+            self.page.setToolTip("" if not path else
+                "Active local page template: " + Path(path).name)
+        except (TemplateError, OSError):
+            self.page.layout_template = None
+            self.page.setToolTip("Selected page template is invalid: exports will be blocked")
+        # Avoid dropping uncommitted direct page edits when the other pane redraws.
+        if not self.page.pending:
+            self.page.rebuild(report, self.assets)
 
     def _confirm_discard(self):
         # Discard must remain available even if the pending form is invalid.
         # Only the Save branch validates/commits draft edits.
-        if not (self.dirty or self._block_pending or self._info_pending):
+        if not (self.dirty or self._block_pending or self._info_pending or self.page.pending):
             return True
         choice = QMessageBox.question(
             self.owner, "Unsaved project",
@@ -1185,6 +1332,7 @@ class VisualReportEditor:
         self._edit_block_id = None
         self._block_pending = False
         self._info_pending = False
+        self.page.pending.clear()  # deliberate Open/New discards the previous draft
         self.refresh()
 
     def open_from_path(self, path):
@@ -1210,13 +1358,13 @@ class VisualReportEditor:
             self.open_from_path(path)
 
     def save_to_path(self, path):
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         if (self.report.customer_id is None and
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
             self._warn("Customer required", "Enter a customer name or select one from the database.")
             return False
-        if (self.loaded_version in (LEGACY_VERSION, PREVIOUS_VERSION) and self.loaded_from is not None
+        if (self.loaded_version != VERSION and self.loaded_from is not None
             and Path(path).absolute() == self.loaded_from.absolute()):
             self._warn("Save upgraded project as a copy",
                        "This report uses an older project format. "
@@ -1315,8 +1463,84 @@ class VisualReportEditor:
         settings.sync()
         return True
 
+    def import_document_template(self):
+        # Always local: never send the DOCX/DOTX or any of its parts to a web view.
+        filename, _ = QFileDialog.getOpenFileName(
+            self.owner, "Import local Word page format", "",
+            "Word documents and templates (*.docx *.dotx)")
+        if not filename:
+            return False
+        try:
+            result = import_word_template(filename)
+        except (TemplateError, OSError, RuntimeError) as exc:
+            self._warn("Cannot import Word template", exc)
+            return False
+        edited = edit_template_layout(self.owner, result.template, warnings=result.warnings)
+        if edited is None:
+            return False
+        destination, _ = QFileDialog.getSaveFileName(
+            self.owner, "Save portable page template", str(Path.home() / "ReportLayout.rmtemplate"),
+            "ReportMaker templates (*.rmtemplate)")
+        if not destination:
+            return False
+        target = Path(destination)
+        if target.suffix.lower() != ".rmtemplate":
+            target = target.with_suffix(".rmtemplate")
+        if target.exists() and QMessageBox.question(
+            self.owner, "Replace page template", "Replace the selected .rmtemplate?"
+        ) != QMessageBox.StandardButton.Yes:
+            return False
+        try:
+            save_template(edited, target)
+        except (TemplateError, OSError, ValueError) as exc:
+            self._warn("Cannot save page template", exc)
+            return False
+        self.owner.settings.setValue("export/page_template", str(target.resolve()))
+        self.owner.settings.sync()
+        if not self.page.pending:
+            self.refresh()
+        return True
+
+    def edit_document_template(self):
+        filename = str(self.owner.settings.value("export/page_template", "")).strip()
+        if not filename:
+            self._warn("No active page template", "Import a local Word page format first.")
+            return False
+        try:
+            current = load_template(filename)
+            edited = edit_template_layout(self.owner, current)
+            if edited is None:
+                return False
+            save_template(edited, filename)
+            if not self.page.pending:
+                self.refresh()
+        except (TemplateError, OSError, ValueError) as exc:
+            self._warn("Cannot edit page template", exc)
+            return False
+        return True
+
+    def clear_document_template(self):
+        # A cleared selection never deletes the separately saved portable profile.
+        self.owner.settings.remove("export/page_template")
+        self.owner.settings.sync()
+        if not self.page.pending:
+            self.refresh()
+        return True
+
     def _export_style(self):
         settings = self.owner.settings
+        template_path = str(settings.value("export/page_template", "")).strip()
+        if template_path:
+            template = load_template(template_path)  # fail closed if missing/tampered
+            return ExportStyle(
+                template.header_text, template.footer_text, template.logo,
+                template.page_width_cm, template.page_height_cm,
+                template.left_margin_cm, template.right_margin_cm,
+                template.top_margin_cm, template.bottom_margin_cm,
+                template.header_distance_cm, template.footer_distance_cm,
+                template.normal_font, template.normal_size_pt,
+                template.heading_font, template.heading_size_pt)
+
         logo_path = str(settings.value("export/logo_path", "")).strip()
         raw = b""
         if logo_path:
@@ -1330,7 +1554,7 @@ class VisualReportEditor:
 
     def export_to_path(self, path, format):
         """Export the current validated draft without saving/changing .rmproj."""
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return False
         if (self.report.customer_id is None and
                 self.report.customer_snapshot.customer_name == "Customer (edit me)"):
@@ -1342,6 +1566,7 @@ class VisualReportEditor:
         except (ExportError, ValueError, OSError, RuntimeError) as exc:
             self._warn("Cannot export report", exc)
             return False
+        self.refresh()
         return True
 
     def export_as(self, format):
@@ -1371,14 +1596,14 @@ class VisualReportEditor:
 
     def undo(self):
         # Preserve pending Report Information before any history navigation.
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return
         if self.editor.undo():
             self.dirty = True
             self.refresh()
 
     def redo(self):
-        if not self._flush_block() or not self._flush_info():
+        if not self._flush_block() or not self._flush_info() or not self._flush_page():
             return
         if self.editor.redo():
             self.dirty = True

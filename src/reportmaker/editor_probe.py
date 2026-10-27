@@ -5,6 +5,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile, ZIP_DEFLATED
 import json
+import faulthandler
+import os
+import threading
 from unittest.mock import patch
 
 from PySide6.QtCore import QBuffer, QIODevice, QSettings, QUrl
@@ -20,6 +23,14 @@ from .ui import MainWindow
 
 
 def run() -> int:
+    # On a blocking Qt dialog/reentrant rich-text event, dump the CI Python
+    # stack and exit. A never-ending GUI probe must not exhaust Windows runners.
+    def report_hang():
+        faulthandler.dump_traceback(all_threads=True)
+        os._exit(62)
+    watchdog = threading.Timer(60, report_hang)
+    watchdog.daemon = True
+    watchdog.start()
     app = QApplication.instance() or QApplication([])
     with TemporaryDirectory(prefix="reportmaker-m3-") as directory:
         root = Path(directory)
@@ -31,6 +42,13 @@ def run() -> int:
         window.show()
         app.processEvents()
         doc = window.document
+        # Catch accidental blocking alert dialogs in CI instead of hanging indefinitely.
+        unforeseen_warning = patch.object(QMessageBox, "warning",
+                                         side_effect=AssertionError("Unexpected Qt warning during rich-editor smoke"))
+        unforeseen_warning.start()
+        unforeseen_question = patch.object(QMessageBox, "question",
+                                         side_effect=AssertionError("Unexpected Qt question during rich-editor smoke"))
+        unforeseen_question.start()
         try:
             # RC1 installed-Windows finding: native dark theme used near-black
             # report text over a near-black QTextBrowser background.
@@ -40,9 +58,23 @@ def run() -> int:
             # Qt normalizes HTML and may omit the inline body style from toHtml().
             # The actual viewport-pixel assertion below is the reliable contract.
             app.processEvents()
+            assert doc.page_tabs.tabText(0) == "Editable page"
+            doc.page_tabs.setCurrentIndex(1)  # original read-only pixel contrast check
+            app.processEvents()
             captured = doc.preview.viewport().grab().toImage()
             paper = captured.pixelColor(captured.width() - 5, captured.height() - 5)
             assert min(paper.red(), paper.green(), paper.blue()) >= 230, paper.name()
+            doc.page_tabs.setCurrentIndex(0)
+            first_module = doc.report.modules[0]
+            page_key = (first_module.id, first_module.blocks[0].id, "text")
+            direct_edit = doc.page.fields[page_key]
+            direct_edit.insertPlainText("Edited directly on the page")
+            assert doc.page.pending
+            doc.owner.findChild(QPushButton, "applyPageEdits").click()
+            assert doc.report.modules[0].blocks[0].text.original == "Edited directly on the page"
+            assert "Edited directly on the page" in doc.preview.toPlainText()
+            doc.undo()
+            assert doc.report.modules[0].blocks[0].text.original == ""
             report = doc.report
             parent_id = report.modules[0].id
             nested = Module(LocalizedText("en", "Nested synthetic inspection"), [
@@ -304,6 +336,8 @@ def run() -> int:
             # visual-layer keys rather than only changing the version tag.
             def strip_visuals(module):
                 for entry in module["blocks"]:
+                    if entry["kind"] in ("paragraph", "heading"):
+                        entry.pop("rich", None)
                     if entry["kind"] == "photo":
                         entry.pop("visual", None)
                     elif entry["kind"] == "module":
@@ -324,9 +358,17 @@ def run() -> int:
             upgraded = root / "independent-upgraded-copy.rmproj"
             assert doc.save_to_path(upgraded)
             assert legacy.read_bytes() == original_v1
-            assert load_project(upgraded).loaded_version == 3
+            assert load_project(upgraded).loaded_version == 4
         finally:
+            unforeseen_question.stop()
+            unforeseen_warning.stop()
+            # The rich-text selection may leave an unapplied synthetic draft.
+            # Offline smoke cleanup intentionally discards it without showing
+            # an interactive confirmation box on an unattended Windows runner.
             doc.dirty = False
+            doc._block_pending = False
+            doc._info_pending = False
             window.close()
             app.processEvents()
+    watchdog.cancel()
     return 0

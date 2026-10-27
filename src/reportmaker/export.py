@@ -20,6 +20,7 @@ from .model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock, ParagraphBlock,
     PhotoBlock, PhotoVisual, TableBlock,
 )
+from .rich_text import RichFormatting, ParagraphStyle, style_at, validate_rich
 from .project_io import MAX_ASSET, ReportProject
 
 
@@ -45,6 +46,18 @@ class ExportStyle:
     company_name: str = ""
     footer_note: str = ""
     logo: bytes = b""
+    page_width_cm: float = 21.0
+    page_height_cm: float = 29.7
+    left_margin_cm: float = 2.1
+    right_margin_cm: float = 2.1
+    top_margin_cm: float = 3.0
+    bottom_margin_cm: float = 2.5
+    header_distance_cm: float = 0.9
+    footer_distance_cm: float = 0.9
+    normal_font: str = ""
+    normal_size_pt: float = 11.0
+    heading_font: str = ""
+    heading_size_pt: float = 16.0
 
 
 def _validate_style(style: ExportStyle | None) -> ExportStyle:
@@ -52,24 +65,48 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
         return ExportStyle()
     if not isinstance(style, ExportStyle):
         raise ExportError("Invalid export branding configuration")
-    for value, label, limit in ((style.company_name, "Company name", 80),
+    for value, label, limit in ((style.company_name, "Company name", 120),
                                 (style.footer_note, "Footer note", 120)):
         if (not isinstance(value, str) or len(value) > limit or
             any(ord(c) < 32 or ord(c) == 127 for c in value)):
             raise ExportError(label + " contains unsupported characters or is too long")
     if not isinstance(style.logo, bytes) or len(style.logo) > MAX_BRAND_LOGO_BYTES:
         raise ExportError("Company logo exceeds the 2 MiB export limit")
+    from .template_import import DocumentTemplate, TemplateError, validate_template
+    try:
+        validate_template(DocumentTemplate(
+            page_width_cm=style.page_width_cm, page_height_cm=style.page_height_cm,
+            left_margin_cm=style.left_margin_cm, right_margin_cm=style.right_margin_cm,
+            top_margin_cm=style.top_margin_cm, bottom_margin_cm=style.bottom_margin_cm,
+            header_distance_cm=style.header_distance_cm, footer_distance_cm=style.footer_distance_cm,
+            header_text=style.company_name, footer_text=style.footer_note,
+            normal_font=style.normal_font, normal_size_pt=style.normal_size_pt,
+            heading_font=style.heading_font, heading_size_pt=style.heading_size_pt,
+            logo=style.logo))
+    except TemplateError as exc:
+        raise ExportError(str(exc)) from exc
+    if (style.company_name or style.logo) and style.top_margin_cm < 1.6:
+        raise ExportError("Header requires at least 1.6 cm top margin")
+    if style.bottom_margin_cm < 1.5:
+        raise ExportError("Footer/page number requires at least 1.5 cm bottom margin")
     logo = _image_bytes(style.logo) if style.logo else b""
-    return ExportStyle(style.company_name, style.footer_note, logo)
+    return ExportStyle(style.company_name, style.footer_note, logo,
+                       style.page_width_cm, style.page_height_cm,
+                       style.left_margin_cm, style.right_margin_cm,
+                       style.top_margin_cm, style.bottom_margin_cm,
+                       style.header_distance_cm, style.footer_distance_cm,
+                       style.normal_font, style.normal_size_pt,
+                       style.heading_font, style.heading_size_pt)
 
 
-def _photo_dimensions(image: bytes) -> tuple[float, float]:
-    """Natural 96-dpi size downscaled to A4, with no forced enlargement."""
+def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
+                      max_height_cm: float = PHOTO_MAX_HEIGHT_CM) -> tuple[float, float]:
+    """Natural 96-dpi size, never larger than the selected printable page."""
     from PIL import Image
     with Image.open(BytesIO(image)) as im:
         width, height = im.size
-    scale = min(2.54 / 96.0, PHOTO_MAX_WIDTH_CM / width,
-                PHOTO_MAX_HEIGHT_CM / height)
+    scale = min(2.54 / 96.0, max_width_cm / width,
+                max_height_cm / height)
     return width * scale, height * scale
 
 
@@ -89,6 +126,7 @@ class RenderItem:
     key: str = ""
     rows: tuple[tuple[str, ...], ...] = ()
     image: bytes = b""
+    rich: RichFormatting | None = None
 
 
 @dataclass(frozen=True)
@@ -167,9 +205,9 @@ def prepare_export(project: ReportProject) -> ExportPlan:
             if isinstance(block, NestedModuleBlock):
                 add_module(block.module)
             elif isinstance(block, ParagraphBlock):
-                items.append(RenderItem("paragraph", block.text.original))
+                items.append(RenderItem("paragraph", block.text.original, rich=block.rich))
             elif isinstance(block, HeadingBlock):
-                items.append(RenderItem("heading", block.text.original, block.level))
+                items.append(RenderItem("heading", block.text.original, block.level, rich=block.rich))
             elif isinstance(block, TableBlock):
                 items.append(RenderItem(
                     "table", rows=tuple(tuple(cell.original for cell in row)
@@ -262,6 +300,70 @@ def _word_bookmark(paragraph, module_id: str, number: int) -> str:
     return key
 
 
+def _rich_lines(value: str, rich: RichFormatting | None):
+    rich = rich if rich is not None else RichFormatting()
+    validate_rich(rich, value)
+    by_start = {item.start: item for item in rich.paragraphs}
+    start = 0
+    for line in value.split("\n"):
+        right = start + len(line)
+        boundaries = {start, right}
+        for r in rich.runs:
+            if r.start < right and r.end > start:
+                boundaries.add(max(start, r.start))
+                boundaries.add(min(right, r.end))
+        sorted_edges = sorted(boundaries)
+        parts = [(value[left:end], style_at(rich, left))
+                 for left, end in zip(sorted_edges, sorted_edges[1:])]
+        yield parts, by_start.get(start, ParagraphStyle(start))
+        start = right + 1
+
+
+def _rich_pdf_markup(parts, fallback_bold=False):
+    result = []
+    for value, rich in parts:
+        content = escape(value)
+        if rich:
+            if rich.bold or fallback_bold:
+                content = "<b>" + content + "</b>"
+            if rich.italic:
+                content = "<i>" + content + "</i>"
+            if rich.underline:
+                content = "<u>" + content + "</u>"
+            if rich.strike:
+                content = "<strike>" + content + "</strike>"
+            if rich.baseline != "normal":
+                content = "<" + rich.baseline + ">" + content + "</" + rich.baseline + ">"
+            attrs = []
+            if rich.color:
+                attrs.append('color="' + rich.color + '"')
+            if rich.size:
+                attrs.append('size="' + str(rich.size) + '"')
+            if attrs:
+                content = "<font " + " ".join(attrs) + ">" + content + "</font>"
+            if rich.highlight:
+                # ReportLab Paragraph has no standard arbitrary background color
+                # per inline run. Emphasize highlighted text with a visible box.
+                content = '<font backcolor="' + rich.highlight + '">' + content + "</font>"
+        elif fallback_bold:
+            content = "<b>" + content + "</b>"
+        result.append(content)
+    return "".join(result)
+
+
+def _pdf_number_marker(kind: str, ordinal: int) -> str:
+    """Visible numbering for canonical PDF list paragraphs (one-based)."""
+    if kind == "decimal":
+        return f"{ordinal}. "
+    if kind not in ("lower-alpha", "upper-alpha") or ordinal < 1:
+        raise ValueError("Invalid PDF list number")
+    label = ""
+    while ordinal:
+        ordinal, digit = divmod(ordinal - 1, 26)
+        label = chr(ord("a") + digit) + label
+    return (label.upper() if kind == "upper-alpha" else label) + ". "
+
+
 def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     from docx import Document
     from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
@@ -271,10 +373,20 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
 
     document = Document()
     sec = document.sections[0]
-    sec.page_width, sec.page_height = Cm(21), Cm(29.7)
-    sec.left_margin = sec.right_margin = Cm(2.1)
-    sec.top_margin, sec.bottom_margin = Cm(3), Cm(2.5)
-    sec.header_distance, sec.footer_distance = Cm(0.9), Cm(0.9)
+    sec.page_width, sec.page_height = Cm(style.page_width_cm), Cm(style.page_height_cm)
+    sec.left_margin, sec.right_margin = Cm(style.left_margin_cm), Cm(style.right_margin_cm)
+    sec.top_margin, sec.bottom_margin = Cm(style.top_margin_cm), Cm(style.bottom_margin_cm)
+    sec.header_distance = Cm(style.header_distance_cm)
+    sec.footer_distance = Cm(style.footer_distance_cm)
+    normal = document.styles["Normal"]
+    if style.normal_font:
+        normal.font.name = style.normal_font
+    normal.font.size = Pt(style.normal_size_pt)
+    first_heading = document.styles["Heading 1"]
+    if style.heading_font:
+        first_heading.font.name = style.heading_font
+    first_heading.font.size = Pt(style.heading_size_pt)
+    printable_width = style.page_width_cm - style.left_margin_cm - style.right_margin_cm
     # Repeated Word header/footer, with a live PAGE field.
     if style.company_name or style.logo:
         header = sec.header.paragraphs[0]
@@ -286,7 +398,7 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
         header.add_run(style.company_name).bold = True
     footer = sec.footer.paragraphs[0]
     footer.paragraph_format.tab_stops.add_tab_stop(
-        Cm(16.8), WD_TAB_ALIGNMENT.RIGHT)
+        Cm(printable_width), WD_TAB_ALIGNMENT.RIGHT)
     footer.add_run(style.footer_note)
     footer.add_run("\tPage ")
     _word_field(footer, " PAGE ", "1")
@@ -303,7 +415,7 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
         paragraph = document.add_paragraph(style="Normal")
         paragraph.paragraph_format.left_indent = Cm(min(entry.depth, 12) * .5)
         paragraph.paragraph_format.tab_stops.add_tab_stop(
-            Cm(16.2), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
+            Cm(max(3, printable_width - .6)), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
         paragraph.add_run(((entry.number + " ") if entry.number else "") + entry.title)
         paragraph.add_run("\t")
         key = _bookmark_key(entry.module_id)
@@ -323,18 +435,61 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
             if entry.depth >= 9:
                 paragraph.paragraph_format.left_indent = Cm(min(entry.depth, 12) * .4)
             _word_bookmark(paragraph, item.key, bookmark_numbers[item.key])
-        elif item.kind == "paragraph":
-            paragraph = document.add_paragraph()
-            parts = item.text.split("\n")
-            for i, part in enumerate(parts):
-                if i:
-                    paragraph.add_run().add_break()
-                paragraph.add_run(part)
-        elif item.kind == "heading":
-            paragraph = document.add_paragraph()
-            run = paragraph.add_run(item.text)
-            run.bold = True
-            run.font.size = Pt(max(10, 16 - item.depth))
+        elif item.kind in ("paragraph", "heading"):
+            from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
+            from docx.shared import RGBColor
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn
+            numbered = 0
+            for parts, fmt in _rich_lines(item.text, item.rich):
+                if fmt.list_kind == "decimal":
+                    numbered += 1
+                else:
+                    numbered = 0
+                style_name = ("List Bullet" if fmt.list_kind == "bullet" else
+                              "List Number" if fmt.list_kind != "none" else None)
+                p = document.add_paragraph(style=style_name)
+                p.alignment = {
+                    "left": WD_ALIGN_PARAGRAPH.LEFT,
+                    "right": WD_ALIGN_PARAGRAPH.RIGHT,
+                    "center": WD_ALIGN_PARAGRAPH.CENTER,
+                    "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
+                }[fmt.align]
+                p.paragraph_format.left_indent = Cm(fmt.indent * 0.6)
+                p.paragraph_format.line_spacing = fmt.line_height
+                if fmt.shading:
+                    shade = OxmlElement("w:shd")
+                    shade.set(qn("w:fill"), fmt.shading.lstrip("#"))
+                    p._p.get_or_add_pPr().append(shade)
+                if fmt.border:
+                    border = OxmlElement("w:pBdr")
+                    edge = OxmlElement("w:bottom")
+                    edge.set(qn("w:val"), "single")
+                    edge.set(qn("w:sz"), "6")
+                    border.append(edge)
+                    p._p.get_or_add_pPr().append(border)
+                for part, info in parts:
+                    run = p.add_run(part)
+                    if item.kind == "heading":
+                        run.bold = True
+                        run.font.size = Pt(max(10, 16 - item.depth))
+                    if info is not None:
+                        if info.family:
+                            run.font.name = info.family
+                        if info.size:
+                            run.font.size = Pt(info.size)
+                        run.bold = info.bold or item.kind == "heading"
+                        run.italic = info.italic
+                        run.underline = info.underline
+                        run.font.strike = info.strike
+                        run.font.superscript = info.baseline == "super"
+                        run.font.subscript = info.baseline == "sub"
+                        if info.color:
+                            run.font.color.rgb = RGBColor.from_string(info.color[1:])
+                        if info.highlight:
+                            shading = OxmlElement("w:shd")
+                            shading.set(qn("w:fill"), info.highlight[1:])
+                            run._r.get_or_add_rPr().append(shading)
         elif item.kind == "table":
             if not item.rows:
                 continue
@@ -347,7 +502,13 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
                 for j, value in enumerate(row):
                     table.cell(i, j).text = value
         elif item.kind == "photo":
-            photo_w, photo_h = _photo_dimensions(item.image)
+            photo_w, photo_h = _photo_dimensions(
+                item.image, max_width_cm=min(
+                    PHOTO_MAX_WIDTH_CM,
+                    style.page_width_cm - style.left_margin_cm - style.right_margin_cm - 1),
+                max_height_cm=min(
+                    PHOTO_MAX_HEIGHT_CM,
+                    style.page_height_cm - style.top_margin_cm - style.bottom_margin_cm - 1))
             picture = document.add_paragraph()
             picture.paragraph_format.keep_together = True
             picture.paragraph_format.keep_with_next = bool(item.text)
@@ -366,7 +527,6 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
 def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
-    from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
     from reportlab.platypus import (
@@ -399,9 +559,12 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
 
     class ReportPDF(BaseDocTemplate):
         def __init__(self, path):
-            super().__init__(str(path), pagesize=A4, leftMargin=2*cm,
-                             rightMargin=2*cm, topMargin=3*cm, bottomMargin=2.5*cm,
-                             title=plan.title)
+            super().__init__(str(path),
+                             pagesize=(style.page_width_cm*cm, style.page_height_cm*cm),
+                             leftMargin=style.left_margin_cm*cm,
+                             rightMargin=style.right_margin_cm*cm,
+                             topMargin=style.top_margin_cm*cm,
+                             bottomMargin=style.bottom_margin_cm*cm, title=plan.title)
             frame = Frame(self.leftMargin, self.bottomMargin, self.width, self.height,
                           leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
             self.addPageTemplates(PageTemplate(id="report", frames=[frame],
@@ -410,11 +573,11 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
         def page_decoration(self, canvas, doc):
             canvas.saveState()
             try:
-                text_x = 2*cm
+                text_x = style.left_margin_cm*cm
                 if style.logo:
                     logo_w, logo_h = _logo_dimensions(style.logo)
                     canvas.drawImage(ImageReader(BytesIO(style.logo)),
-                                     text_x, A4[1] - 1.2*cm - logo_h*cm,
+                                     text_x, style.page_height_cm*cm - (style.header_distance_cm + .2)*cm - logo_h*cm,
                                      width=logo_w*cm, height=logo_h*cm,
                                      mask="auto")
                     text_x += (logo_w + .25)*cm
@@ -422,21 +585,21 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                     header_style = ParagraphStyle(
                         "RMHeader", fontName=bold_font, fontSize=9, leading=11)
                     header = Paragraph(escape(style.company_name), header_style)
-                    avail = A4[0] - 2*cm - text_x
+                    avail = style.page_width_cm*cm - style.right_margin_cm*cm - text_x
                     _, height = header.wrap(avail, 1.2*cm)
                     if height > 1.2*cm:
                         raise ExportError("Company name does not fit the PDF header")
-                    header.drawOn(canvas, text_x, A4[1] - 1.35*cm - height)
+                    header.drawOn(canvas, text_x, style.page_height_cm*cm - (style.header_distance_cm + .2)*cm - height)
                 if style.footer_note:
                     note_style = ParagraphStyle(
                         "RMFooter", fontName=body_font, fontSize=8, leading=10)
                     note = Paragraph(escape(style.footer_note), note_style)
-                    _, height = note.wrap(12*cm, .85*cm)
+                    _, height = note.wrap(max(2*cm, (style.page_width_cm-style.left_margin_cm-style.right_margin_cm-3)*cm), .85*cm)
                     if height > .85*cm:
                         raise ExportError("Footer note does not fit the PDF footer")
-                    note.drawOn(canvas, 2*cm, 1.0*cm)
+                    note.drawOn(canvas, style.left_margin_cm*cm, style.footer_distance_cm*cm)
                 canvas.setFont(body_font, 9)
-                canvas.drawRightString(A4[0] - 2*cm, 1.1*cm,
+                canvas.drawRightString((style.page_width_cm-style.right_margin_cm)*cm, style.footer_distance_cm*cm,
                                        "Page " + str(doc.page))
             finally:
                 canvas.restoreState()
@@ -455,11 +618,11 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     styles = getSampleStyleSheet()
     normal = styles["BodyText"]
     normal.fontName = body_font
-    normal.fontSize = 10
-    normal.leading = 14
+    normal.fontSize = style.normal_size_pt
+    normal.leading = style.normal_size_pt * 1.4
     heading_styles = [
         ParagraphStyle("ReportSection" + str(i), parent=normal,
-                       fontName=bold_font, fontSize=max(11, 16-i),
+                       fontName=bold_font, fontSize=max(10, style.heading_size_pt-i),
                        leading=max(15, 20-i), spaceBefore=13, spaceAfter=6,
                        keepWithNext=1, leftIndent=min(i, 12)*.35*cm)
         for i in range(9)
@@ -481,7 +644,9 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                  Paragraph(escape(value).replace("\n", "<br/>"), normal)]
                 for label, value in plan.info]
     if metadata:
-        tbl = Table(metadata, colWidths=[4.2*cm, 12.8*cm], hAlign="LEFT")
+        printable = style.page_width_cm - style.left_margin_cm - style.right_margin_cm
+        label_width = min(4.2, printable * .28)
+        tbl = Table(metadata, colWidths=[label_width*cm, (printable-label_width)*cm], hAlign="LEFT")
         tbl.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), .3, colors.grey),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -491,25 +656,58 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
         story.extend([tbl, Spacer(1, 12)])
     story.extend([Paragraph("Summary", label_style), toc, PageBreak()])
 
+    # Continue a list over adjacent canonical text blocks, but never across a
+    # module/table/photo/page break or a plain/bulleted paragraph.
+    numbering_key = None
+    ordinal = 0
     for item in plan.items:
+        if item.kind not in ("paragraph", "heading"):
+            numbering_key = None
+            ordinal = 0
         if item.kind == "module":
             label = escape(item.text)
             level = min(item.depth, 8)
             paragraph = Paragraph(label, heading_styles[level])
             paragraph._rm_entry = (level, item.text, _bookmark_key(item.key))
             story.append(paragraph)
-        elif item.kind == "paragraph":
-            story.append(Paragraph(escape(item.text).replace("\n", "<br/>"),
-                                   normal))
-        elif item.kind == "heading":
-            pstyle = heading_styles[min(max(item.depth, 1), 8)]
-            # A block heading is not a module and must not enter the Summary.
-            story.append(Paragraph(escape(item.text), pstyle))
+        elif item.kind in ("paragraph", "heading"):
+            from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+            from reportlab.lib.styles import ParagraphStyle
+            for index, (parts, fmt) in enumerate(_rich_lines(item.text, item.rich)):
+                key = ((fmt.list_kind, fmt.indent) if fmt.list_kind in
+                       ("decimal", "lower-alpha", "upper-alpha") else None)
+                if key is None:
+                    ordinal = 0
+                else:
+                    ordinal = ordinal + 1 if key == numbering_key else 1
+                numbering_key = key
+                base = (heading_styles[min(max(item.depth, 1), 8)]
+                        if item.kind == "heading" else normal)
+                pstyle = ParagraphStyle("Rich-%s-%d-%d" % (item.kind, len(story), index),
+                    parent=base, alignment={
+                        "left": TA_LEFT, "center": TA_CENTER,
+                        "right": TA_RIGHT, "justify": TA_JUSTIFY,
+                    }[fmt.align], leftIndent=base.leftIndent + fmt.indent * 15,
+                    leading=base.leading * fmt.line_height,
+                    backColor=fmt.shading or None,
+                    borderWidth=0.75 if fmt.border else 0,
+                    borderColor=colors.HexColor("#777777") if fmt.border else None,
+                    borderPadding=3 if fmt.border else 0)
+                if fmt.list_kind == "bullet":
+                    marker = "&#8226; "
+                elif key is not None:
+                    marker = _pdf_number_marker(fmt.list_kind, ordinal)
+                else:
+                    marker = ""
+                story.append(Paragraph(marker +
+                    _rich_pdf_markup(parts, item.kind == "heading") or " ",
+                    pstyle))
         elif item.kind == "table":
             width = max((len(row) for row in item.rows), default=0)
             if not item.rows or width == 0:
                 continue
-            col_width = (17*cm) / width
+            printable = style.page_width_cm - style.left_margin_cm - style.right_margin_cm
+            col_width = (printable*cm) / width
             rows = [[Paragraph(escape(value).replace("\n", "<br/>"), normal)
                      for value in tuple(row) + ("",)*(width-len(row))]
                     for row in item.rows]
@@ -522,7 +720,13 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
             ]))
             story.extend([tbl, Spacer(1, 8)])
         elif item.kind == "photo":
-            photo_w, photo_h = _photo_dimensions(item.image)
+            photo_w, photo_h = _photo_dimensions(
+                item.image, max_width_cm=min(
+                    PHOTO_MAX_WIDTH_CM,
+                    style.page_width_cm - style.left_margin_cm - style.right_margin_cm - 1),
+                max_height_cm=min(
+                    PHOTO_MAX_HEIGHT_CM,
+                    style.page_height_cm - style.top_margin_cm - style.bottom_margin_cm - 1))
             image = Image(BytesIO(item.image), width=photo_w*cm,
                           height=photo_h*cm)
             if item.text:
