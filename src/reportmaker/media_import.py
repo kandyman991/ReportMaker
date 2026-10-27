@@ -21,6 +21,7 @@ from .project_io import (
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
 MAX_DECODE_PIXELS = 60_000_000  # accept common 48 MP phone HEIC originals
 MAX_ICC_BYTES = 1024 * 1024
+MAX_IMPORT_BATCH = 64  # bound retained decoded comparison thumbnails
 # maximum long edge, JPEG/WebP encoder quality
 PRESETS = {"compact": (1600, 75), "balanced": (2500, 88),
            "high": (4000, 94)}
@@ -40,6 +41,13 @@ class ImportedPicture:
     original_width: int
     original_height: int
     source_bytes: int
+    source_preview: bytes = b""  # small, session-only; never saved in .rmproj
+
+
+@dataclass(frozen=True)
+class StagedPicture:
+    name: str
+    photo: ImportedPicture
 
 
 def _prepare_heif(path: Path) -> None:
@@ -105,10 +113,14 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
                         converted = ImageCms.profileToProfile(
                             oriented.convert("RGB"), src_profile, dest_profile,
                             outputMode="RGB")
-                except (OSError, ValueError, TypeError) as exc:
+                except (OSError, ValueError, TypeError, ImageCms.PyCMSError) as exc:
                     raise PictureImportError("Unsupported source color profile") from exc
             else:
                 converted = oriented.convert(mode)
+            preview = converted.copy()
+            preview.thumbnail((440, 320), Image.Resampling.LANCZOS)
+            preview_buffer = BytesIO()
+            preview.save(preview_buffer, format="PNG")
             converted.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
             chosen = ("png" if has_alpha else "jpeg") if output_format == "auto" else output_format
             if chosen == "jpeg" and has_alpha:
@@ -123,7 +135,7 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
             if not result or len(result) > MAX_ASSET:
                 raise PictureImportError("Converted picture exceeds the 32 MiB project limit")
             return ImportedPicture(result, chosen, converted.width, converted.height,
-                                   width, height, size)
+                                   width, height, size, preview_buffer.getvalue())
     except PictureImportError:
         raise
     except (OSError, ValueError, UnidentifiedImageError,
@@ -166,29 +178,64 @@ def remove_library_picture(project: ReportProject, asset_id: str) -> None:
     if asset_id in _photo_ids(project.report):
         raise PictureImportError("Remove the picture from report modules before deleting it")
     del project.media_library[asset_id]
-    project.assets.pop(asset_id, None)
+    # An Undo may restore a formerly placed PhotoBlock. Retain its bytes in
+    # the session-only M2 undo cache; save_project serializes ONLY currently
+    # placed or declared media, so deleted photos never survive on disk.
+    # The in-memory bytes are released when the document closes.
 
 
-def import_pictures(project: ReportProject, paths: list[str | Path], *,
-                    preset: str = "balanced",
-                    output_format: str = "auto") -> list[str]:
-    """All-or-nothing batch import, including the project size validation."""
-    if not isinstance(project, ReportProject) or not isinstance(paths, list):
-        raise PictureImportError("Invalid batch picture import")
-    if not paths:
-        return []
-    if len(paths) > MAX_ENTRIES - 1:
-        raise PictureImportError("Too many pictures selected")
+def stage_pictures(paths: list[str | Path], *, preset: str = "balanced",
+                   output_format: str = "auto") -> list[StagedPicture]:
+    """Read external originals once. Detached, bounded bytes are approval input."""
+    if not isinstance(paths, list) or len(paths) > MAX_IMPORT_BATCH:
+        raise PictureImportError("Import at most 64 pictures per batch")
+    staged = []
+    total = 0
+    for path in paths:
+        name = Path(path).stem
+        name = name.strip() if isinstance(name, str) else ""
+        if not name or len(name) > 200 or any(ord(c) < 32 or ord(c) == 127 for c in name):
+            raise PictureImportError("Invalid photo name")
+        photo = convert_picture(path, preset=preset, output_format=output_format)
+        total += len(photo.data)
+        if total > MAX_TOTAL_ASSETS:
+            raise PictureImportError("Picture batch exceeds project limit")
+        staged.append(StagedPicture(name, photo))
+    return staged
+
+
+def commit_staged_pictures(project: ReportProject,
+                           staged: list[StagedPicture]) -> list[str]:
+    """Commit EXACT bytes previously previewed. No external files re-opened."""
+    if not isinstance(project, ReportProject) or not isinstance(staged, list):
+        raise PictureImportError("Invalid picture import transaction")
+    if len(staged) > MAX_IMPORT_BATCH:
+        raise PictureImportError("Import at most 64 pictures per batch")
     assets = dict(project.assets)
     library = dict(project.media_library)
     keys = []
-    for path in paths:
-        photo = convert_picture(path, preset=preset, output_format=output_format)
+    for entry in staged:
+        if not isinstance(entry, StagedPicture) or not isinstance(entry.photo, ImportedPicture):
+            raise PictureImportError("Invalid staged picture")
+        name, photo = entry.name, entry.photo
+        if (not isinstance(name, str) or not name.strip() or len(name) > 200
+            or any(ord(c) < 32 or ord(c) == 127 for c in name)
+            or not isinstance(photo.data, bytes) or not photo.data
+            or len(photo.data) > MAX_ASSET):
+            raise PictureImportError("Invalid staged picture data")
         key = uuid4().hex
         assets[key] = photo.data
-        library[key] = Path(path).stem[:200]
+        library[key] = name
         keys.append(key)
     _assets_checked(ReportProject(project.report, assets, library))
     project.assets.update({key: assets[key] for key in keys})
     project.media_library.update({key: library[key] for key in keys})
     return keys
+
+
+def import_pictures(project: ReportProject, paths: list[str | Path], *,
+                    preset: str = "balanced",
+                    output_format: str = "auto") -> list[str]:
+    """All-or-nothing batch import, reading each original exactly once."""
+    return commit_staged_pictures(
+        project, stage_pictures(paths, preset=preset, output_format=output_format))
