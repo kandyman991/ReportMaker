@@ -158,7 +158,7 @@ class M4ExportTests(unittest.TestCase):
             pages = [page.extract_text() for page in PdfReader(pdf).pages]
             # The first page is the generated Summary, not the body heading.
             self.assertIn("Valve <on> & motor", pages[0])
-            self.assertIn("Valve <on> & motor", "\\n".join(pages[1:]))
+            self.assertIn("Valve <on> & motor", "\n".join(pages[1:]))
             # The selected Segoe UI/DejaVu font must also cover metadata.
             from os import environ
             installed_fonts = (
@@ -181,7 +181,7 @@ class M4ExportTests(unittest.TestCase):
     def test_pdf_oversized_table_cell_produces_user_error_without_clobber(self):
         project = synthetic_project()
         project.report.modules[0].blocks.append(
-            TableBlock([[loc("Too tall\\n" * 350)]]))
+            TableBlock([[loc("Too tall\n" * 350)]]))
         with TemporaryDirectory() as directory:
             target = Path(directory) / "existing.pdf"
             target.write_bytes(b"saved output")
