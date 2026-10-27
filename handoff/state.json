@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-27T08:03:11.930Z",
+  "generatedAt": "2026-10-27T13:35:54.134Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,12 +11,45 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "becc60d96a5a72f0b61120c76a434511fbf8df4d",
-    "message": "Merge M4.5.2 visual picture editor with PR #20 safety fixes into main\n\nImplement native per-placement picture annotations, .rmproj v3 migrations and safe undo/redo, with reviewed correction PR #20 included. Windows exact-head checks passed. Per user authorization merge now; consolidated M4.5 technical review, installed Windows acceptance, and M4.5.3/M4.5.4 remain pending.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/becc60d96a5a72f0b61120c76a434511fbf8df4d"
+    "sha": "e1808197bbc19a9fac29ace759241d906de52777",
+    "message": "Merge pull request #22 from kandyman991/fix/windows-rc-preview-contrast\n\nRC1 acceptance fix: readable document preview in dark Windows theme",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/e1808197bbc19a9fac29ace759241d906de52777"
   },
-  "openPullRequests": [],
+  "openPullRequests": [
+    {
+      "number": 25,
+      "title": "Native Word-style rich text ribbon: editable font and paragraph formatting with project v4",
+      "draft": true,
+      "head": "feature/word-style-rich-editor",
+      "headSha": "4f5165be57e05860f0d8d9518268ec50e6e5a447",
+      "base": "fix/windows-rc-preview-contrast",
+      "updatedAt": "2026-10-27T13:20:25Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/25"
+    },
+    {
+      "number": 21,
+      "title": "Windows v0.5.0 release candidate: installed acceptance and M0 historical fallback",
+      "draft": true,
+      "head": "release/rc-m45-windows-acceptance",
+      "headSha": "1302992a68dea6ade78bceb2c7ac1d4a58b5a09a",
+      "base": "main",
+      "updatedAt": "2026-10-27T08:35:53Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/21"
+    }
+  ],
   "openIssues": [
+    {
+      "number": 24,
+      "title": "Windows acceptance: import DOCX/DOTX page template with page setup, letterhead header/footer and reusable assets",
+      "updatedAt": "2026-10-27T09:11:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/24"
+    },
+    {
+      "number": 23,
+      "title": "Windows acceptance: editable report typography (family, size, emphasis, spacing) persisted and exported",
+      "updatedAt": "2026-10-27T09:11:08Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/23"
+    },
     {
       "number": 2,
       "title": "M0 acceptance: verify embedded ChatGPT browser on real Windows PC",
@@ -26,114 +59,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40470882909,
+      "id": 40513403039,
+      "name": "M0 architecture and model gates",
+      "status": "queued",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "e1808197bbc19a9fac29ace759241d906de52777",
+      "event": "push",
+      "updatedAt": "2026-10-27T13:35:47Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40513403039"
+    },
+    {
+      "id": 40513402670,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "becc60d96a5a72f0b61120c76a434511fbf8df4d",
+      "headSha": "e1808197bbc19a9fac29ace759241d906de52777",
       "event": "push",
-      "updatedAt": "2026-10-27T08:03:09Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40470882909"
+      "updatedAt": "2026-10-27T13:35:53Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40513402670"
     },
     {
-      "id": 40470882833,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
+      "id": 40513402580,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "queued",
       "conclusion": null,
       "branch": "main",
-      "headSha": "becc60d96a5a72f0b61120c76a434511fbf8df4d",
+      "headSha": "e1808197bbc19a9fac29ace759241d906de52777",
       "event": "push",
-      "updatedAt": "2026-10-27T08:03:09Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40470882833"
+      "updatedAt": "2026-10-27T13:35:47Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40513402580"
     },
     {
-      "id": 40470882830,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "becc60d96a5a72f0b61120c76a434511fbf8df4d",
-      "event": "push",
-      "updatedAt": "2026-10-27T08:03:09Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40470882830"
-    },
-    {
-      "id": 40468715078,
+      "id": 40511105451,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/m45-2-visual-picture-editor",
-      "headSha": "afcb5eb2c8c3d61adf7acece6d8a5458cfa1db7c",
+      "branch": "feature/word-style-rich-editor",
+      "headSha": "4f5165be57e05860f0d8d9518268ec50e6e5a447",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T07:43:07Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40468715078"
+      "updatedAt": "2026-10-27T13:22:29Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40511105451"
     },
     {
-      "id": 40468715018,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/m45-2-visual-picture-editor",
-      "headSha": "afcb5eb2c8c3d61adf7acece6d8a5458cfa1db7c",
-      "event": "pull_request",
-      "updatedAt": "2026-10-27T07:42:24Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40468715018"
-    },
-    {
-      "id": 40468715015,
+      "id": 40511105424,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/m45-2-visual-picture-editor",
-      "headSha": "afcb5eb2c8c3d61adf7acece6d8a5458cfa1db7c",
+      "branch": "feature/word-style-rich-editor",
+      "headSha": "4f5165be57e05860f0d8d9518268ec50e6e5a447",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T07:43:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40468715015"
+      "updatedAt": "2026-10-27T13:21:18Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40511105424"
     },
     {
-      "id": 40468709796,
+      "id": 40511095244,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/m45-2-visual-picture-editor",
-      "headSha": "afcb5eb2c8c3d61adf7acece6d8a5458cfa1db7c",
+      "branch": "feature/word-style-rich-editor",
+      "headSha": "4f5165be57e05860f0d8d9518268ec50e6e5a447",
       "event": "push",
-      "updatedAt": "2026-10-27T07:43:19Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40468709796"
+      "updatedAt": "2026-10-27T13:21:05Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40511095244"
     },
     {
-      "id": 40468087879,
+      "id": 40511066296,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "review/pr19-image-transform-safety",
-      "headSha": "deb1c08efeb7715bc952a634d7676f89f3363357",
+      "branch": "feature/word-style-rich-editor",
+      "headSha": "0bafb96cb199b527d206a55a25170c136034a2b9",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T07:37:05Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40468087879"
+      "updatedAt": "2026-10-27T13:20:40Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40511066296"
     },
     {
-      "id": 40468087637,
+      "id": 40511066283,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "review/pr19-image-transform-safety",
-      "headSha": "deb1c08efeb7715bc952a634d7676f89f3363357",
+      "branch": "feature/word-style-rich-editor",
+      "headSha": "0bafb96cb199b527d206a55a25170c136034a2b9",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T07:37:13Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40468087637"
+      "updatedAt": "2026-10-27T13:20:51Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40511066283"
     },
     {
-      "id": 40468083005,
+      "id": 40511057413,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "review/pr19-image-transform-safety",
-      "headSha": "deb1c08efeb7715bc952a634d7676f89f3363357",
+      "branch": "feature/word-style-rich-editor",
+      "headSha": "0bafb96cb199b527d206a55a25170c136034a2b9",
       "event": "push",
-      "updatedAt": "2026-10-27T07:37:12Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40468083005"
+      "updatedAt": "2026-10-27T13:21:05Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40511057413"
+    },
+    {
+      "id": 40510975632,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/word-style-rich-editor",
+      "headSha": "4a5c52b42a507136c654b7f75bdff6515db4b087",
+      "event": "pull_request",
+      "updatedAt": "2026-10-27T13:20:16Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40510975632"
     }
   ]
 }

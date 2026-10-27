@@ -8,6 +8,12 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  # Cancel obsolete validation for the same workflow/event/PR or pushed ref.
+  # A unique run ID exempts manually requested validation from supersession.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
 permissions:
   contents: read
 
