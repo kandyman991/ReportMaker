@@ -105,7 +105,7 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
                         converted = ImageCms.profileToProfile(
                             oriented.convert("RGB"), src_profile, dest_profile,
                             outputMode="RGB")
-                except (OSError, ValueError, TypeError) as exc:
+                except (OSError, ValueError, TypeError, ImageCms.PyCMSError) as exc:
                     raise PictureImportError("Unsupported source color profile") from exc
             else:
                 converted = oriented.convert(mode)
@@ -166,7 +166,10 @@ def remove_library_picture(project: ReportProject, asset_id: str) -> None:
     if asset_id in _photo_ids(project.report):
         raise PictureImportError("Remove the picture from report modules before deleting it")
     del project.media_library[asset_id]
-    project.assets.pop(asset_id, None)
+    # An Undo may restore a formerly placed PhotoBlock. Retain its bytes in
+    # the session-only M2 undo cache; save_project serializes ONLY currently
+    # placed or declared media, so deleted photos never survive on disk.
+    # The in-memory bytes are released when the document closes.
 
 
 def import_pictures(project: ReportProject, paths: list[str | Path], *,
