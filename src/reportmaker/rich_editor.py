@@ -89,7 +89,7 @@ def _para_to_qt(spec: ParagraphStyle):
         "justify": Qt.AlignmentFlag.AlignJustify,
     }[spec.align])
     fmt.setLeftMargin(spec.indent * 24)
-    fmt.setLineHeight(int(spec.line_height * 100), int(QTextBlockFormat.LineHeightTypes.ProportionalHeight))
+    fmt.setLineHeight(int(spec.line_height * 100), QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
     if spec.shading:
         fmt.setBackground(QColor(spec.shading))
     if spec.border:
@@ -381,7 +381,7 @@ class RichTextRibbon(QWidget):
         if ok:
             cursor = self.editor.textCursor()
             fmt = cursor.blockFormat()
-            fmt.setLineHeight(round(float(chosen) * 100), int(QTextBlockFormat.LineHeightTypes.ProportionalHeight))
+            fmt.setLineHeight(round(float(chosen) * 100), QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
             cursor.setBlockFormat(fmt)
         self.editor.setFocus()
 
