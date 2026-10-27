@@ -141,6 +141,7 @@ def apply_rich(editor: QTextEdit, text: str, rich: RichFormatting):
 
 
 def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
+    print('RICHDIAG: capture enter',flush=True)
     text = editor.toPlainText()
     positions = _offsets(text)
     result = RichFormatting()
@@ -158,7 +159,9 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                 QTextListFormat.Style.ListLowerAlpha: "lower-alpha",
                 QTextListFormat.Style.ListUpperAlpha: "upper-alpha",
             }.get(listing.format().style(), "none")
+        print('RICHDIAG: before para from qt',flush=True)
         pf = _para_from_qt(bf, start, kind)
+        print('RICHDIAG: after para from qt',flush=True)
         if pf != ParagraphStyle(start):
             result.paragraphs.append(pf)
         iterator = block.begin()
@@ -179,7 +182,9 @@ def capture_rich(editor: QTextEdit) -> tuple[str, RichFormatting]:
                             result.runs.append(candidate)
             iterator += 1
         block = block.next()
+    print('RICHDIAG: before capture validation',flush=True)
     validate_rich(result, text)
+    print('RICHDIAG: capture return',flush=True)
     return text, result
 
 
@@ -270,20 +275,28 @@ class RichTextRibbon(QWidget):
         return button
 
     def apply_char(self, setter):
+        print('RICHDIAG: apply char enter',flush=True)
         fmt = QTextCharFormat()
         setter(fmt)
         cur = self.editor.textCursor()
+        print('RICHDIAG: pre selection merge',flush=True)
         cur.mergeCharFormat(fmt)
+        print('RICHDIAG: post selection merge',flush=True)
         self.editor.mergeCurrentCharFormat(fmt)
+        print('RICHDIAG: post current merge',flush=True)
         self.editor.setFocus()
 
     def sync(self, fmt):
+        print('RICHDIAG: sync enter',flush=True)
         self.family.blockSignals(True)
+        print('RICHDIAG: before sync family',flush=True)
         self.family.setCurrentFont(QFont(fmt.fontFamily() or DEFAULT_FONT))
+        print('RICHDIAG: after sync family',flush=True)
         self.family.blockSignals(False)
         self.size.blockSignals(True)
         self.size.setCurrentText(str(round(fmt.fontPointSize() or DEFAULT_SIZE)))
         self.size.blockSignals(False)
+        print('RICHDIAG: sync complete',flush=True)
 
     def choose_size(self):
         try:
