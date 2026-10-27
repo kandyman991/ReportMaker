@@ -116,6 +116,7 @@ def run() -> int:
             doc.dirty = True
             doc.refresh()
             assert doc.open_from_path(path)
+            assert len(doc.media_library) == 1
             assert not doc.dirty
             assert len(doc.report.modules) == 1
 
