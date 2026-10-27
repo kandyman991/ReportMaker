@@ -111,3 +111,77 @@ def format_from_dict(raw: object, text: str) -> RichFormatting:
     )
     validate_rich(out, text)
     return out
+
+
+def style_at(value: RichFormatting, index: int) -> TextRun | None:
+    return next((r for r in value.runs if r.start <= index < r.end), None)
+
+
+def text_chunks(text: str, value: RichFormatting):
+    """Split canonical wording at format boundaries, including multiline runs."""
+    validate_rich(value, text)
+    boundaries = {0, len(text)}
+    for item in value.runs:
+        boundaries.update((item.start, item.end))
+    boundaries.update(i for i, x in enumerate(text) if x == "\n")
+    boundaries.update(i + 1 for i, x in enumerate(text) if x == "\n")
+    sorted_ends = sorted(boundaries)
+    for left, right in zip(sorted_ends, sorted_ends[1:]):
+        if left < right:
+            yield text[left:right], style_at(value, left)
+
+
+def safe_html(text: str, value: RichFormatting) -> str:
+    """Escape source wording and emit allowlisted inline CSS for Qt preview."""
+    from html import escape
+    validate_rich(value, text)
+    output = []
+    para_by_start = {v.start: v for v in value.paragraphs}
+    offset = 0
+    for line in text.split("\n"):
+        spec = para_by_start.get(offset, ParagraphStyle(offset))
+        css = [f"text-align:{spec.align}", f"margin-left:{spec.indent*1.4}em",
+               f"line-height:{spec.line_height*100:g}%"]
+        if spec.shading:
+            css.append("background-color:" + spec.shading)
+        if spec.border:
+            css.append("border:1px solid #777777")
+        output.append('<p style="' + ";".join(css) + '">')
+        line_end = offset + len(line)
+        edges = {offset, line_end}
+        for r in value.runs:
+            if r.start < line_end and r.end > offset:
+                edges.add(max(offset, r.start))
+                edges.add(min(line_end, r.end))
+        for start, end in zip(sorted(edges), sorted(edges)[1:]):
+            run = style_at(value, start)
+            part = escape(text[start:end])
+            if run is None:
+                output.append(part)
+            else:
+                styles = []
+                if run.family:
+                    styles.append("font-family:'" + escape(run.family, quote=True) + "'")
+                if run.size:
+                    styles.append(f"font-size:{run.size:g}pt")
+                if run.bold:
+                    styles.append("font-weight:bold")
+                if run.italic:
+                    styles.append("font-style:italic")
+                decor = []
+                if run.underline:
+                    decor.append("underline")
+                if run.strike:
+                    decor.append("line-through")
+                if decor:
+                    styles.append("text-decoration:" + " ".join(decor))
+                if run.color:
+                    styles.append("color:" + run.color)
+                if run.highlight:
+                    styles.append("background-color:" + run.highlight)
+                if run.baseline != "normal":
+                    styles.append("vertical-align:" + run.baseline)
+                output.append('<span style="' + ";".join(styles) + '">' + part + "</span>")
+        output.append("</p>")
+        offset = line_end + 1
+    return "".join(output)
