@@ -239,6 +239,47 @@ class ProjectGalleryTests(unittest.TestCase):
         self.assertIn(page_key, self.editor.page.pending)
         self.assertTrue(self.editor._block_pending)
 
+    def test_nonmodal_import_and_remove_preserve_current_drafts(self):
+        from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QPushButton
+        from reportmaker.model import ParagraphBlock
+
+        gallery, pictures = self.open_gallery()
+        source = Path(self.folder.name) / "synthetic-import.jpg"
+        Image.new("RGB", (78, 44), "purple").save(source)
+        original = source.read_bytes()
+        self.editor.text_edit.setPlainText("Unapplied text before gallery import")
+        self.assertTrue(self.editor._block_pending)
+        with patch.object(QFileDialog, "getOpenFileNames",
+                          return_value=([str(source)], "")), \\
+             patch.object(QDialog, "exec",
+                          return_value=QDialog.DialogCode.Accepted), \\
+             patch.object(QMessageBox, "warning",
+                          side_effect=AssertionError("Unexpected import warning")):
+            gallery.findChild(QPushButton, "importProjectPicturesAction").click()
+        self.assertEqual(pictures.count(), 1)
+        self.assertEqual(source.read_bytes(), original)
+        self.assertFalse(self.editor._block_pending)
+        self.assertEqual(
+            self.editor.report.modules[0].blocks[0].text.original,
+            "Unapplied text before gallery import")
+        self.assertEqual(self.editor.page.pending, set())
+
+        block = self.editor.report.modules[0].blocks[0]
+        key = (self.editor.report.modules[0].id, block.id, "text")
+        self.editor.page.fields[key].setPlainText("Unapplied page before gallery remove")
+        self.assertIn(key, self.editor.page.pending)
+        with patch.object(QMessageBox, "warning",
+                          side_effect=AssertionError("Unexpected remove warning")):
+            # Button has a stable label even while the thumbnail list is rebuilt.
+            remove = next(x for x in gallery.findChildren(QPushButton)
+                          if x.text() == "Remove unused")
+            remove.click()
+        self.assertFalse(self.editor.page.pending)
+        self.assertEqual(self.editor.report.modules[0].blocks[0].text.original,
+                         "Unapplied page before gallery remove")
+        self.assertEqual(self.editor.media_library, {})
+        self.assertEqual(source.read_bytes(), original)
+
     def test_reject_external_fake_stale_wrong_project_and_empty_gallery(self):
         from PySide6.QtCore import QMimeData
         # Only dedicated structural receivers accept project photo drags.
