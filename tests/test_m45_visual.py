@@ -56,7 +56,7 @@ class M45VisualModelTests(unittest.TestCase):
         self.assertIn("de", actual.visual.marks[1].text.stale_languages)
         with ZipFile(self.path) as archive:
             manifest = json.loads(archive.read("manifest.json"))
-            self.assertEqual(manifest["version"], 3)
+            self.assertEqual(manifest["version"], 4)
             self.assertNotIn("original_path", archive.read("manifest.json").decode())
         self.assertNotIn(b"Valve 4", before_bytes)
 
@@ -120,6 +120,8 @@ class M45VisualModelTests(unittest.TestCase):
         for module in manifest["report"]["modules"]:
             def remove_visual(obj):
                 for block in obj["blocks"]:
+                    if block["kind"] in ("paragraph", "heading"):
+                        block.pop("rich", None)
                     if block["kind"] == "photo":
                         block.pop("visual")
                     elif block["kind"] == "module":
@@ -138,7 +140,7 @@ class M45VisualModelTests(unittest.TestCase):
         self.assertEqual(self.path.read_bytes(), original)
         updated = self.dir / "copy-v3.rmproj"
         save_project(loaded, updated)
-        self.assertEqual(load_project(updated).loaded_version, 3)
+        self.assertEqual(load_project(updated).loaded_version, 4)
 
     def test_v3_missing_or_corrupt_visual_is_rejected(self):
         save_project(self.project, self.path)
