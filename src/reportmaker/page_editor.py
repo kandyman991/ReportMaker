@@ -61,6 +61,7 @@ class EditableDocumentPage(QScrollArea):
         self.pending = set()
         self._building = False
         self.on_style_request = None
+        self.layout_template = None  # transient, local presentation profile only
 
     def _track(self, key, widget, signal):
         self.fields[key] = widget
@@ -93,11 +94,42 @@ class EditableDocumentPage(QScrollArea):
             outer.setContentsMargins(14, 14, 14, 14)
             paper = QFrame()
             paper.setObjectName("editablePaper")
+            template = self.layout_template
+            # A continuous canvas, not a native Word paginator. Sizes represent
+            # the imported page ratio and printable margins schematically.
+            ratio = template.page_width_cm / 21.0 if template else 1.0
             paper.setMinimumWidth(440)
-            paper.setMaximumWidth(800)
+            paper.setMaximumWidth(max(440, round(800 * ratio)))
+            page_height = template.page_height_cm if template else 29.7
+            paper.setMinimumHeight(max(540, round(1050 * page_height / 29.7)))
             layout = QVBoxLayout(paper)
-            layout.setContentsMargins(38, 34, 38, 40)
+            if template:
+                layout.setContentsMargins(
+                    max(15, round(38 * template.left_margin_cm / 2.1)),
+                    max(15, round(34 * template.top_margin_cm / 3.0)),
+                    max(15, round(38 * template.right_margin_cm / 2.1)),
+                    max(15, round(40 * template.bottom_margin_cm / 2.5)))
+                paper.setToolTip(
+                    f"Imported page: {template.page_width_cm:g} × "
+                    f"{template.page_height_cm:g} cm, continuous schematic")
+            else:
+                layout.setContentsMargins(38, 34, 38, 40)
             layout.setSpacing(9)
+            if template:
+                # Make the active local, report-independent letterhead visible;
+                # otherwise a profile selected for another customer could be
+                # applied at export without an obvious on-page indication.
+                self._heading("Active page template (local export setting)", layout, 10)
+                if template.logo:
+                    image = QPixmap()
+                    if image.loadFromData(template.logo):
+                        logo_label = QLabel()
+                        logo_label.setObjectName("pageTemplateLogo")
+                        logo_label.setPixmap(image.scaledToWidth(
+                            190, Qt.TransformationMode.SmoothTransformation))
+                        layout.addWidget(logo_label)
+                if template.header_text:
+                    self._heading(template.header_text, layout, 12)
             self._heading(report.title.original, layout, 22)
             self._heading("Report information · protected (edit in Report Information)", layout, 11)
             metadata = report.customer_snapshot
@@ -202,6 +234,9 @@ class EditableDocumentPage(QScrollArea):
             for module in report.modules:
                 draw(module, 0)
             draw(report.conclusion, 0)
+            if template:
+                self._heading((template.footer_text + "   " if template.footer_text else "")
+                              + "Page 1 (schematic)", layout, 10)
             layout.addStretch(1)
             outer.addWidget(paper, alignment=Qt.AlignmentFlag.AlignHCenter)
             outer.addStretch(1)

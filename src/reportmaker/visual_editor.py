@@ -38,6 +38,10 @@ from .photo_editor import PictureEditorDialog, render_photo
 from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
 from .rich_text import safe_html
 from .page_editor import EditableDocumentPage
+from .template_import import (
+    DocumentTemplate, TemplateError, import_word_template, load_template, save_template,
+)
+from .template_dialog import edit_template_layout
 
 
 def new_report() -> ReportProject:
@@ -408,6 +412,16 @@ class VisualReportEditor:
         branding_action.triggered.connect(self.configure_export_branding)
         toolbar.addAction(branding_action)
         self.owner.addAction(branding_action)
+        for label, object_name, handler in (
+            ("Import Word page template", "importWordTemplateAction", self.import_document_template),
+            ("Edit active page template", "editWordTemplateAction", self.edit_document_template),
+            ("Clear page template", "clearWordTemplateAction", self.clear_document_template),
+        ):
+            action = QAction(label, self.owner)
+            action.setObjectName(object_name)
+            action.triggered.connect(handler)
+            toolbar.addAction(action)
+            self.owner.addAction(action)
         for fmt in ("docx", "pdf"):
             action = QAction("Export " + fmt.upper(), self.owner)
             action.setObjectName("export" + fmt.upper() + "Action")
@@ -1273,6 +1287,15 @@ class VisualReportEditor:
                 QTextDocument.ResourceType.ImageResource,
                 QUrl("rmasset:" + identifier), image)
         self.preview.viewport().update()
+        # Imported geometry is a view/export concern, not a second report model.
+        path = str(self.owner.settings.value("export/page_template", "")).strip()
+        try:
+            self.page.layout_template = load_template(path) if path else None
+            self.page.setToolTip("" if not path else
+                "Active local page template: " + Path(path).name)
+        except (TemplateError, OSError):
+            self.page.layout_template = None
+            self.page.setToolTip("Selected page template is invalid: exports will be blocked")
         # Avoid dropping uncommitted direct page edits when the other pane redraws.
         if not self.page.pending:
             self.page.rebuild(report, self.assets)
@@ -1440,8 +1463,84 @@ class VisualReportEditor:
         settings.sync()
         return True
 
+    def import_document_template(self):
+        # Always local: never send the DOCX/DOTX or any of its parts to a web view.
+        filename, _ = QFileDialog.getOpenFileName(
+            self.owner, "Import local Word page format", "",
+            "Word documents and templates (*.docx *.dotx)")
+        if not filename:
+            return False
+        try:
+            result = import_word_template(filename)
+        except (TemplateError, OSError, RuntimeError) as exc:
+            self._warn("Cannot import Word template", exc)
+            return False
+        edited = edit_template_layout(self.owner, result.template, warnings=result.warnings)
+        if edited is None:
+            return False
+        destination, _ = QFileDialog.getSaveFileName(
+            self.owner, "Save portable page template", str(Path.home() / "ReportLayout.rmtemplate"),
+            "ReportMaker templates (*.rmtemplate)")
+        if not destination:
+            return False
+        target = Path(destination)
+        if target.suffix.lower() != ".rmtemplate":
+            target = target.with_suffix(".rmtemplate")
+        if target.exists() and QMessageBox.question(
+            self.owner, "Replace page template", "Replace the selected .rmtemplate?"
+        ) != QMessageBox.StandardButton.Yes:
+            return False
+        try:
+            save_template(edited, target)
+        except (TemplateError, OSError, ValueError) as exc:
+            self._warn("Cannot save page template", exc)
+            return False
+        self.owner.settings.setValue("export/page_template", str(target.resolve()))
+        self.owner.settings.sync()
+        if not self.page.pending:
+            self.refresh()
+        return True
+
+    def edit_document_template(self):
+        filename = str(self.owner.settings.value("export/page_template", "")).strip()
+        if not filename:
+            self._warn("No active page template", "Import a local Word page format first.")
+            return False
+        try:
+            current = load_template(filename)
+            edited = edit_template_layout(self.owner, current)
+            if edited is None:
+                return False
+            save_template(edited, filename)
+            if not self.page.pending:
+                self.refresh()
+        except (TemplateError, OSError, ValueError) as exc:
+            self._warn("Cannot edit page template", exc)
+            return False
+        return True
+
+    def clear_document_template(self):
+        # A cleared selection never deletes the separately saved portable profile.
+        self.owner.settings.remove("export/page_template")
+        self.owner.settings.sync()
+        if not self.page.pending:
+            self.refresh()
+        return True
+
     def _export_style(self):
         settings = self.owner.settings
+        template_path = str(settings.value("export/page_template", "")).strip()
+        if template_path:
+            template = load_template(template_path)  # fail closed if missing/tampered
+            return ExportStyle(
+                template.header_text, template.footer_text, template.logo,
+                template.page_width_cm, template.page_height_cm,
+                template.left_margin_cm, template.right_margin_cm,
+                template.top_margin_cm, template.bottom_margin_cm,
+                template.header_distance_cm, template.footer_distance_cm,
+                template.normal_font, template.normal_size_pt,
+                template.heading_font, template.heading_size_pt)
+
         logo_path = str(settings.value("export/logo_path", "")).strip()
         raw = b""
         if logo_path:
