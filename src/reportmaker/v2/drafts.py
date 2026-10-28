@@ -8,8 +8,11 @@ specific canonical source field has not changed since its draft began.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from copy import deepcopy
 
 from ..model import HeadingBlock, Module, ParagraphBlock
+from ..rich_text import RichFormatting
+from .adapters.formatting import format_chars, format_paragraphs
 from .adapters.rich_text import rebase_rich
 from .commands import CommandGateway, CommandIntent
 from .projections import NodeAddress, find_node
@@ -22,6 +25,7 @@ class TextDraft:
     original: str
     value: str
     generation: str
+    rich: RichFormatting | None = None
 
 
 def _source(node, address: NodeAddress) -> str:
@@ -73,14 +77,61 @@ class DraftCoordinator:
         if old is None:
             original = _source(find_node(self.session.report_snapshot(), address), address)
             generation = self.session.generation
+            rich = None
         else:
             original, generation = old.original, old.generation
+            # Rebase staged formatting through subsequent text edits instead
+            # of discarding toolbar changes or moving styling onto new text.
+            rich = (rebase_rich(old.value, value, old.rich)
+                    if old.rich is not None and value != old.value else
+                    deepcopy(old.rich))
         if generation != self.session.generation:
             raise StaleIntentError("Draft belongs to a previous report")
-        if value == original:
+        node = find_node(self.session.report_snapshot(), address)
+        if _source(node, address) != original:
+            raise StaleIntentError("Source changed since editing began; draft preserved")
+        if value == original and (rich is None or rich == getattr(node, "rich", None)):
             self._drafts.pop(address, None)
         else:
-            self._drafts[address] = TextDraft(address, original, value, generation)
+            self._drafts[address] = TextDraft(address, original, value, generation, rich)
+
+    def rich(self, address: NodeAddress) -> RichFormatting:
+        node = find_node(self.session.report_snapshot(), address)
+        if not isinstance(node, (ParagraphBlock, HeadingBlock)):
+            raise ValueError("Rich formatting requires a paragraph or heading")
+        draft = self._drafts.get(address)
+        if draft is None:
+            return deepcopy(node.rich)
+        if draft.generation != self.session.generation or node.text.original != draft.original:
+            raise StaleIntentError("Source changed since editing began; draft preserved")
+        if draft.rich is not None:
+            return deepcopy(draft.rich)
+        return rebase_rich(draft.original, draft.value, node.rich)
+
+    def format(self, address: NodeAddress, start: int, end: int,
+               field: str, value: object, *, paragraph: bool = False) -> bool:
+        """Stage styling without changing canonical data or undo history."""
+        node = find_node(self.session.report_snapshot(), address)
+        if (address.field != "text" or address.block_id is None
+                or not isinstance(node, (ParagraphBlock, HeadingBlock))):
+            raise ValueError("Formatting requires a paragraph or heading text address")
+        old = self._drafts.get(address)
+        if old is not None and (old.generation != self.session.generation
+                                or old.original != node.text.original):
+            raise StaleIntentError("Source changed since editing began; draft preserved")
+        text = old.value if old is not None else node.text.original
+        previous = self.rich(address)
+        changed = (format_paragraphs(text, previous, start, end, field, value)
+                   if paragraph else
+                   format_chars(text, previous, start, end, field, value))
+        if previous == changed:
+            return False
+        if text == node.text.original and changed == node.rich:
+            self._drafts.pop(address, None)
+        else:
+            self._drafts[address] = TextDraft(
+                address, node.text.original, text, self.session.generation, changed)
+        return True
 
     def discard(self, address: NodeAddress) -> str:
         self._drafts.pop(address, None)
@@ -100,7 +151,8 @@ class DraftCoordinator:
         else:
             kind = "set_heading_rich" if isinstance(node, HeadingBlock) else "set_paragraph_rich"
             args = {"text": draft.value,
-                    "rich": rebase_rich(draft.original, draft.value, node.rich)}
+                    "rich": (deepcopy(draft.rich) if draft.rich is not None
+                             else rebase_rich(draft.original, draft.value, node.rich))}
         intent = CommandIntent(kind, address, args,
                                self.session.revision, self.session.generation)
         # Bypass the draft guard only for this one verified command. Other

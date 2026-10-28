@@ -19,6 +19,11 @@ from PySide6.QtWidgets import (
 )
 
 from ...engine import module_outline, validate_report_tree
+from ...rich_text import RichFormatting, style_at
+from ..adapters.formatting import (
+    paragraph_uniform, selection_uniform, to_codepoint,
+)
+from .rich_preview import paint_rich
 from ...model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, Report, TableBlock,
@@ -137,6 +142,7 @@ class InlineParagraph(QPlainTextEdit):
 
     commitRequested = Signal()
     cancelRequested = Signal()
+    formatRequested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -234,6 +240,13 @@ class InlineParagraph(QPlainTextEdit):
         elif (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
               and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             self.commitRequested.emit()
+            event.accept()
+        elif (event.modifiers() == Qt.KeyboardModifier.ControlModifier
+              and event.key() in (Qt.Key.Key_B, Qt.Key.Key_I, Qt.Key.Key_U)):
+            self.formatRequested.emit({
+                Qt.Key.Key_B: "bold", Qt.Key.Key_I: "italic",
+                Qt.Key.Key_U: "underline",
+            }[event.key()])
             event.accept()
         else:
             super().keyPressEvent(event)
@@ -412,6 +425,8 @@ class BranchCanvas(QScrollArea):
         self.drafts = None
         self._unsubscribe = None
         self._editors = {}
+        self._draft_bars = {}
+        self._ribbons = {}
         self._selected_module_id = None
         self._collapsed: set[str] = set()
         self._restore = None
@@ -593,6 +608,11 @@ class BranchCanvas(QScrollArea):
         self._render(deepcopy(report))
 
     def eventFilter(self, watched, event):
+        # Ribbons only appear for the actually focused inline text editor, not
+        # on every card. NoFocus actions preserve the editor's Qt selection.
+        if (event.type() in (QEvent.Type.FocusIn, QEvent.Type.FocusOut)
+                and isinstance(watched, InlineParagraph)):
+            QTimer.singleShot(0, self._sync_active_ribbon)
         # A projection refresh may focus widgets implicitly when old cards are
         # deleted. Only an actual user click selects a different insert target.
         if event.type() == QEvent.Type.MouseButtonPress:
@@ -742,6 +762,17 @@ class BranchCanvas(QScrollArea):
     def _changed(self, address, text, buttons):
         try:
             self.drafts.update(address, text)
+            # A native editor may inherit nearby visual character formatting
+            # while typing; the staged Unicode ranges are authoritative.
+            # Highlighter-only refresh does not mutate Qt's text undo stack.
+            editor = self._editors.get(address)
+            if isinstance(editor, InlineParagraph):
+                try:
+                    paint_rich(editor, text, self.drafts.rich(address))
+                except ValueError:
+                    # Ambiguous styled delimiter edits retain their visible
+                    # draft and fail closed on Apply, as before.
+                    pass
             buttons.setVisible(self.drafts.is_dirty(address))
             self.feedback.emit("Unapplied draft — Apply or Revert before Save/Undo")
         except (ValueError, LookupError, RuntimeError) as exc:
@@ -1093,6 +1124,191 @@ class BranchCanvas(QScrollArea):
     def redo(self):
         return self._history("redo")
 
+    def _sync_active_ribbon(self) -> None:
+        focused = next((
+            (address, editor) for address, editor in self._editors.items()
+            if isinstance(editor, InlineParagraph) and editor.hasFocus()
+        ), None)
+        if focused is not None:
+            address, editor = focused
+            self._ensure_ribbon(address, editor)
+        for address, (ribbon, _) in self._ribbons.items():
+            ribbon.setVisible(focused is not None and address == focused[0])
+        if focused is not None:
+            self._sync_ribbon(focused[0])
+
+    def _ensure_ribbon(self, address, editor) -> None:
+        if address in self._ribbons:
+            return
+        card = editor.parentWidget()
+        ribbon = QWidget(card)
+        ribbon.setObjectName("v2RichRibbon")
+        ribbon.setStyleSheet(
+            "QWidget#v2RichRibbon { background: #eaf0f8; border-radius: 5px; }"
+            "QToolButton { color: #183750; background: #ffffff;"
+            " border: 1px solid #aabbd0; border-radius: 4px; padding: 3px 6px; }"
+            "QToolButton:checked { background: #9cc5fc; border: 2px solid #1d5fbc; }"
+            "QToolButton:disabled { color: #94a3b8; }")
+        rows = QVBoxLayout(ribbon)
+        rows.setContentsMargins(5, 5, 5, 5)
+        rows.setSpacing(3)
+        buttons = {}
+
+        def add_button(line, name, symbol, description, action, *, checked=False):
+            button = QToolButton(ribbon)
+            button.setObjectName(name)
+            button.setText(symbol)
+            button.setToolTip(description)
+            button.setAccessibleName(description)
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            button.setCheckable(checked)
+            button.clicked.connect(action)
+            line.addWidget(button)
+            buttons[name] = button
+
+        char = QHBoxLayout()
+        char.setSpacing(3)
+        for field, symbol, name, description in (
+            ("bold", "B", "v2RichBold", "Bold selected text"),
+            ("italic", "I", "v2RichItalic", "Italic selected text"),
+            ("underline", "U̲", "v2RichUnderline", "Underline selected text"),
+            ("strike", "S̶", "v2RichStrike", "Strike through selected text"),
+        ):
+            add_button(char, name, symbol, description,
+                       lambda checked=False, a=address, f=field:
+                       self._format_inline(a, f), checked=True)
+        add_button(char, "v2RichSmaller", "A−", "Decrease selected font size",
+                   lambda checked=False, a=address: self._resize_inline(a, -2))
+        add_button(char, "v2RichLarger", "A+", "Increase selected font size",
+                   lambda checked=False, a=address: self._resize_inline(a, 2))
+        char.addStretch(1)
+        rows.addLayout(char)
+
+        paragraph = QHBoxLayout()
+        paragraph.setSpacing(3)
+        for align, symbol, name in (
+            ("left", "⇤", "v2RichAlignLeft"),
+            ("center", "≡", "v2RichAlignCenter"),
+            ("right", "⇥", "v2RichAlignRight"),
+            ("justify", "☷", "v2RichAlignJustify"),
+        ):
+            add_button(paragraph, name, symbol, "Align " + align,
+                       lambda checked=False, a=address, v=align:
+                       self._format_paragraph(a, "align", v), checked=True)
+        add_button(paragraph, "v2RichBullets", "• List", "Toggle bullet list",
+                   lambda checked=False, a=address:
+                   self._format_paragraph(a, "list_kind", "bullet", toggle=True),
+                   checked=True)
+        add_button(paragraph, "v2RichNumbers", "1. List", "Toggle numbered list",
+                   lambda checked=False, a=address:
+                   self._format_paragraph(a, "list_kind", "decimal", toggle=True),
+                   checked=True)
+        paragraph.addStretch(1)
+        rows.addLayout(paragraph)
+        card.layout().insertWidget(1, ribbon)
+        ribbon.hide()
+        self._ribbons[address] = ribbon, buttons
+
+    def _selected_rich(self, address):
+        editor = self._editors.get(address)
+        if not isinstance(editor, InlineParagraph) or self.drafts is None:
+            raise ValueError("Inline rich-text editor is no longer active")
+        cursor = editor.textCursor()
+        value = editor.toPlainText()
+        start = to_codepoint(value, cursor.selectionStart())
+        end = to_codepoint(value, cursor.selectionEnd())
+        return editor, value, start, end, self.drafts.rich(address)
+
+    def _stage_format(self, address, start, end, field, value, *, paragraph=False):
+        try:
+            changed = self.drafts.format(
+                address, start, end, field, value, paragraph=paragraph)
+            if changed:
+                editor = self._editors.get(address)
+                if editor is not None:
+                    paint_rich(editor, editor.toPlainText(), self.drafts.rich(address))
+                self.feedback.emit("Unapplied formatting — Apply or Revert before Save/Undo")
+                # The Apply/Revert bar must also appear for formatting-only drafts.
+                bar = self._draft_bars.get(address)
+                if bar is not None:
+                    bar.setVisible(self.drafts.is_dirty(address))
+            self._sync_ribbon(address)
+            return changed
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+
+    def _format_inline(self, address, field):
+        try:
+            _, text, start, end, rich = self._selected_rich(address)
+            if start == end:
+                self.feedback.emit("Select text before applying character formatting")
+                return False
+            return self._stage_format(address, start, end, field,
+                                      not selection_uniform(text, rich, start, end, field))
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+
+    def _resize_inline(self, address, delta):
+        try:
+            _, text, start, end, rich = self._selected_rich(address)
+            if start == end:
+                self.feedback.emit("Select text before changing font size")
+                return False
+            present = style_at(rich, start)
+            base = 16 if self._editors[address].objectName() == "v2InlineHeading" else 14
+            old_size = present.size if present is not None and present.size else base
+            size = max(6, min(96, old_size + delta))
+            return self._stage_format(address, start, end, "size", size)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+
+    def _format_paragraph(self, address, field, value, *, toggle=False):
+        try:
+            _, text, start, end, rich = self._selected_rich(address)
+            if toggle and paragraph_uniform(text, rich, start, end, field, value):
+                value = "none"
+            return self._stage_format(
+                address, start, end, field, value, paragraph=True)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+
+    def _sync_ribbon(self, address) -> None:
+        item = self._ribbons.get(address)
+        if item is None or self.drafts is None:
+            return
+        ribbon, buttons = item
+        if not ribbon.isVisible():
+            return
+        try:
+            editor, text, start, end, rich = self._selected_rich(address)
+            selected = end > start
+            for name, field in (
+                ("v2RichBold", "bold"), ("v2RichItalic", "italic"),
+                ("v2RichUnderline", "underline"), ("v2RichStrike", "strike"),
+            ):
+                button = buttons[name]
+                button.setEnabled(selected)
+                button.setChecked(selection_uniform(text, rich, start, end, field)
+                                  if selected else False)
+            for name in ("v2RichSmaller", "v2RichLarger"):
+                buttons[name].setEnabled(selected)
+            for name, value in (
+                ("v2RichAlignLeft", "left"), ("v2RichAlignCenter", "center"),
+                ("v2RichAlignRight", "right"), ("v2RichAlignJustify", "justify"),
+            ):
+                buttons[name].setChecked(
+                    paragraph_uniform(text, rich, start, end, "align", value))
+            buttons["v2RichBullets"].setChecked(
+                paragraph_uniform(text, rich, start, end, "list_kind", "bullet"))
+            buttons["v2RichNumbers"].setChecked(
+                paragraph_uniform(text, rich, start, end, "list_kind", "decimal"))
+        except (ValueError, LookupError, RuntimeError):
+            ribbon.hide()
+
     def _inline(self, card, address, kind, original):
         text = self.drafts.text(address)
         if kind in ("module", "conclusion"):
@@ -1108,6 +1324,14 @@ class BranchCanvas(QScrollArea):
             editor.setStyleSheet("color: #182b3a; font-size: 16px; font-weight: bold;"
                                  if kind == "heading" else
                                  "color: #182b3a; font-size: 14px;")
+            try:
+                staged_rich = self.drafts.rich(address)
+            except ValueError:
+                # An unsafe edit of a styled paragraph boundary must remain
+                # visible and revertible. Commit will reject it without losing
+                # either the canonical model or the pending draft.
+                staged_rich = RichFormatting()
+            paint_rich(editor, text, staged_rich)
         editor.setProperty("nodeId", address.block_id or address.module_id)
         editor.setProperty("moduleId", address.module_id)
         editor.installEventFilter(self)
@@ -1125,6 +1349,7 @@ class BranchCanvas(QScrollArea):
         apply.clicked.connect(lambda checked=False, a=address: self.apply_draft(a))
         revert.clicked.connect(lambda checked=False, a=address: self.revert_draft(a))
         buttons.setVisible(self.drafts.is_dirty(address))
+        self._draft_bars[address] = buttons
         if isinstance(editor, QLineEdit):
             editor.textEdited.connect(lambda t, a=address, b=buttons: self._changed(a, t, b))
             editor.returnPressed.connect(lambda a=address: self.apply_draft(a))
@@ -1132,6 +1357,10 @@ class BranchCanvas(QScrollArea):
             editor.textChanged.connect(lambda e=editor, a=address, b=buttons:
                                        self._changed(a, e.toPlainText(), b))
             editor.commitRequested.connect(lambda a=address: self.apply_draft(a))
+            editor.cursorPositionChanged.connect(lambda a=address: self._sync_ribbon(a))
+            editor.selectionChanged.connect(lambda a=address: self._sync_ribbon(a))
+            editor.formatRequested.connect(
+                lambda field, a=address: self._format_inline(a, field))
         editor.cancelRequested.connect(lambda a=address: self.revert_draft(a))
         card.layout().addWidget(editor)
         card.layout().addWidget(buttons)
@@ -1151,6 +1380,8 @@ class BranchCanvas(QScrollArea):
             raise ValueError("Branch layout diverged from canonical projection")
         scroll = self.verticalScrollBar().value()
         self._editors.clear()
+        self._draft_bars.clear()
+        self._ribbons.clear()
         while self._body.count():
             item = self._body.takeAt(0)
             widget = item.widget()
