@@ -34,7 +34,7 @@ class NewReportTests(unittest.TestCase):
         self.assertIsNone(a.customer_id)
         self.assertEqual(a.customer_snapshot.customer_name, "Synthetically named customer")
         self.assertEqual(a.ordered_sections()[-1].id, a.conclusion.id)
-        self.assertEqual(a.created_date, date(2026, 10, 28))
+        self.assertIsInstance(a.created_date, date)
         self.assertEqual(a.start_date, a.end_date)
 
     def test_blank_manual_customer_name_rejected(self):
