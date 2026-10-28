@@ -12,10 +12,17 @@
 
 ## Tests and safeguards
 
-- tests/test_v2_heading.py: pure commands, level/type/index rejection, exact mixed insertion, Undo/Redo/no-op behavior, multi-language provenance, Unicode style rebase and draft conflict; Qt inline editing, collapsed insertion, natural height/hidden internal scrollbars, save/reopen.
+- tests/test_v2_heading.py (8 cases after review): pure commands, level/type/index rejection, exact mixed insertion, Undo/Redo/no-op behavior, multi-language provenance, Unicode style rebase and draft conflict; Qt inline editing, collapsed insertion, natural height/hidden internal scrollbars, save/reopen, and UTF-16 caret/selection restoration after Apply.
 - .github/workflows/v2-inline.yml gates the new tests on Windows Python 3.11 and 3.12 and reruns M1.3, natural-height and M1.2 compatibility. Exact final-branch-head hosted results must be checked before review/merge.
 - Local offscreen Linux checks ran 111 test_v2_*.py tests with PySide6, including new M3.1 tests. Qt/offscreen does **not** replace installed Windows acceptance at 100%, 125%, 150% DPI, keyboard/screen-reader tests or long nested reports.
 
 ## M3 remains incomplete
 
 M3.2 must add a genuine contextual **rich-text** toolbar with visible selection formatting, proper focus/Unicode handling, and formatting persistence/Undo across paragraphs and headings. M3.3 must add guarded inline table cells and row/column operations. M3.4 must provide remaining typed block insertion and full positional UI, clarify width/height persistence, and coordinate cross-tab drafts when the separate Editor tab is integrated. Full Checkpoint B remains pending these gates, native Windows acceptance and independent review. Do not merge/release without explicit authorization.
+
+## Independent review correction (PR #77)
+
+- Fixed a redundant session-notification redraw that replaced freshly restored inline editors after commit; retained synchronous toolbar/UI updates and deferred native drag protection.
+- Fixed QTextCursor restoration clamping by counting UTF-16 code units for astral Unicode rather than Python code points.
+- Added an offscreen Qt regression covering emoji caret and selection after Apply. Corrective source/test commit: `95c445d8617dcc1fbef694977ebe6bc9b47ac744`.
+- Independent Linux/offscreen Python 3.14 environment: **112** `test_v2_*.py` regressions passed; `compileall` and `git diff --check` passed. Hosted Windows 3.11/3.12 exact-final-head workflow checks and installed-Windows visual/DPI/accessibility acceptance remain separate.

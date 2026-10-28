@@ -367,3 +367,8 @@ Next reproducible action:
 - Added typed add_heading/set_heading_rich commands, Apply/Revert drafts, native natural-height heading editor, contextual Insert heading after/inside and + Heading toolbar, collapsed-parent reveal; no schema v4, V1, browser/ChatGPT, installer or export changes.
 - Synthetic tests/test_v2_heading.py (7 cases) and Windows 3.11/3.12 v2-inline.yml gate; local Linux/offscreen PySide6 111 V2 tests passed with compileall/diff check. Hosted exact-head Windows CI and installed-Windows DPI/keyboard/screen reader acceptance pending. See docs/v2/M3_1_HEADING_EDITING.md.
 - Next: draft PR for independent review, check exact-head Windows CI, fix any findings. Do not merge without user authorization.
+
+### CP-V2-M3.1 — PR #77 review correction (2026-10-28)
+- Independently reviewed draft PR #77 and reproduced a heading emoji-caret regression: duplicate Qt redraw and code-point/UTF-16 mismatch in cursor restoration. Fixed in `95c445d8617dcc1fbef694977ebe6bc9b47ac744`; new heading Qt regression covers caret and selected emoji after Apply.
+- **112** local Linux/offscreen Python 3.14 V2 regressions pass following the correction, including structural toolbar sync gates; `compileall` and `git diff --check` clean. Windows hosted exact-final-branch-head CI still required before merge. No installed Windows DPI/keyboard/screen-reader claim.
+- After PR review/merge, proceed to M3.2 (contextual rich formatting/selection safety), not the remaining M3.3/M3.4 scope.
