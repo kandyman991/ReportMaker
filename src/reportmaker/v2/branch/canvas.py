@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from ...engine import validate_report_tree
+from ...engine import module_outline, validate_report_tree
 from ...model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, Report, TableBlock,
@@ -26,7 +26,7 @@ from ...model import (
 
 from ..commands import CommandGateway, CommandIntent
 from ..drafts import DraftCoordinator
-from ..projections import NodeAddress, project_branch
+from ..projections import NodeAddress, descendant_counts, project_branch
 from ..session import PendingDraftError, ReportSession
 from ..structure import plan_drop, plan_indent, plan_outdent, structural_node
 
@@ -55,7 +55,7 @@ def _display(node, *, conclusion: bool = False) -> tuple[str, str, str]:
     raise TypeError("Unsupported report block")
 
 
-def _branch_rows(report: Report):
+def _branch_rows(report: Report, *, expanded: frozenset[str] | None = None):
     """Iterative preorder; wrapper modules share the canonical module ID.
 
     Ancestor continuation flags affect only the connector drawing. Neither
@@ -71,7 +71,7 @@ def _branch_rows(report: Report):
         node, depth, ancestors, has_next, is_conclusion = stack.pop()
         kind, label, text = _display(node, conclusion=is_conclusion)
         yield node.id, kind, label, text, depth, ancestors, has_next
-        if isinstance(node, Module):
+        if isinstance(node, Module) and (expanded is None or node.id in expanded):
             for index in range(len(node.blocks) - 1, -1, -1):
                 block = node.blocks[index]
                 child = block.module if isinstance(block, NestedModuleBlock) else block
@@ -384,6 +384,7 @@ class BranchCanvas(QScrollArea):
     """Read-only geometry, editable source text; commands own all mutations."""
     feedback = Signal(str)
     selectionChanged = Signal()
+    visibilityChanged = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -412,6 +413,7 @@ class BranchCanvas(QScrollArea):
         self._unsubscribe = None
         self._editors = {}
         self._selected_module_id = None
+        self._collapsed: set[str] = set()
         self._restore = None
         self._drag_context = None
         self._native_drag_active = False
@@ -422,6 +424,92 @@ class BranchCanvas(QScrollArea):
     @property
     def visible_nodes(self) -> tuple[tuple[str, str, int, str], ...]:
         return self._visible_nodes
+
+    @property
+    def collapsed_module_ids(self) -> frozenset[str]:
+        return frozenset(self._collapsed)
+
+    def restore_collapsed(self, collapsed: frozenset[str]) -> None:
+        """Apply locally stored IDs only after validating the current report."""
+        if self._session is None or not isinstance(collapsed, frozenset):
+            raise ValueError("A bound session and frozen collapse IDs are required")
+        report = self._session.report_snapshot()
+        valid = {row.stable_id for row in project_branch(report)
+                 if row.kind in ("module", "conclusion")}
+        self._collapsed = set(collapsed & valid)
+        self._refresh()
+
+    def toggle_branch(self, module_id: str) -> bool:
+        if self._session is None:
+            return False
+        report = self._session.report_snapshot()
+        rows = project_branch(report)
+        module = next((r for r in rows if r.stable_id == module_id
+                       and r.kind in ("module", "conclusion")), None)
+        if module is None:
+            return False
+        try:
+            # Recreating native editors must not discard an unapplied draft.
+            self._session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.feedback.emit(str(exc))
+            return False
+        if module_id in self._collapsed:
+            self._collapsed.remove(module_id)
+        else:
+            self._collapsed.add(module_id)
+            # A selected descendant must not remain an invisible move target.
+            by_id = {row.stable_id: row for row in rows}
+            selected = by_id.get(self._selected_module_id)
+            while selected is not None and selected.parent_module_id is not None:
+                if selected.parent_module_id == module_id:
+                    self._selected_module_id = module_id
+                    break
+                selected = by_id.get(selected.parent_module_id)
+        self._restore = None
+        self._refresh()
+        self.visibilityChanged.emit()
+        return True
+
+    def reveal_module(self, module_id: str) -> bool:
+        """TOC jump reveals collapsed ancestors and scrolls to the stable ID."""
+        if self._session is None:
+            return False
+        rows = project_branch(self._session.report_snapshot())
+        by_id = {row.stable_id: row for row in rows}
+        target = by_id.get(module_id)
+        if target is None or target.kind not in ("module", "conclusion"):
+            return False
+        to_expand = set()
+        ancestor = target.parent_module_id
+        while ancestor is not None:
+            to_expand.add(ancestor)
+            ancestor = by_id[ancestor].parent_module_id
+        if self._collapsed.intersection(to_expand):
+            try:
+                self._session.require_clean_drafts()
+            except PendingDraftError as exc:
+                self.feedback.emit(str(exc))
+                return False
+            self._collapsed.difference_update(to_expand)
+            self._restore = None
+            self._selected_module_id = module_id
+            self._refresh()
+            self.visibilityChanged.emit()
+        else:
+            self._selected_module_id = module_id
+            self.selectionChanged.emit()
+        QTimer.singleShot(0, lambda mid=module_id: self._scroll_to_module(mid))
+        return True
+
+    def _scroll_to_module(self, module_id: str) -> None:
+        if self._session is None:
+            return
+        for row in self._host.findChildren(DropRow):
+            if row.kind in ("module", "conclusion") and row.address.module_id == module_id:
+                top = row.mapTo(self._host, QPoint(0, 0)).y()
+                self.verticalScrollBar().setValue(max(0, top - 28))
+                return
 
     def editor_for(self, address: NodeAddress):
         return self._editors.get(address)
@@ -440,6 +528,7 @@ class BranchCanvas(QScrollArea):
         # New/Open changes generation: never restore selection or caret from
         # the previous report, even if a stale Qt redraw was queued.
         if change is None:
+            self._collapsed.clear()
             self._selected_module_id = None
             self._restore = None
             self._drag_context = None
@@ -458,6 +547,7 @@ class BranchCanvas(QScrollArea):
             report = self._session.report_snapshot()
             module_ids = {row.stable_id for row in project_branch(report)
                           if row.kind in ("module", "conclusion")}
+            self._collapsed.intersection_update(module_ids)
             if self._selected_module_id not in module_ids:
                 self._selected_module_id = report.modules[0].id if report.modules else None
             self._render(report)
@@ -884,6 +974,10 @@ class BranchCanvas(QScrollArea):
         self.selectionChanged.emit()
         menu = QMenu(self)
         if address.block_id is None:
+            toggle = menu.addAction("Expand branch" if address.module_id in self._collapsed
+                                    else "Collapse branch")
+            toggle.triggered.connect(lambda: self.toggle_branch(address.module_id))
+            menu.addSeparator()
             indent = menu.addAction("Indent under previous module")
             indent.setEnabled(self._planned_indent(address) is not None)
             indent.triggered.connect(lambda: self._structural_move(address))
@@ -959,8 +1053,15 @@ class BranchCanvas(QScrollArea):
 
     def _render(self, report: Report):
         validate_report_tree(report)
-        rows = tuple(_branch_rows(report))
-        projection = project_branch(report, revision=self._session.revision if self._session else 0)
+        all_rows = project_branch(report)
+        expanded = frozenset(row.stable_id for row in all_rows
+                             if row.kind in ("module", "conclusion")
+                             and row.stable_id not in self._collapsed)
+        rows = tuple(_branch_rows(report, expanded=expanded))
+        projection = project_branch(report, expanded=expanded,
+                                    revision=self._session.revision if self._session else 0)
+        numbers = {entry.module_id: entry.number for entry in module_outline(report)}
+        summaries = descendant_counts(report)
         if len(rows) != len(projection) or any(a[0] != b.stable_id for a, b in zip(rows, projection)):
             raise ValueError("Branch layout diverged from canonical projection")
         scroll = self.verticalScrollBar().value()
@@ -986,13 +1087,26 @@ class BranchCanvas(QScrollArea):
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(15, 9, 15, 10)
             card_layout.setSpacing(3)
-            label = QLabel(caption, card)
+            numbered = (f"MODULE {numbers[identifier]}" if kind == "module"
+                        else caption)
+            label = QLabel(numbered, card)
             label.setTextFormat(Qt.TextFormat.PlainText)
             label.setStyleSheet("color: #526c83; font-size: 10px; font-weight: bold;")
             header = QHBoxLayout()
             header.setContentsMargins(0, 0, 0, 0)
             header.addWidget(label)
             header.addStretch(1)
+            if kind in ("module", "conclusion"):
+                toggle = QToolButton(card)
+                toggle.setObjectName("v2ToggleBranch")
+                toggle.setProperty("nodeId", identifier)
+                toggle.setText("▸" if identifier in self._collapsed else "▾")
+                toggle.setAccessibleName(("Expand " if identifier in self._collapsed
+                                          else "Collapse ") + text)
+                toggle.setToolTip("Show or hide branch descendants")
+                toggle.clicked.connect(lambda checked=False, mid=identifier:
+                                       self.toggle_branch(mid))
+                header.addWidget(toggle)
             if kind not in ("root", "conclusion"):
                 header.addWidget(DragHandle(self, address, card))
                 options = QToolButton(card)
@@ -1025,6 +1139,17 @@ class BranchCanvas(QScrollArea):
                 value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 value.setStyleSheet("color: #182b3a; font-size: 15px;")
                 card_layout.addWidget(value)
+            if kind in ("module", "conclusion") and identifier in self._collapsed:
+                count = summaries[identifier]
+                summary = QLabel(
+                    f"{count.modules} submodules · {count.text} text · "
+                    f"{count.photos} photos · {count.tables} tables · "
+                    f"{count.page_breaks} breaks", card,
+                )
+                summary.setObjectName("v2CollapsedSummary")
+                summary.setTextFormat(Qt.TextFormat.PlainText)
+                summary.setStyleSheet("color: #526c83; font-size: 11px;")
+                card_layout.addWidget(summary)
             line.addWidget(card, 1)
             self._body.addWidget(row)
         self._body.addStretch(1)
