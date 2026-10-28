@@ -5,11 +5,12 @@ intent is one logical undo step; stale/malformed intents never reach apply().
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Mapping
 
 from ..model import LocalizedText, Module, ParagraphBlock
-from ..rich_text import validate_rich
+from ..rich_text import RichFormatting, validate_rich
 from .projections import NodeAddress, find_node
 from .session import ReportSession, StaleIntentError
 
@@ -38,6 +39,7 @@ _KINDS = {
     "add_paragraph": ({"text"}, {"index"}),
     "rename_module": ({"title"}, set()),
     "set_paragraph": ({"text"}, set()),
+    "set_paragraph_rich": ({"text", "rich"}, set()),
 }
 
 
@@ -60,9 +62,13 @@ class CommandGateway:
         required, optional = _KINDS[intent.kind]
         if set(intent.args) - required - optional or not required <= set(intent.args):
             raise ValueError("Unsupported command arguments")
-        value_key = "text" if intent.kind in ("add_paragraph", "set_paragraph") else "title"
+        value_key = "text" if intent.kind in ("add_paragraph", "set_paragraph", "set_paragraph_rich") else "title"
         if not isinstance(intent.args[value_key], str):
             raise ValueError("Title and text must be strings")
+        if intent.kind == "set_paragraph_rich":
+            if not isinstance(intent.args["rich"], RichFormatting):
+                raise ValueError("An explicit rich formatting value is required")
+            validate_rich(intent.args["rich"], intent.args["text"])
         if "index" in intent.args and (type(intent.args["index"]) is not int or intent.args["index"] < 0):
             raise ValueError("Mixed insertion index must be a non-negative integer")
         report = self._session.report_snapshot()
@@ -74,7 +80,7 @@ class CommandGateway:
             addr = intent.target
             if not isinstance(addr, NodeAddress) or addr.report_id != report.id:
                 raise ValueError("Action must address the active report")
-            if intent.kind == "set_paragraph":
+            if intent.kind in ("set_paragraph", "set_paragraph_rich"):
                 if addr.field != "text" or addr.block_id is None:
                     raise ValueError("Paragraph command requires a text block address")
                 block = find_node(report, addr)
@@ -106,6 +112,10 @@ class CommandGateway:
             return None
         if kind == "set_paragraph" and find_node(editor.report, address).text.original == args["text"]:
             return None
+        if kind == "set_paragraph_rich":
+            current = find_node(editor.report, address)
+            if current.text.original == args["text"] and current.rich == args["rich"]:
+                return None
         language = editor.report.primary_language
         changed_id: str
         structure = kind in ("add_module", "add_nested_module", "add_paragraph")
@@ -123,6 +133,17 @@ class CommandGateway:
         elif kind == "rename_module":
             editor.rename_module(address.module_id, args["title"])
             changed_id = address.module_id
+        elif kind == "set_paragraph_rich":
+            # The widget supplies a detached, validated rich value. Freeze it
+            # before transaction so later UI mutations cannot alias core state.
+            rich = deepcopy(args["rich"])
+            def edit(report):
+                paragraph = find_node(report, address)
+                paragraph.text.update_original(args["text"])
+                paragraph.rich = rich
+                validate_rich(paragraph.rich, paragraph.text.original)
+            editor.apply(edit)
+            changed_id = address.block_id
         elif kind == "set_paragraph":
             def edit(report):
                 paragraph = find_node(report, address)
