@@ -7,13 +7,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from math import ceil
 from uuid import uuid4
 
-from PySide6.QtCore import QEvent, QMimeData, QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QDrag, QPainter, QPen, QTextCursor
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QDrag, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
 from PySide6.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
-    QPushButton, QScrollArea, QToolButton, QVBoxLayout, QWidget,
+    QApplication, QFrame, QHBoxLayout, QLabel, QLayout, QLineEdit, QPlainTextEdit,
+    QPushButton, QScrollArea, QSizePolicy, QToolButton, QVBoxLayout, QWidget,
 )
 
 from ...engine import validate_report_tree
@@ -126,8 +127,104 @@ class InlineTitle(QLineEdit):
 
 
 class InlineParagraph(QPlainTextEdit):
+    """Wrap to the card width and request the entire text height from Qt layout.
+
+    Unlike a standard QPlainTextEdit, this editor is not a nested scrolling
+    viewport. Width is allocated by its parent card's layout; the size hint
+    follows wrapped document lines as the user types or the window resizes.
+    """
+
     commitRequested = Signal()
     cancelRequested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.document().documentLayout().documentSizeChanged.connect(
+            self.updateGeometry
+        )
+        self.cursorPositionChanged.connect(self._queue_caret_reveal)
+
+    def _branch_canvas(self):
+        parent = self.parentWidget()
+        while parent is not None and not isinstance(parent, BranchCanvas):
+            parent = parent.parentWidget()
+        return parent
+
+    def _queue_caret_reveal(self):
+        if self.hasFocus():
+            # The document and outer layout should finish adapting to the
+            # latest edit before we reveal the caret in the *outer* viewport.
+            QTimer.singleShot(0, self._reveal_caret)
+
+    def _reveal_caret(self):
+        if not self.hasFocus():
+            return
+        canvas = self._branch_canvas()
+        if canvas is None:
+            return
+        caret = self.cursorRect()
+        top = self.viewport().mapTo(canvas.viewport(), caret.topLeft()).y()
+        bottom = self.viewport().mapTo(canvas.viewport(), caret.bottomLeft()).y()
+        scrollbar = canvas.verticalScrollBar()
+        edge = 16
+        if bottom > canvas.viewport().height() - edge:
+            scrollbar.setValue(scrollbar.value() + bottom
+                               - canvas.viewport().height() + edge)
+        elif top < edge:
+            scrollbar.setValue(scrollbar.value() + top - edge)
+
+    def wheelEvent(self, event):
+        # With no internal editor scroll, the wheel must navigate the branch
+        # even while the cursor is positioned over paragraph text.
+        canvas = self._branch_canvas()
+        if canvas is None:
+            event.ignore()
+            return
+        point = self.viewport().mapTo(canvas.viewport(), event.position().toPoint())
+        wheel = QWheelEvent(
+            QPointF(point), event.globalPosition(), event.pixelDelta(),
+            event.angleDelta(), event.buttons(), event.modifiers(),
+            event.phase(), event.inverted(), event.source(),
+        )
+        QApplication.sendEvent(canvas.viewport(), wheel)
+        event.setAccepted(wheel.isAccepted())
+
+    def sizeHint(self) -> QSize:
+        # QTextDocument.size().height() counts visual lines, *not* pixels
+        # in a QPlainTextEdit. lineSpacing() is also insufficient when font
+        # fallback (e.g. emoji/CJK) makes wrapped lines taller. Ask Qt's
+        # actual text layout for each wrapped block's pixel bounding box.
+        doc = self.document()
+        layout = doc.documentLayout()
+        pixels = 0.0
+        block = doc.begin()
+        while block.isValid():
+            pixels += layout.blockBoundingRect(block).height()
+            block = block.next()
+        height = ceil(
+            max(pixels, float(self.fontMetrics().lineSpacing()))
+            + 2 * doc.documentMargin()
+            + 2 * self.frameWidth() + 4
+        )
+        return QSize(super().sizeHint().width(), height)
+
+    def minimumSizeHint(self) -> QSize:
+        # QPlainTextEdit normally enforces a multi-line minimum viewport; a
+        # one-line paragraph should be one line tall instead.
+        return QSize(1, self.sizeHint().height())
+
+    def resizeEvent(self, event) -> None:
+        old_width = event.oldSize().width()
+        super().resizeEvent(event)
+        if old_width != self.width():
+            # Word wrapping changed: the containing card must update its own
+            # natural height, not introduce an editor scrollbar.
+            self.updateGeometry()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
@@ -291,6 +388,10 @@ class BranchCanvas(QScrollArea):
         super().__init__(parent)
         self.setObjectName("v2BranchCanvas")
         self.setWidgetResizable(True)
+        # Long reports still scroll with wheel/touchpad, keyboard and focus;
+        # the workspace never displays scrollbars. No child card scrollbars.
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setStyleSheet("QScrollArea#v2BranchCanvas { background: #f3f6fa; }")
         self._host = QWidget()
@@ -299,6 +400,9 @@ class BranchCanvas(QScrollArea):
         self._body = QVBoxLayout(self._host)
         self._body.setContentsMargins(20, 20, 20, 28)
         self._body.setSpacing(5)
+        # Let scroll content track changing child size hints (long paragraphs,
+        # wrapping after width changes) rather than caching the first height.
+        self._body.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
         self.setWidget(self._host)
         self._visible_nodes = ()
         self._session = None
@@ -691,8 +795,6 @@ class BranchCanvas(QScrollArea):
             editor = InlineParagraph(card)
             editor.setObjectName("v2InlineParagraph")
             editor.setPlainText(text)
-            editor.setMinimumHeight(74)
-            editor.setMaximumHeight(230)
             editor.setTabChangesFocus(True)
             editor.setStyleSheet("color: #182b3a; font-size: 14px;")
         editor.setProperty("nodeId", address.block_id or address.module_id)

@@ -33,8 +33,8 @@ All entries below are **KEEP**. There are **no DISCARD items**.
 **BE-L03 — Unlimited submodule nesting.** Modules can contain submodules recursively, without a product-facing fixed depth tier.  
 **Accept:** Deeply nested synthetic projects save/reopen safely; only explicitly reviewed resource/security limits may reject excessive inputs.
 
-**BE-L04 — Actual content visible inside each branch.** Show real editable text, photo thumbnails/captions and table cells in expanded branches.  
-**Accept:** Ordinary editing starts at the visible block without a detached editor.
+**BE-L04 — Actual content visible inside each branch.** Show real editable text, photo thumbnails/captions and table cells in expanded branches. **Expanded cards have intrinsic/natural height** (Compose-style content measurement): they grow or shrink with their complete text, media or table content, and reflow as the workspace width changes. No arbitrary maximum card height, internal editor scrollbar, or visible Branch Editor scrollbar is permitted. A longer report must still support wheel/touchpad and keyboard/caret navigation in the single continuous workspace.
+**Accept:** Ordinary editing starts at the visible block without a detached editor; long multilingual text is fully visible without inner scrolling or overlapping the next card at multiple viewport widths; shortened text shrinks; committed text, Undo/Redo and resizing preserve natural geometry; keyboard caret and wheel actions can reach off-screen content.
 
 **BE-L05 — Ordered vertical layout.** Children appear in the exact canonical document sequence, including alternating content blocks and nested submodules.  
 **Accept:** The canvas order matches saved and exported report order.
