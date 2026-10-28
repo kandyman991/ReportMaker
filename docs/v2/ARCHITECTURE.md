@@ -66,7 +66,7 @@ These are *architectural responsibilities*, not a fixed file/directory naming ma
 - **Workspace command adapter:** only adapter-approved operations may mutate canonical data. UI must never independently manipulate a second report tree.
 
 ### Branch Editor UI
-- **Canvas/layout:** scrollable connected vertical hierarchy; branch lines as decoration, order as model-driven; zoom/pan/fit.
+- **Canvas/layout:** a connected, content-sized vertical hierarchy managed by Qt layouts; connector lines are decoration only and order is model-driven. Every expanded card grows/shrinks to the full wrapped content without internal or visible workspace scrollbars. Long reports remain navigable by mouse wheel, touchpad, keyboard and focus/caret tracking, with no nested scrollable editors or arbitrary card-height ceiling; zoom/pan/fit are distinct future controls.
 - **Module container:** inline title editing, nested children, collapse/focus, summary and context menu.
 - **Content widgets:** rich-text, image/annotation and table renderers/editors, loaded lazily when practical.
 - **Drag/drop planner:** compute valid Before/After/Inside preview before commit, reject invalid drops, revalidate after any queued callback; only containers may accept Inside.

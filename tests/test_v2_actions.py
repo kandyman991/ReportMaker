@@ -279,6 +279,58 @@ class StructuralActionQtTests(TestCase):
         self.assertTrue(win.branch.undo())
         self.assertEqual(win.session.report_snapshot(), original)
 
+    def test_duplicate_delete_long_paragraph_keeps_natural_cards(self):
+        """M2.3 refreshes must retain PR #75 no-scrollbar geometry."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QMessageBox
+        from reportmaker.v2.branch.canvas import DropRow
+
+        win = self.window
+        win.resize(950, 700)
+        original = win.session.report_snapshot()
+        owner = original.modules[1]
+        address = addr(original, owner.id, owner.blocks[0].id)
+        editor = win.branch.editor_for(address)
+        long_text = "Natural height after structural change: 日本語 café. " * 95
+        editor.setPlainText(long_text)
+        for _ in range(4):
+            self.app.processEvents()
+        self.assertTrue(win.branch.apply_draft(address))
+        for _ in range(4):
+            self.app.processEvents()
+
+        self.assertTrue(win.branch.duplicate_node(address))
+        for _ in range(6):
+            self.app.processEvents()
+        latest = win.session.report_snapshot()
+        duplicate_id = latest.modules[1].blocks[1].id
+        copy_address = addr(latest, owner.id, duplicate_id)
+        for item_address in (address, copy_address):
+            expanded = win.branch.editor_for(item_address)
+            self.assertEqual(expanded.toPlainText(), long_text)
+            self.assertGreater(expanded.height(), 230)
+            self.assertEqual(expanded.verticalScrollBar().maximum(), 0)
+            self.assertEqual(expanded.verticalScrollBarPolicy(),
+                             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.assertEqual(win.branch.verticalScrollBarPolicy(),
+                         Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        rows = sorted(win.branch._host.findChildren(DropRow), key=lambda row: row.y())
+        for previous, following in zip(rows, rows[1:]):
+            self.assertLess(previous.geometry().bottom(), following.geometry().top())
+
+        with mock.patch("reportmaker.v2.branch.canvas.QMessageBox.question",
+                        return_value=QMessageBox.StandardButton.Yes):
+            self.assertTrue(win.branch.delete_node(copy_address))
+        for _ in range(5):
+            self.app.processEvents()
+        self.assertIsNone(win.branch.editor_for(copy_address))
+        self.assertEqual(win.branch.editor_for(address).toPlainText(), long_text)
+        self.assertTrue(win.branch.undo())
+        for _ in range(5):
+            self.app.processEvents()
+        self.assertEqual(win.branch.editor_for(copy_address).toPlainText(), long_text)
+        self.assertEqual(win.branch.editor_for(copy_address).verticalScrollBar().maximum(), 0)
+
     def test_confirmed_delete_rejects_modal_stale_generation(self):
         from PySide6.QtWidgets import QMessageBox
         win = self.window

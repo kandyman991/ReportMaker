@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T17:59:54.243Z",
+  "generatedAt": "2026-10-28T19:29:12.906Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,11 +11,21 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "8a00734d8d0ffdee0423ac6a3e390e05c3545482",
-    "message": "Merge pull request #72: V2 M2.2 native drag-and-drop\n\nfeat(v2): M2.2 native drag-and-drop with explicit placement feedback",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/8a00734d8d0ffdee0423ac6a3e390e05c3545482"
+    "sha": "c107bde318e2f137f2e6064ec0c4a717a0032b1e",
+    "message": "Merge pull request #75 from kandyman991/feature/v2-natural-height-cards\n\nfeat(v2): content-sized Branch Editor cards with no visible scrollbars",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/c107bde318e2f137f2e6064ec0c4a717a0032b1e"
   },
   "openPullRequests": [
+    {
+      "number": 74,
+      "title": "V2 M2.3 — Indent/Outdent, Duplicate and Delete",
+      "draft": true,
+      "head": "feature/v2-m2-3-structural-actions",
+      "headSha": "bc40d75d57a501624e38b74c7fd5140085d09b1b",
+      "base": "main",
+      "updatedAt": "2026-10-28T18:43:29Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/74"
+    },
     {
       "number": 21,
       "title": "Windows v0.5.0 release candidate: installed acceptance and M0 historical fallback",
@@ -109,114 +119,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40740938191,
+      "id": 40754700783,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "c107bde318e2f137f2e6064ec0c4a717a0032b1e",
+      "event": "push",
+      "updatedAt": "2026-10-28T19:29:08Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40754700783"
+    },
+    {
+      "id": 40754700621,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
+      "headSha": "c107bde318e2f137f2e6064ec0c4a717a0032b1e",
+      "event": "push",
+      "updatedAt": "2026-10-28T19:29:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40754700621"
+    },
+    {
+      "id": 40754700620,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "8a00734d8d0ffdee0423ac6a3e390e05c3545482",
+      "headSha": "c107bde318e2f137f2e6064ec0c4a717a0032b1e",
       "event": "push",
-      "updatedAt": "2026-10-28T17:59:50Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740938191"
+      "updatedAt": "2026-10-28T19:29:07Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40754700620"
     },
     {
-      "id": 40740938165,
-      "name": "ReportMaker continuity contract",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "8a00734d8d0ffdee0423ac6a3e390e05c3545482",
-      "event": "push",
-      "updatedAt": "2026-10-28T17:59:49Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740938165"
-    },
-    {
-      "id": 40740938161,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "8a00734d8d0ffdee0423ac6a3e390e05c3545482",
-      "event": "push",
-      "updatedAt": "2026-10-28T17:59:50Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740938161"
-    },
-    {
-      "id": 40740491993,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-2-native-drag-drop",
-      "headSha": "ea2b48bfb2285da1bb8078049ed3471d80ef3deb",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T17:59:20Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740491993"
-    },
-    {
-      "id": 40740491975,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-2-native-drag-drop",
-      "headSha": "ea2b48bfb2285da1bb8078049ed3471d80ef3deb",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T17:56:59Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740491975"
-    },
-    {
-      "id": 40740491964,
-      "name": "V2 M1.4 project lifecycle and Checkpoint A",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-2-native-drag-drop",
-      "headSha": "ea2b48bfb2285da1bb8078049ed3471d80ef3deb",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T17:57:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740491964"
-    },
-    {
-      "id": 40740491961,
+      "id": 40750102828,
       "name": "V2 M1.3 inline branch editing",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m2-2-native-drag-drop",
-      "headSha": "ea2b48bfb2285da1bb8078049ed3471d80ef3deb",
+      "branch": "feature/v2-natural-height-cards",
+      "headSha": "5a0c78737ddea5f391bec69dd425d70a906cc4c2",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T17:57:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740491961"
+      "updatedAt": "2026-10-28T18:59:52Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40750102828"
     },
     {
-      "id": 40740491960,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-2-native-drag-drop",
-      "headSha": "ea2b48bfb2285da1bb8078049ed3471d80ef3deb",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T17:58:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740491960"
-    },
-    {
-      "id": 40740491893,
+      "id": 40750102546,
       "name": "V2 M1.1 Branch Editor shell",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m2-2-native-drag-drop",
-      "headSha": "ea2b48bfb2285da1bb8078049ed3471d80ef3deb",
+      "branch": "feature/v2-natural-height-cards",
+      "headSha": "5a0c78737ddea5f391bec69dd425d70a906cc4c2",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T17:57:58Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740491893"
+      "updatedAt": "2026-10-28T18:59:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40750102546"
     },
     {
-      "id": 40740491873,
+      "id": 40750102540,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-natural-height-cards",
+      "headSha": "5a0c78737ddea5f391bec69dd425d70a906cc4c2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T19:00:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40750102540"
+    },
+    {
+      "id": 40750102521,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-natural-height-cards",
+      "headSha": "5a0c78737ddea5f391bec69dd425d70a906cc4c2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T18:58:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40750102521"
+    },
+    {
+      "id": 40750102410,
       "name": "V2 M2 structural placement",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m2-2-native-drag-drop",
-      "headSha": "ea2b48bfb2285da1bb8078049ed3471d80ef3deb",
+      "branch": "feature/v2-natural-height-cards",
+      "headSha": "5a0c78737ddea5f391bec69dd425d70a906cc4c2",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T17:57:45Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40740491873"
+      "updatedAt": "2026-10-28T18:59:53Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40750102410"
+    },
+    {
+      "id": 40750102365,
+      "name": "V2 M1.4 project lifecycle and Checkpoint A",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-natural-height-cards",
+      "headSha": "5a0c78737ddea5f391bec69dd425d70a906cc4c2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T19:00:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40750102365"
+    },
+    {
+      "id": 40750102304,
+      "name": "V2 M1.2 session, commands and persistence",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-natural-height-cards",
+      "headSha": "5a0c78737ddea5f391bec69dd425d70a906cc4c2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T18:59:20Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40750102304"
     }
   ]
 }

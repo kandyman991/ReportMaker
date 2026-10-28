@@ -34,3 +34,10 @@
 ## Deferred
 
 M2.4 expand/collapse presentation persistence, descendant counts, derived numbering and visible TOC. No physical installed-Windows validation or installer/release authorized. Independent PR review and explicit merge approval are required.
+
+## PR #74 integration review — 2026-10-28
+
+- After PR #75 merged, integrated the newer `main` (`00bfb0169241af03a90bf68deba81e5fe475f7d0`) without reverting its intrinsic-height Qt paragraph editor, hidden workspace/editor scrollbar policies, wrapping and caret/wheel navigation.
+- Resolved the overlapping `canvas.py` imports by retaining both M2.3 `QMenu`/`QMessageBox` and PR #75 layout classes (`QLayout`/`QSizePolicy`).
+- Added a combined Qt regression in `test_v2_actions.py`: commit a long multilingual paragraph, duplicate it, verify both expanded cards and hidden scrollbars, check adjacent row geometry, delete with confirmation, and Undo to restore.
+- Local Linux/offscreen full synthetic suites pass; exact merged-head hosted Windows workflows must pass before merge. Physical installed-Windows DPI/assistive-technology acceptance remains open.
