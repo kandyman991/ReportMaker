@@ -197,9 +197,11 @@ class BranchCanvas(QScrollArea):
         self._render(deepcopy(report))
 
     def eventFilter(self, watched, event):
-        if event.type() == QEvent.Type.FocusIn:
+        # A projection refresh may focus widgets implicitly when old cards are
+        # deleted. Only an actual user click selects a different insert target.
+        if event.type() == QEvent.Type.MouseButtonPress:
             module_id = watched.property("moduleId")
-            if module_id:
+            if module_id and watched in self._editors.values():
                 self._selected_module_id = module_id
         return super().eventFilter(watched, event)
 
