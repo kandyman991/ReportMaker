@@ -1,6 +1,6 @@
 # ReportMaker V2 — Development Roadmap
 
-**Status:** Approved planning baseline; no V2 implementation started  
+**Status:** Proposed planning baseline — pending PR merge; no V2 implementation started  
 **Date:** 2026-10-28  
 **Requirements baseline:** [RM-BE-001 — Branch Editor requirements](BRANCH_EDITOR_REQUIREMENTS.md), 33 selected features  
 **Architecture baseline:** [V2 architecture](ARCHITECTURE.md)  
@@ -12,7 +12,7 @@ Build **ReportMaker V2** as a clean native Windows application whose **Branch Ed
 
 Modules, nested submodules and ordered rich text, photographs, headings, tables and page breaks are visible in the connected branch canvas and editable at their location. The same canonical report data powers editing, numbering, summary/table of contents, saved projects and exports.
 
-**ChatGPT scope is frozen:** retain the existing user-controlled embedded ChatGPT browser and external-browser fallback. The only transfer interface is **manual user-initiated copy/paste of plain text**. No APIs, automated synchronization, website scripting, scraping, DOM access, automatic proposal injection or automatic insertion. The selected-content AI requirement in RM-BE-001 is satisfied by manually copying the selected block to ChatGPT, reviewing a response and explicitly pasting it into a chosen block.
+**ChatGPT scope is frozen:** retain the existing user-controlled embedded ChatGPT browser and external-browser fallback. **AI writing text** moves only through manual, user-initiated plain-text copy/paste. Ordinary user-initiated browser image copy/download remains permitted, but adding such images to a report requires a separate, explicit Gallery/clipboard/local-file import through the validated project-media workflow. No APIs, automated synchronization, website scripting, scraping, DOM access, automatic proposal injection, automatic image transfer or automatic insertion. The selected-content AI requirement in RM-BE-001 is satisfied by manually copying the selected text to ChatGPT, reviewing a response and explicitly pasting it into a chosen block.
 
 ## Project boundaries
 
@@ -83,7 +83,7 @@ Deliverables:
 - Show original or transformed image thumbnails and editable captions in their branch positions.
 - Reuse project-owned asset storage, Photo Gallery, conversion, crop, rotation, scale and annotations; no duplicate photo model.
 - Explicit image replacement and in-branch editing affordances.
-- Windows Explorer drop and clipboard image paste at a selected valid insertion location, using safe native image import; originals are never modified.
+- Windows Explorer drop and clipboard image paste at a selected valid insertion location, using safe native image import; external originals are never modified, and approved project-owned working-copy bytes are retained unchanged through non-destructive edits.
 - Asset reuse with per-placement non-destructive visual edits; compatibility, invalid input, stale drag and undo tests.
 
 **Exit:** Photos can be imported, displayed, edited, moved and reopened directly within the branch without broken references or external-file dependencies.
@@ -104,7 +104,7 @@ Deliverables:
 Deliverables:
 - Keep separate Editor tab for precise document/page formatting.
 - Make Photo Gallery and ChatGPT accessible as tabs without any independent report data.
-- Retain **exactly** the existing user-controlled ChatGPT browser/manual plain-text copy-paste integration; no new AI engine.
+- Retain the existing user-controlled ChatGPT browser and manual plain-text copy/paste writing workflow; normal manual browser image copy/download uses the separate validated Gallery/clipboard/file importer, never a new AI engine or direct browser integration.
 - Preserve customer/site/machine snapshots, multiple intervention types, open-ended languages, mandatory Conclusions, template and project workflows.
 - Synchronize automatic numbering and TOC from the canonical hierarchy.
 - Live printable preview with clearly stated fidelity and refresh rules, and accurate DOCX/PDF export of ordered text/tables/photos, including supported photo annotations. Do not silently export an unedited photo when edits exist.
