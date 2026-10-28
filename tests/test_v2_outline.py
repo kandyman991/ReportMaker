@@ -217,6 +217,38 @@ class OutlineQtTests(unittest.TestCase):
         for previous, current in zip(rows, rows[1:]):
             self.assertLess(previous.geometry().bottom(), current.geometry().top())
 
+    def test_toolbar_insert_into_collapsed_parent_reveals_new_content(self):
+        before = self.win.session.report_snapshot()
+        parent = before.modules[0]
+        self.win.branch._selected_module_id = parent.id
+
+        self.assertTrue(self.win.branch.toggle_branch(parent.id))
+        self.assertTrue(self.win.branch.add_paragraph())
+        self.pump()
+        with_paragraph = self.win.session.report_snapshot()
+        old_ids = {block.id for block in parent.blocks}
+        added = next(block for block in with_paragraph.modules[0].blocks
+                     if block.id not in old_ids)
+        self.assertNotIn(parent.id, self.win.branch.collapsed_module_ids)
+        self.assertIn(added.id, [row[0] for row in self.win.branch.visible_nodes])
+        self.assertIsNotNone(self.win.branch.editor_for(
+            NodeAddress(before.id, parent.id, added.id, "text")))
+        self.assertEqual(self.store.load_view(self.win.session)[2], frozenset())
+
+        self.assertTrue(self.win.branch.toggle_branch(parent.id))
+        self.assertTrue(self.win.branch.add_nested_module())
+        self.pump()
+        with_child = self.win.session.report_snapshot()
+        old_child_ids = {block.module.id for block in with_paragraph.modules[0].blocks
+                         if hasattr(block, "module")}
+        inserted = next(block.module.id for block in with_child.modules[0].blocks
+                        if hasattr(block, "module")
+                        and block.module.id not in old_child_ids)
+        self.assertNotIn(parent.id, self.win.branch.collapsed_module_ids)
+        self.assertIn(inserted, [row[0] for row in self.win.branch.visible_nodes])
+        self.assertEqual(self.win.branch._selected_module_id, inserted)
+        self.assertEqual(self.store.load_view(self.win.session)[2], frozenset())
+
     def test_move_into_collapsed_parent_rehomes_hidden_selection(self):
         before = self.win.session.report_snapshot()
         a, b = before.modules
