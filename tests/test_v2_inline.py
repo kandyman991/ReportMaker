@@ -86,7 +86,7 @@ class DraftModelTests(unittest.TestCase):
     def test_invalid_draft_commit_remains_editable_without_mutating_history(self):
         original, _, address = sample()
         para = find_node(original, address)
-        para.text = LocalizedText("en", "A\\nB")
+        para.text = LocalizedText("en", "A\nB")
         para.rich.paragraphs = [ParagraphStyle(2, align="right")]
         self.session.replace_project(ReportProject(original), discard_unsaved=True)
         self.drafts.update(address, "A B")
@@ -95,7 +95,7 @@ class DraftModelTests(unittest.TestCase):
         self.assertTrue(self.drafts.pending)
         self.assertEqual(self.session.revision, 0)
         self.assertEqual(self.drafts.text(address), "A B")
-        self.assertEqual(find_node(self.session.report_snapshot(), address).text.original, "A\\nB")
+        self.assertEqual(find_node(self.session.report_snapshot(), address).text.original, "A\nB")
 
     def test_rich_edit_is_atomic_and_retains_surviving_styles(self):
         report, _, address = sample()
