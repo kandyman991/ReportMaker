@@ -12,7 +12,7 @@ from html import escape
 from pathlib import Path
 from uuid import uuid4
 
-from PySide6.QtCore import QBuffer, QDate, QIODevice, Qt, QUrl, Signal
+from PySide6.QtCore import QDate, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPen, QPixmap, QShortcut, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
@@ -31,13 +31,14 @@ from .model import (
 from .project_io import (LEGACY_VERSION, PREVIOUS_VERSION, VERSION, MAX_ASSET, ReportProject,
                          default_projects_directory, load_project, save_project)
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
-from .media_import import (PictureImportError, MAX_DECODE_PIXELS, MAX_IMPORT_BATCH,
-                           MAX_SOURCE_BYTES, MAX_TOTAL_ASSETS, add_imported_picture, convert_picture_bytes,
+from .media_import import (PictureImportError, MAX_IMPORT_BATCH,
+                           MAX_TOTAL_ASSETS, add_imported_picture, convert_picture_bytes,
                            stage_pictures, commit_staged_pictures, remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
 from .photo_gallery import (PHOTO_MIME, PictureGalleryDialog, ProjectPictureList,
-                            local_picture_paths, scaled_project_image)
+                            clipboard_image_png, local_picture_paths,
+                            scaled_project_image)
 from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
 from .rich_text import safe_html
 from .page_editor import EditableDocumentPage
@@ -1426,15 +1427,9 @@ class VisualReportEditor:
                 status.setText("Clipboard image cannot be read.")
                 return
             try:
-                if (image.width() <= 0 or image.height() <= 0
-                    or image.width() * image.height() > MAX_DECODE_PIXELS
-                    or image.sizeInBytes() > 4 * MAX_SOURCE_BYTES):
-                    raise PictureImportError("Clipboard image exceeds safe pixel limits")
-                buffer = QBuffer()
-                if not buffer.open(QIODevice.OpenModeFlag.WriteOnly) or not image.save(buffer, "PNG"):
-                    raise PictureImportError("Cannot encode clipboard pixels as PNG")
+                data = clipboard_image_png(image)
                 photo = convert_picture_bytes(
-                    bytes(buffer.data()), preset=preset.currentData(),
+                    data, preset=preset.currentData(),
                     output_format=fmt.currentData())
                 if not self._flush_block() or not self._flush_info() or not self._flush_page():
                     status.setText("Paste cancelled: resolve pending report edits first.")

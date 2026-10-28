@@ -14,11 +14,13 @@ from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QMimeData, QSize, Qt,
 from PySide6.QtGui import QDrag, QIcon, QImage, QImageReader, QPixmap
 from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem
 
-from .media_import import INPUT_SUFFIXES, MAX_IMPORT_BATCH
+from .media_import import (INPUT_SUFFIXES, MAX_IMPORT_BATCH, MAX_SOURCE_BYTES,
+                           PictureImportError)
 
 PHOTO_MIME = "application/x-reportmaker-project-photo-asset"
 MAX_THUMBNAILS = 80
 MAX_VISIBLE_LOAD = 24
+MAX_CLIPBOARD_PIXELS = 16_000_000  # bound native clipboard memory before encoding
 
 
 def scaled_project_image(image_bytes: bytes, width: int, height: int) -> QImage:
@@ -46,7 +48,7 @@ def local_picture_paths(mime: QMimeData | None) -> tuple[list[str], list[str]]:
     can import the good files while reporting the rejected ones. The converter
     performs the final byte, decoded-format and resource-budget checks.
     """
-    if mime is None or mime.hasFormat(PHOTO_MIME) or not mime.hasUrls():
+    if mime is None or mime.hasFormat(PHOTO_MIME) or mime.hasHtml() or not mime.hasUrls():
         return [], []
     urls = mime.urls()
     if len(urls) > MAX_IMPORT_BATCH:
@@ -80,6 +82,26 @@ def local_picture_paths(mime: QMimeData | None) -> tuple[list[str], list[str]]:
     return paths, errors
 
 
+def clipboard_image_png(image: QImage) -> bytes:
+    """Encode native clipboard pixels locally with a pre-allocation pixel bound.
+
+    Clipboard HTML and URLs are never fed to this function; the caller supplies
+    only a native QImage, keeping parsing and transport separate from pixels.
+    """
+    if (not isinstance(image, QImage) or image.isNull()
+            or image.width() <= 0 or image.height() <= 0
+            or image.width() * image.height() > MAX_CLIPBOARD_PIXELS
+            or image.sizeInBytes() > 4 * MAX_SOURCE_BYTES):
+        raise PictureImportError("Clipboard image exceeds the 16 MP safety limit")
+    buffer = QBuffer()
+    if not buffer.open(QIODevice.OpenModeFlag.WriteOnly) or not image.save(buffer, "PNG"):
+        raise PictureImportError("Cannot encode clipboard pixels as PNG")
+    data = bytes(buffer.data())
+    if not data or len(data) > MAX_SOURCE_BYTES:
+        raise PictureImportError("Clipboard image exceeds the 64 MiB import limit")
+    return data
+
+
 class ExternalPictureDropMixin:
     """Strict Explorer inbound drop handlers, never project-photo receivers."""
 
@@ -96,34 +118,36 @@ class ExternalPictureDropMixin:
         # Never allow a gallery's own internal PHOTO_MIME drag to reimport.
         return event.source() is None and bool(paths) and callable(self.on_external_import)
 
-    def dragEnterEvent(self, event):
-        if not self._can_accept_files(event):
-            event.ignore()
-            return
-        self._set_file_drop_hint(True)
-        event.acceptProposedAction()
-
-    def dragMoveEvent(self, event):
-        if not self._can_accept_files(event):
+    def _accept_file_copy(self, event) -> bool:
+        if (not self._can_accept_files(event)
+                or not (event.possibleActions() & Qt.DropAction.CopyAction)):
             self._set_file_drop_hint(False)
             event.ignore()
-            return
-        event.acceptProposedAction()
+            return False
+        # Explorer may propose Move (Shift+drop). Explicitly request Copy
+        # rather than accepting a proposed action that could remove originals.
+        self._set_file_drop_hint(True)
+        event.setDropAction(Qt.DropAction.CopyAction)
+        event.accept()
+        return True
+
+    def dragEnterEvent(self, event):
+        self._accept_file_copy(event)
+
+    def dragMoveEvent(self, event):
+        self._accept_file_copy(event)
 
     def dragLeaveEvent(self, event):
         self._set_file_drop_hint(False)
         event.accept()
 
     def dropEvent(self, event):
-        self._set_file_drop_hint(False)
-        if not self._can_accept_files(event):
-            event.ignore()
+        if not self._accept_file_copy(event):
             return
+        self._set_file_drop_hint(False)
         paths, errors = local_picture_paths(event.mimeData())
         callback = self.on_external_import
-        event.acceptProposedAction()
-        # Qt may still own the source MIME object during drop dispatch; use a
-        # copied path list and delay mutations until after the event returns.
+        # Delayed callback avoids opening nested dialogs in drop dispatch.
         QTimer.singleShot(0, lambda: callback(paths, errors))
 
 
