@@ -8,12 +8,13 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Mapping
+from uuid import uuid4
 
 from ..model import LocalizedText, Module, ParagraphBlock
 from ..rich_text import RichFormatting, validate_rich
 from .projections import NodeAddress, find_node
 from .session import ReportSession, StaleIntentError
-from .structure import plan_drop
+from .structure import plan_drop, structural_node
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,8 @@ _KINDS = {
     "set_paragraph": ({"text"}, set()),
     "set_paragraph_rich": ({"text", "rich"}, set()),
     "move_node": ({"anchor", "position"}, set()),
+    "duplicate_node": (set(), set()),
+    "delete_node": (set(), set()),
 }
 
 
@@ -67,6 +70,9 @@ class CommandGateway:
         if intent.kind == "move_node":
             plan_drop(self._session.report_snapshot(), intent.target,
                       intent.args["anchor"], intent.args["position"])
+            return
+        if intent.kind in ("duplicate_node", "delete_node"):
+            structural_node(self._session.report_snapshot(), intent.target)
             return
         value_key = "text" if intent.kind in ("add_paragraph", "set_paragraph", "set_paragraph_rich") else "title"
         if not isinstance(intent.args[value_key], str):
@@ -127,6 +133,32 @@ class CommandGateway:
                                   index=plan.destination_index)
             change = ChangeSet(self._session.revision + 1,
                                frozenset({plan.source_id}), True, False, True)
+            self._session._publish(change)
+            return change
+        if kind in ("duplicate_node", "delete_node"):
+            node = structural_node(editor.report, address)
+            if kind == "delete_node":
+                if node.kind == "module":
+                    editor.remove_module(node.stable_id)
+                else:
+                    editor.remove_block(node.parent_module_id, node.stable_id)
+                changed_id = node.stable_id
+            elif node.kind == "module":
+                changed_id = editor.duplicate_module(node.stable_id)
+            else:
+                changed_id = uuid4().hex
+
+                def duplicate_block(report):
+                    owner = find_node(report, NodeAddress(report.id, node.parent_module_id))
+                    at = next(i for i, block in enumerate(owner.blocks)
+                              if block.id == node.stable_id)
+                    copy = deepcopy(owner.blocks[at])
+                    copy.id = changed_id
+                    owner.blocks.insert(at + 1, copy)
+
+                editor.apply(duplicate_block)
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({changed_id}), True, False, True)
             self._session._publish(change)
             return change
         # An unchanged inline commit must not add a history step, invalidate
