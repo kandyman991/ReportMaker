@@ -157,6 +157,8 @@ class StructuralPlacementTests(unittest.TestCase):
             (addr(self.report, self.a.id), addr(self.report, self.child.id), "before"),
             (addr(self.report, self.a.id), addr(self.report, self.report.conclusion.id), "after"),
             (addr(self.report, self.b.id), addr(self.report, self.report.conclusion.id), "inside"),
+            (addr(self.report, self.a.id, self.heading.id),
+             addr(self.report, self.report.conclusion.id), "inside"),
             (addr(self.report, self.a.id, self.photo.id),
              addr(self.report, self.report.id), "inside"),
             (addr(self.report, self.a.id), addr(self.report, self.a.id, self.photo.id), "inside"),
@@ -175,6 +177,25 @@ class StructuralPlacementTests(unittest.TestCase):
                 self.assertEqual(self.session.revision, rev)
         self.assertTrue(self.gateway.undo(self.session.generation, self.session.revision))
         self.assertEqual(self.session.report_snapshot(), self.report)
+
+    def test_no_drop_before_or_after_conclusions_content(self):
+        project = fixture()
+        conclusion_block = ParagraphBlock(LocalizedText("en", "Final notes"))
+        project.report.conclusion.blocks.append(conclusion_block)
+        session = ReportSession(project)
+        gateway = CommandGateway(session)
+        before = session.report_snapshot()
+        source = before.modules[0].blocks[0]
+        for position in ("before", "after"):
+            with self.subTest(position=position):
+                with self.assertRaises(ValueError):
+                    gateway.execute(CommandIntent(
+                        "move_node", addr(before, before.modules[0].id, source.id),
+                        {"anchor": addr(before, before.conclusion.id, conclusion_block.id),
+                         "position": position}, session.revision, session.generation))
+                self.assertEqual(session.report_snapshot(), before)
+                self.assertEqual(session.revision, 0)
+                self.assertFalse(session._editor.can_undo)
 
     def test_stale_revision_generation_and_pending_draft_rejected(self):
         s = self.session
@@ -222,19 +243,52 @@ class StructuralQtTests(unittest.TestCase):
             self.app.processEvents()
             before = win.session.report_snapshot()
             win.branch._selected_module_id = before.modules[1].id
-            self.assertIsInstance(win.findChild(QAction, "v2MoveUp"), QAction)
-            self.assertIsInstance(win.findChild(QAction, "v2MoveDown"), QAction)
+            up = win.findChild(QAction, "v2MoveUp")
+            down = win.findChild(QAction, "v2MoveDown")
+            self.assertIsInstance(up, QAction)
+            self.assertIsInstance(down, QAction)
+            win.branch._refresh()
+            self.assertTrue(up.isEnabled())
+            self.assertFalse(down.isEnabled())
             self.assertTrue(win.branch.move_selected_up())
             self.app.processEvents()
             self.assertEqual(win.session.report_snapshot().modules[0].id,
                              before.modules[1].id)
+            self.assertFalse(up.isEnabled())
+            self.assertTrue(down.isEnabled())
             self.assertFalse(win.branch.move_selected_up())
             self.assertTrue(win.branch.move_selected_down())
             self.assertEqual(win.session.report_snapshot().modules[0].id,
                              before.modules[0].id)
+            self.assertTrue(up.isEnabled())
+            self.assertFalse(down.isEnabled())
             self.assertTrue(win.branch.undo())
             self.assertEqual(win.session.report_snapshot().modules[0].id,
                              before.modules[1].id)
+        finally:
+            win._confirm_transition = lambda: False
+            win.close()
+            self.app.processEvents()
+
+    def test_toolbar_moves_nested_module_across_mixed_content(self):
+        from PySide6.QtGui import QAction
+        from reportmaker.v2.app import V2MainWindow
+        win = V2MainWindow(project=fixture())
+        try:
+            initial = win.session.report_snapshot()
+            child_id = initial.modules[0].blocks[1].module.id
+            win.branch._selected_module_id = child_id
+            win.branch._refresh()
+            up = win.findChild(QAction, "v2MoveUp")
+            down = win.findChild(QAction, "v2MoveDown")
+            self.assertTrue(up.isEnabled())
+            self.assertTrue(down.isEnabled())
+            self.assertTrue(win.branch.move_selected_up())
+            self.assertEqual(win.session.report_snapshot().modules[0].blocks[0].module.id, child_id)
+            self.assertFalse(up.isEnabled())
+            self.assertTrue(down.isEnabled())
+            self.assertTrue(win.branch.move_selected_down())
+            self.assertEqual(win.session.report_snapshot(), initial)
         finally:
             win._confirm_transition = lambda: False
             win.close()
