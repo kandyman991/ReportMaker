@@ -314,3 +314,5 @@ Next reproducible action:
 - Targeted synthetic tests `tests/test_v2_session.py` and Windows Python 3.11/3.12 CI `.github/workflows/v2-session.yml`. New exact-HEAD hosted results and independent review required before merge. No installed-Windows visual/DPI acceptance claimed.
 - M1.2 is pure session/command and safe Save/Open functionality, **not** inline editing; canvas remains read-only until M1.3, lifecycle UI and local presentation identity remain M1.4. No media-asset undo/redo or browser automation. See `docs/v2/M1_2_SESSION_GATEWAY.md`.
 - Next: inspect exact-head CI, fix findings on the branch, await explicit user merge authorization. Do not merge or publish installer automatically.
+
+- PR #68 independent review corrections (2026-10-28): unsaved canonical edits cannot be discarded by `replace_project`/`open_into` without explicit consent; outstanding drafts block gateway mutations; stale Undo/Redo revision callbacks fail closed; no-op text/title edits keep the redo stack. Four synthetic regression tests added. Await exact-final-head Windows workflows before merging as explicitly authorized by the user.
