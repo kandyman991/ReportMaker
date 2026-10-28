@@ -86,7 +86,8 @@ class ExternalPictureDropMixin:
 
     def _set_file_drop_hint(self, active: bool) -> None:
         self.setStyleSheet(
-            "border: 2px dashed #1672c7; background: #edf6ff;" if active else "")
+            f"#{self.objectName()} {{ border: 2px dashed #1672c7; "
+            "background: #edf6ff; }" if active else "")
 
     def _can_accept_files(self, event) -> bool:
         paths, _errors = local_picture_paths(event.mimeData())
