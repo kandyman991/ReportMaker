@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T17:13:29.173Z",
+  "generatedAt": "2026-10-28T17:30:00.777Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "ed99624b7d2b323c37521ba1e98f1023ebf80a0b",
-    "message": "Merge pull request #70 from kandyman991/feature/v2-m1-4-project-lifecycle\n\nfeat(v2): M1.4 project lifecycle and Checkpoint A gates",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/ed99624b7d2b323c37521ba1e98f1023ebf80a0b"
+    "sha": "ac458f85465b47c77a1fbff4eacfb1c918cbfbba",
+    "message": "feat(v2): M2.1 canonical structural placement foundation (#71)\n\nReviewed M2.1 structural planner, typed move gateway, and Qt movement controls. Fix Conclusions drop validation and disabled boundary actions. Add regression tests; all eight PR CI workflows green on corrected head.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/ac458f85465b47c77a1fbff4eacfb1c918cbfbba"
   },
   "openPullRequests": [
     {
@@ -109,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40733620273,
+      "id": 40736270441,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "ac458f85465b47c77a1fbff4eacfb1c918cbfbba",
+      "event": "push",
+      "updatedAt": "2026-10-28T17:29:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40736270441"
+    },
+    {
+      "id": 40736270373,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "ed99624b7d2b323c37521ba1e98f1023ebf80a0b",
+      "headSha": "ac458f85465b47c77a1fbff4eacfb1c918cbfbba",
       "event": "push",
-      "updatedAt": "2026-10-28T17:13:27Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40733620273"
+      "updatedAt": "2026-10-28T17:29:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40736270373"
     },
     {
-      "id": 40733620107,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "ed99624b7d2b323c37521ba1e98f1023ebf80a0b",
-      "event": "push",
-      "updatedAt": "2026-10-28T17:13:26Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40733620107"
-    },
-    {
-      "id": 40733620084,
+      "id": 40736270284,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "ed99624b7d2b323c37521ba1e98f1023ebf80a0b",
+      "headSha": "ac458f85465b47c77a1fbff4eacfb1c918cbfbba",
       "event": "push",
-      "updatedAt": "2026-10-28T17:13:26Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40733620084"
+      "updatedAt": "2026-10-28T17:29:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40736270284"
     },
     {
-      "id": 40732866536,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m1-4-project-lifecycle",
-      "headSha": "b57fe32a5852eea5c8139e1d14d923e9beb3c418",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T17:08:51Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40732866536"
-    },
-    {
-      "id": 40732866420,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m1-4-project-lifecycle",
-      "headSha": "b57fe32a5852eea5c8139e1d14d923e9beb3c418",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T17:11:25Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40732866420"
-    },
-    {
-      "id": 40732866405,
+      "id": 40735891880,
       "name": "V2 M1.4 project lifecycle and Checkpoint A",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m1-4-project-lifecycle",
-      "headSha": "b57fe32a5852eea5c8139e1d14d923e9beb3c418",
+      "branch": "feature/v2-m2-1-structural-placement",
+      "headSha": "c0dbc86e2ca6b717b63b8ab8ff63d7893329a738",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T17:09:44Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40732866405"
+      "updatedAt": "2026-10-28T17:28:25Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40735891880"
     },
     {
-      "id": 40732866392,
+      "id": 40735891835,
+      "name": "V2 M2 structural placement",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-1-structural-placement",
+      "headSha": "c0dbc86e2ca6b717b63b8ab8ff63d7893329a738",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T17:28:29Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40735891835"
+    },
+    {
+      "id": 40735891831,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-1-structural-placement",
+      "headSha": "c0dbc86e2ca6b717b63b8ab8ff63d7893329a738",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T17:27:36Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40735891831"
+    },
+    {
+      "id": 40735891830,
       "name": "V2 M1.2 session, commands and persistence",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m1-4-project-lifecycle",
-      "headSha": "b57fe32a5852eea5c8139e1d14d923e9beb3c418",
+      "branch": "feature/v2-m2-1-structural-placement",
+      "headSha": "c0dbc86e2ca6b717b63b8ab8ff63d7893329a738",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T17:09:19Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40732866392"
+      "updatedAt": "2026-10-28T17:27:59Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40735891830"
     },
     {
-      "id": 40732866205,
-      "name": "V2 M1.1 Branch Editor shell",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m1-4-project-lifecycle",
-      "headSha": "b57fe32a5852eea5c8139e1d14d923e9beb3c418",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T17:10:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40732866205"
-    },
-    {
-      "id": 40732866201,
+      "id": 40735891772,
       "name": "V2 M1.3 inline branch editing",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m1-4-project-lifecycle",
-      "headSha": "b57fe32a5852eea5c8139e1d14d923e9beb3c418",
+      "branch": "feature/v2-m2-1-structural-placement",
+      "headSha": "c0dbc86e2ca6b717b63b8ab8ff63d7893329a738",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T17:09:42Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40732866201"
+      "updatedAt": "2026-10-28T17:28:36Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40735891772"
     },
     {
-      "id": 40732866195,
+      "id": 40735891705,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m1-4-project-lifecycle",
-      "headSha": "b57fe32a5852eea5c8139e1d14d923e9beb3c418",
+      "branch": "feature/v2-m2-1-structural-placement",
+      "headSha": "c0dbc86e2ca6b717b63b8ab8ff63d7893329a738",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T17:11:23Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40732866195"
+      "updatedAt": "2026-10-28T17:29:13Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40735891705"
+    },
+    {
+      "id": 40735891695,
+      "name": "V2 M1.1 Branch Editor shell",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-1-structural-placement",
+      "headSha": "c0dbc86e2ca6b717b63b8ab8ff63d7893329a738",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T17:29:13Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40735891695"
     }
   ]
 }
