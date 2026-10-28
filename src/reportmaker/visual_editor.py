@@ -194,9 +194,15 @@ class ModuleTree(QTreeWidget):
         self._drop_visual = None
         self.viewport().update()
 
+    @staticmethod
+    def _accept_move(event):
+        # Ctrl is the explicit nest gesture, not a Qt copy operation.
+        event.setDropAction(Qt.DropAction.MoveAction)
+        event.accept()
+
     def dragEnterEvent(self, event):
         if event.source() is self and (self._drag_item or self.currentItem()):
-            event.acceptProposedAction()
+            self._accept_move(event)
         else:
             event.ignore()
 
@@ -206,7 +212,7 @@ class ModuleTree(QTreeWidget):
         self._drop_visual = (plan[3], plan[4]) if plan else None
         self.viewport().update()
         if plan:
-            event.acceptProposedAction()
+            self._accept_move(event)
         else:
             event.ignore()
 
@@ -241,7 +247,7 @@ class ModuleTree(QTreeWidget):
             return
         source_id, target_id, after, _, _ = plan
         # Do not let Qt manipulate the widget's hierarchy independently.
-        event.acceptProposedAction()
+        self._accept_move(event)
         self.moveRequested.emit(source_id, target_id, after)
 
 

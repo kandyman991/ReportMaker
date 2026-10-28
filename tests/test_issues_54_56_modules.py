@@ -106,6 +106,12 @@ class SyntheticDragEvent:
     def acceptProposedAction(self):
         self.accepted = True
 
+    def setDropAction(self, action):
+        self.drop_action = action
+
+    def accept(self):
+        self.accepted = True
+
     def ignore(self):
         self.ignored = True
 
