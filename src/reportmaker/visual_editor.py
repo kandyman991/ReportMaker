@@ -1215,7 +1215,10 @@ class VisualReportEditor:
                 return
             staged = []
             staged_bytes = 0
-            for path in paths:
+            for index, path in enumerate(paths, start=1):
+                status.setText(f"Optimizing picture {index}/{len(paths)}: "
+                               f"{Path(path).name[:100]}")
+                status.repaint()  # visible progress without a nested Qt event loop
                 try:
                     item = stage_pictures(
                         [path], preset=preset.currentData(),
