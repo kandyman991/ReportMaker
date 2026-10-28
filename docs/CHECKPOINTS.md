@@ -383,3 +383,9 @@ Next reproducible action:
 - Original head e872db99ad078cb3586ac5d8a9a9e3b9f7b3a56d; independent review found stale native character styling after typing and character-preview changes accumulating native Qt undo commands. Introduced non-mutating, Unicode-safe QSyntaxHighlighter projection; retained native Qt paragraph/list formatting with undo-safe regeneration.
 - Expanded formatting tests from 14 to 16; verified 128 local Linux/offscreen V2 tests passing, including typing after styling, native draft Ctrl+Z, and heading underline base weight. Confirm Windows CI against **final corrected branch HEAD** before merge; no physical installed Windows acceptance claimed.
 - Authorized next after successful merge: M3.3 inline tables. V1 fallback, schema v4, exporters and browser-only manual ChatGPT unchanged.
+
+## CP-V2-M3.3 — Inline Tables started (2026-10-28)
+- Baseline live `main` `76e94b2b3d7a0214e9e20026b9fdde2762a484a6`, after merged PR #78. Branch: `feature/v2-m3-3-inline-tables`. RC PR #21 is unrelated and untouched.
+- Replaced read-only flattened table text with inline natural-height cell editors, no inner/workspace visible scrollbars, stable grid positions and no shadow report. Added module/mixed-index table insertion, row/column staging, language-aware new cells, existing cell translation preservation, atomic Apply/Revert and canonical Undo/Redo.
+- Added V2 table regressions and a hosted Windows Python 3.11/3.12 CI gate. M3.4 cross-tab coordination, physical installed Windows DPI/accessibility, advanced table formatting and real exported document viewing remain follow-up acceptance.
+- Review/verify exact branch head and resolve findings before user-authorized merge. See `docs/v2/M3_3_INLINE_TABLES.md`.

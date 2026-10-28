@@ -10,9 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from copy import deepcopy
 
-from ..model import HeadingBlock, Module, ParagraphBlock
+from ..model import HeadingBlock, LocalizedText, Module, ParagraphBlock, TableBlock
 from ..rich_text import RichFormatting
 from .adapters.formatting import format_chars, format_paragraphs
+from .adapters.tables import checked_rows, edit_cell, change_grid
 from .adapters.rich_text import rebase_rich
 from .commands import CommandGateway, CommandIntent
 from .projections import NodeAddress, find_node
@@ -26,6 +27,14 @@ class TextDraft:
     value: str
     generation: str
     rich: RichFormatting | None = None
+
+
+@dataclass(frozen=True)
+class TableDraft:
+    address: NodeAddress
+    original: list[list[LocalizedText]]
+    rows: list[list[LocalizedText]]
+    generation: str
 
 
 def _source(node, address: NodeAddress) -> str:
@@ -43,7 +52,7 @@ class DraftCoordinator:
     def __init__(self, session: ReportSession, gateway: CommandGateway) -> None:
         self.session = session
         self.gateway = gateway
-        self._drafts: dict[NodeAddress, TextDraft] = {}
+        self._drafts: dict[NodeAddress, TextDraft | TableDraft] = {}
         self._committing = False
         session.set_draft_guard(self._draft_guard)
 
@@ -133,9 +142,55 @@ class DraftCoordinator:
                 address, node.text.original, text, self.session.generation, changed)
         return True
 
-    def discard(self, address: NodeAddress) -> str:
+    def table_rows(self, address: NodeAddress) -> list:
+        node = find_node(self.session.report_snapshot(), address)
+        if (address.field != "table" or address.block_id is None
+                or address.row is not None or address.column is not None
+                or not isinstance(node, TableBlock)):
+            raise ValueError("Expected a stable table address")
+        draft = self._drafts.get(address)
+        if draft is None:
+            return checked_rows(node.rows)
+        if not isinstance(draft, TableDraft):
+            raise ValueError("Conflicting draft address")
+        if draft.generation != self.session.generation or draft.original != node.rows:
+            raise StaleIntentError("Table changed since editing began; draft preserved")
+        return checked_rows(draft.rows)
+
+    def _stage_table(self, address: NodeAddress, rows: list) -> bool:
+        node = find_node(self.session.report_snapshot(), address)
+        if not isinstance(node, TableBlock):
+            raise ValueError("Not a table")
+        previous = self._drafts.get(address)
+        original = checked_rows(node.rows) if previous is None else previous.original
+        if previous is not None and (not isinstance(previous, TableDraft)
+                                     or previous.generation != self.session.generation
+                                     or original != node.rows):
+            raise StaleIntentError("Table changed since editing began; draft preserved")
+        if ((previous is not None and previous.rows == rows)
+                or (previous is None and original == rows)):
+            return False
+        if original == rows:
+            self._drafts.pop(address, None)
+        else:
+            self._drafts[address] = TableDraft(
+                address, original, checked_rows(rows), self.session.generation)
+        return True
+
+    def update_cell(self, address: NodeAddress, row: int, column: int, value: str) -> bool:
+        rows = self.table_rows(address)
+        return self._stage_table(address, edit_cell(rows, row, column, value))
+
+    def modify_table(self, address: NodeAddress, operation: str, index: int) -> bool:
+        rows = self.table_rows(address)
+        # New cells use the report's source language, not a neighboring
+        # cell's potentially imported language tag.
+        return self._stage_table(address, change_grid(
+            rows, operation, index, self.session.report_snapshot().primary_language))
+
+    def discard(self, address: NodeAddress):
         self._drafts.pop(address, None)
-        return self.text(address)
+        return self.table_rows(address) if address.field == "table" else self.text(address)
 
     def commit(self, address: NodeAddress):
         draft = self._drafts.get(address)
@@ -144,9 +199,14 @@ class DraftCoordinator:
         if draft.generation != self.session.generation:
             raise StaleIntentError("Draft belongs to a previous report")
         node = find_node(self.session.report_snapshot(), address)
-        if _source(node, address) != draft.original:
+        if isinstance(draft, TextDraft) and _source(node, address) != draft.original:
             raise StaleIntentError("Source changed since editing began; draft preserved")
-        if address.field == "title":
+        if isinstance(draft, TableDraft):
+            node = find_node(self.session.report_snapshot(), address)
+            if not isinstance(node, TableBlock) or node.rows != draft.original:
+                raise StaleIntentError("Table changed since editing began; draft preserved")
+            kind, args = "set_table_rows", {"rows": checked_rows(draft.rows)}
+        elif address.field == "title":
             kind, args = "rename_module", {"title": draft.value}
         else:
             kind = "set_heading_rich" if isinstance(node, HeadingBlock) else "set_paragraph_rich"

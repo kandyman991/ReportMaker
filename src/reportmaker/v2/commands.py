@@ -10,8 +10,9 @@ from dataclasses import dataclass
 from typing import Mapping
 from uuid import uuid4
 
-from ..model import HeadingBlock, LocalizedText, Module, ParagraphBlock
+from ..model import HeadingBlock, LocalizedText, Module, ParagraphBlock, TableBlock
 from ..rich_text import RichFormatting, validate_rich
+from .adapters.tables import checked_rows
 from .projections import NodeAddress, find_node
 from .session import ReportSession, StaleIntentError
 from .structure import plan_drop, structural_node
@@ -40,6 +41,8 @@ _KINDS = {
     "add_nested_module": ({"title"}, {"index"}),
     "add_paragraph": ({"text"}, {"index"}),
     "add_heading": ({"text", "level"}, {"index"}),
+    "add_table": (set(), {"index"}),
+    "set_table_rows": ({"rows"}, set()),
     "rename_module": ({"title"}, set()),
     "set_paragraph": ({"text"}, set()),
     "set_paragraph_rich": ({"text", "rich"}, set()),
@@ -76,8 +79,18 @@ class CommandGateway:
         if intent.kind in ("duplicate_node", "delete_node"):
             structural_node(self._session.report_snapshot(), intent.target)
             return
+        if intent.kind == "set_table_rows":
+            report = self._session.report_snapshot()
+            addr = intent.target
+            if (not isinstance(addr, NodeAddress) or addr.report_id != report.id
+                    or addr.block_id is None or addr.field != "table"
+                    or addr.row is not None or addr.column is not None
+                    or not isinstance(find_node(report, addr), TableBlock)):
+                raise ValueError("Table edit requires an owning table address")
+            checked_rows(intent.args["rows"])
+            return
         value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich") else "title"
-        if not isinstance(intent.args[value_key], str):
+        if intent.kind != "add_table" and not isinstance(intent.args[value_key], str):
             raise ValueError("Title and text must be strings")
         if intent.kind == "add_heading" and (type(intent.args["level"]) is not int
                                              or not 1 <= intent.args["level"] <= 6):
@@ -113,7 +126,7 @@ class CommandGateway:
                 if intent.kind == "add_nested_module" and module.id == report.conclusion.id:
                     raise ValueError("Conclusions cannot have intervention submodules")
                 size = len(module.blocks)
-        if intent.kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading"):
+        if intent.kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table"):
             if "index" in intent.args and intent.args["index"] > size:
                 raise ValueError("Mixed insertion index exceeds parent length")
 
@@ -171,6 +184,18 @@ class CommandGateway:
         # queued edits, or erase the redo stack after an Undo.
         if kind == "rename_module" and find_node(editor.report, address).title.original == args["title"]:
             return None
+        if kind == "set_table_rows":
+            current = find_node(editor.report, address)
+            rows = checked_rows(args["rows"])
+            if current.rows == rows:
+                return None
+            def edit_table(report):
+                find_node(report, address).rows = rows
+            editor.apply(edit_table)
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({address.block_id}))
+            self._session._publish(change)
+            return change
         if kind == "set_paragraph":
             current = find_node(editor.report, address)
             if current.text.original == args["text"]:
@@ -187,7 +212,7 @@ class CommandGateway:
                 return None
         language = editor.report.primary_language
         changed_id: str
-        structure = kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading")
+        structure = kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table")
         if kind in ("add_module", "add_nested_module"):
             module = Module(LocalizedText(language, args["title"]))
             if kind == "add_module":
@@ -199,6 +224,11 @@ class CommandGateway:
             paragraph = ParagraphBlock(LocalizedText(language, args["text"]))
             editor.add_block(address.module_id, paragraph, index=args.get("index"))
             changed_id = paragraph.id
+        elif kind == "add_table":
+            table = TableBlock([[LocalizedText(language, "") for _ in range(2)]
+                                for _ in range(2)])
+            editor.add_block(address.module_id, table, index=args.get("index"))
+            changed_id = table.id
         elif kind == "add_heading":
             heading = HeadingBlock(LocalizedText(language, args["text"]), level=args["level"])
             editor.add_block(address.module_id, heading, index=args.get("index"))
