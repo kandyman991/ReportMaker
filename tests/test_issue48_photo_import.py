@@ -10,13 +10,14 @@ import unittest
 from PIL import Image
 from PySide6.QtCore import QMimeData, QSettings, Qt, QUrl
 from PySide6.QtGui import QColor, QImage, QShortcut
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel,
                                QMainWindow, QMessageBox, QPushButton,
                                QVBoxLayout, QWidget)
 
 from reportmaker.media_import import PictureImportError, convert_picture_bytes
 from reportmaker.photo_gallery import (PHOTO_MIME, ProjectPictureList,
-                                       local_picture_paths)
+                                       clipboard_image_png, local_picture_paths)
 from reportmaker.project_io import load_project
 from reportmaker.reference import manual_snapshot
 from reportmaker.visual_editor import VisualReportEditor, new_report
@@ -28,6 +29,21 @@ class FakeDropEvent:
         self._mime = mime
         self.accepted = False
         self.ignored = False
+        self.action = None
+        self.actions = Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+        self.proposed = Qt.DropAction.CopyAction
+
+    def possibleActions(self):
+        return self.actions
+
+    def proposedAction(self):
+        return self.proposed
+
+    def dropAction(self):
+        return self.action if self.action is not None else self.proposed
+
+    def setDropAction(self, action):
+        self.action = action
 
     def source(self):
         return self._source
@@ -36,6 +52,7 @@ class FakeDropEvent:
         return self._mime
 
     def acceptProposedAction(self):
+        self.action = self.proposed
         self.accepted = True
 
     def ignore(self):
@@ -183,6 +200,133 @@ class ExternalPhotoImportTests(unittest.TestCase):
         self.assertFalse(self.paste.isEnabled())
         self.assertEqual(self.pictures.count(), 0)
 
+    def test_drop_forces_copy_even_when_explorer_proposes_move(self):
+        source = self.image_file()
+        original = source.read_bytes()
+        mime = self.url_mime(source)
+        for target in (self.pictures, self.gallery):
+            event = FakeDropEvent(None, mime)
+            # Shift-drag from Explorer proposes Move even while Copy is
+            # available. acceptProposedAction() would choose Move here.
+            event.proposed = Qt.DropAction.MoveAction
+            self.assertEqual(event.proposedAction(), Qt.DropAction.MoveAction)
+            self.assertEqual(event.dropAction(), Qt.DropAction.MoveAction)
+            target.dragEnterEvent(event)
+            self.assertTrue(event.accepted)
+            self.assertEqual(event.dropAction(), Qt.DropAction.CopyAction)
+            target.dragMoveEvent(event)
+            self.assertEqual(event.dropAction(), Qt.DropAction.CopyAction)
+            target.dropEvent(event)
+            self.app.processEvents()
+            self.assertEqual(event.dropAction(), Qt.DropAction.CopyAction)
+        self.assertEqual(source.read_bytes(), original)
+        self.assertTrue(source.exists())
+        self.assertEqual(self.pictures.count(), 2)  # separate user-initiated drops
+
+    def test_move_only_drag_rejected_without_touching_original(self):
+        source = self.image_file()
+        for target in (self.pictures, self.gallery):
+            event = FakeDropEvent(None, self.url_mime(source))
+            event.actions = Qt.DropAction.MoveAction
+            target.dragEnterEvent(event)
+            self.assertTrue(event.ignored)
+            self.assertFalse(event.accepted)
+            target.dropEvent(event)
+        self.app.processEvents()
+        self.assertEqual(self.pictures.count(), 0)
+        self.assertTrue(source.exists())
+
+    def test_html_plus_file_url_never_triggers_local_import(self):
+        path = self.image_file()
+        mime = self.url_mime(path)
+        mime.setHtml('<img src="file:///synthetic.png">')
+        self.assertEqual(local_picture_paths(mime), ([], []))
+        for target in (self.gallery, self.pictures):
+            event = FakeDropEvent(None, mime)
+            target.dragEnterEvent(event)
+            self.assertTrue(event.ignored)
+        QApplication.clipboard().setMimeData(mime)
+        self.app.processEvents()
+        self.assertFalse(self.paste.isEnabled())
+        self.assertEqual(self.pictures.count(), 0)
+
+    def test_clipboard_pixels_are_allowed_even_when_html_is_present(self):
+        pixels = QImage(20, 16, QImage.Format.Format_ARGB32)
+        pixels.fill(QColor("#2468ab"))
+        mime = QMimeData()
+        mime.setImageData(pixels)
+        mime.setHtml('<img src="https://invalid.example/remote.jpg">')
+        QApplication.clipboard().setMimeData(mime)
+        self.app.processEvents()
+        self.assertTrue(self.paste.isEnabled())
+        self.paste.click()
+        self.app.processEvents()
+        self.assertEqual(self.pictures.count(), 1)
+        self.assertEqual(list(self.editor.media_library.values()), ["Clipboard image"])
+
+    def test_native_bitmap_fallback_from_html_and_remote_url(self):
+        # A copied browser image may include all three payload forms. Do not
+        # parse/fetch the URL; import only the bounded native bitmap.
+        pixels = QImage(24, 18, QImage.Format.Format_ARGB32)
+        pixels.fill(QColor("#224466"))
+        mime = QMimeData()
+        mime.setImageData(pixels)
+        mime.setHtml('<img src="https://invalid.example/photo.png">')
+        mime.setUrls([QUrl("https://invalid.example/photo.png")])
+        self.assertEqual(local_picture_paths(mime), ([], []))
+        QApplication.clipboard().setMimeData(mime)
+        self.app.processEvents()
+        self.assertTrue(self.paste.isEnabled())
+        self.paste.click()
+        self.app.processEvents()
+        self.assertEqual(self.pictures.count(), 1)
+        self.assertEqual(list(self.editor.media_library.values()), ["Clipboard image"])
+        self.assertTrue(self.editor.assets[next(iter(self.editor.media_library))])
+
+    def test_native_bitmap_fallback_when_file_urls_are_unusable(self):
+        pixels = QImage(19, 14, QImage.Format.Format_ARGB32)
+        pixels.fill(QColor("#664422"))
+        mime = QMimeData()
+        mime.setUrls([QUrl("https://invalid.example/photo.png")])
+        mime.setImageData(pixels)
+        QApplication.clipboard().setMimeData(mime)
+        self.app.processEvents()
+        self.assertTrue(self.paste.isEnabled())
+        self.paste.click()
+        self.app.processEvents()
+        self.assertEqual(list(self.editor.media_library.values()), ["Clipboard image"])
+
+    def test_html_and_url_without_pixels_is_disabled(self):
+        mime = QMimeData()
+        mime.setUrls([QUrl("https://invalid.example/photo.png")])
+        mime.setHtml('<img src="https://invalid.example/photo.png">')
+        QApplication.clipboard().setMimeData(mime)
+        self.app.processEvents()
+        self.assertFalse(self.paste.isEnabled())
+        self.assertEqual(self.pictures.count(), 0)
+
+    def test_native_clipboard_pixels_have_pre_encode_memory_bound(self):
+        source = QImage(4, 4, QImage.Format.Format_RGB32)
+        source.fill(QColor("#abcdef"))
+        with patch("reportmaker.photo_gallery.MAX_CLIPBOARD_PIXELS", 10):
+            with self.assertRaisesRegex(PictureImportError, "16 MP"):
+                clipboard_image_png(source)
+        with self.assertRaises(PictureImportError):
+            clipboard_image_png(QImage())
+        data = clipboard_image_png(source)
+        self.assertTrue(data.startswith(b"\x89PNG"))
+
+    def test_exif_orientation_shared_for_native_file_import(self):
+        from reportmaker.media_import import convert_picture
+        path = self.root / "oriented.jpg"
+        exif = Image.Exif()
+        exif[274] = 6
+        Image.new("RGB", (120, 80), "blue").save(path, exif=exif)
+        converted = convert_picture(path)
+        self.assertEqual((converted.original_width, converted.original_height),
+                         (120, 80))
+        self.assertEqual((converted.width, converted.height), (80, 120))
+
     def test_symlinked_directory_cannot_bypass_local_file_guard(self):
         real = self.root / "actual-photos"
         real.mkdir()
@@ -217,6 +361,32 @@ class ExternalPhotoImportTests(unittest.TestCase):
         self.editor._replace(new_report(), None)
         self.app.processEvents()
         self.assertEqual(self.editor.media_library, {})
+
+    def test_ctrl_v_imports_copied_explorer_file_in_gallery(self):
+        source = self.image_file("from-explorer.png")
+        QApplication.clipboard().setMimeData(self.url_mime(source))
+        self.app.processEvents()
+        self.gallery.activateWindow()
+        self.pictures.setFocus()
+        QTest.keyClick(self.pictures, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+        self.app.processEvents()
+        self.assertEqual(self.pictures.count(), 1)
+        self.assertIn("from-explorer", self.editor.media_library.values())
+
+    def test_unresolved_page_draft_aborts_drop_without_mutating_library(self):
+        source = self.image_file()
+        block = self.editor.report.modules[0].blocks[0]
+        key = (self.editor.report.modules[0].id, block.id, "text")
+        self.editor.page.fields[key].setPlainText("Synthetic pending page draft")
+        self.assertIn(key, self.editor.page.pending)
+        event = FakeDropEvent(None, self.url_mime(source))
+        with patch.object(self.editor, "_flush_page", return_value=False):
+            self.gallery.dropEvent(event)
+            self.app.processEvents()
+        self.assertTrue(event.accepted)
+        self.assertEqual(self.editor.media_library, {})
+        self.assertIn(key, self.editor.page.pending)
+        self.assertIn("resolve pending", self.status.text())
 
     def test_encoded_clipboard_bytes_use_allowed_formats_and_decode_limits(self):
         png = BytesIO()
