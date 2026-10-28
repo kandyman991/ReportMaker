@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ...project_io import ReportProject, load_project, save_project
+from ...project_io import ReportProject, VERSION, load_project, save_project
 from ..session import ReportSession
 
 
@@ -32,6 +32,8 @@ class ProjectPersistence:
     def save(self, session: ReportSession, path: str | Path | None = None) -> Path:
         session.require_clean_drafts()
         current = session.path
+        if current is not None and session.loaded_version != VERSION:
+            raise ValueError("Legacy projects require Save As to a different destination")
         if path is None and current is None:
             raise ValueError("First Save requires a destination")
         target = Path(path) if path is not None else current

@@ -203,6 +203,9 @@ class BranchQtTests(unittest.TestCase):
         self.app.processEvents()
 
     def tearDown(self):
+        # Explicitly bypass interactive close prompts during M1.3 widget
+        # teardown; M1.4 has dedicated save/discard/cancel/close tests.
+        self.win._confirm_transition = lambda: False
         self.win.close()
         self.app.processEvents()
 

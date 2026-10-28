@@ -108,6 +108,8 @@ class V2BranchCanvasTests(unittest.TestCase):
             self.assertFalse(window.findChildren(QSplitter))
             self.assertGreater(window.branch.viewport().width(), 500)
         finally:
+            # M1.4 modal Close is tested separately; avoid blocking headless teardown.
+            window._confirm_transition = lambda: False
             window.close()
             self.app.processEvents()
 
@@ -136,6 +138,8 @@ class V2BranchCanvasTests(unittest.TestCase):
             self.assertEqual(nodes[6][3], "Cell A")
             self.assertEqual(nodes[-1][0], report.conclusion.id)
         finally:
+            # M1.4 modal Close is tested separately; avoid blocking headless teardown.
+            window._confirm_transition = lambda: False
             window.close()
             self.app.processEvents()
 
@@ -159,6 +163,8 @@ class V2BranchCanvasTests(unittest.TestCase):
             self.assertEqual(matching[0].width(), 18 + 25 * deepest)
             self.assertEqual(len(matching[0]._ancestors), deepest - 1)
         finally:
+            # M1.4 modal Close is tested separately; avoid blocking headless teardown.
+            window._confirm_transition = lambda: False
             window.close()
             self.app.processEvents()
 
@@ -176,6 +182,8 @@ class V2BranchCanvasTests(unittest.TestCase):
                 window.branch.set_report(invalid)
             self.assertEqual(window.branch.visible_nodes, first)
         finally:
+            # M1.4 modal Close is tested separately; avoid blocking headless teardown.
+            window._confirm_transition = lambda: False
             window.close()
             self.app.processEvents()
 

@@ -180,6 +180,11 @@ class BranchCanvas(QScrollArea):
         self._refresh()
 
     def _on_change(self, change) -> None:
+        # New/Open changes generation: never restore selection or caret from
+        # the previous report, even if a stale Qt redraw was queued.
+        if change is None:
+            self._selected_module_id = None
+            self._restore = None
         # Do not delete the currently emitting widget inside its Qt callback.
         QTimer.singleShot(0, self._refresh)
 
