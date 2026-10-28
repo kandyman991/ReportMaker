@@ -84,19 +84,32 @@ class DraftModelTests(unittest.TestCase):
         self.assertIn("東京", find_node(self.session.report_snapshot(), self.paragraph).text.original)
 
     def test_invalid_draft_commit_remains_editable_without_mutating_history(self):
-        self.drafts.update(self.paragraph, "Changed")
-        report_before = self.session.report_snapshot()
-        # A corrupt rich mapping must reject atomically, keeping pending text.
-        old = find_node(self.session._editor.report, self.paragraph)
-        old.rich.paragraphs = [ParagraphStyle(0), ParagraphStyle(len(old.text.original) + 1)]
+        original, _, address = sample()
+        para = find_node(original, address)
+        para.text = LocalizedText("en", "A\\nB")
+        para.rich.paragraphs = [ParagraphStyle(2, align="right")]
+        self.session.replace_project(ReportProject(original), discard_unsaved=True)
+        self.drafts.update(address, "A B")
         with self.assertRaises(ValueError):
-            self.drafts.commit(self.paragraph)
+            self.drafts.commit(address)
         self.assertTrue(self.drafts.pending)
         self.assertEqual(self.session.revision, 0)
-        self.assertEqual(self.drafts.text(self.paragraph), "Changed")
-        # Undo the deliberately injected corrupt fixture for clean shutdown.
-        self.session._editor.report = report_before
-        self.drafts.discard(self.paragraph)
+        self.assertEqual(self.drafts.text(address), "A B")
+        self.assertEqual(find_node(self.session.report_snapshot(), address).text.original, "A\\nB")
+
+    def test_rich_edit_is_atomic_and_retains_surviving_styles(self):
+        report, _, address = sample()
+        para = find_node(report, address)
+        para.rich.runs = [TextRun(0, 10, bold=True)]
+        self.session.replace_project(ReportProject(report), discard_unsaved=True)
+        self.drafts.update(address, "Inspection + note")
+        self.drafts.commit(address)
+        changed = find_node(self.session.report_snapshot(), address)
+        self.assertEqual(changed.rich.runs, [TextRun(0, 10, bold=True)])
+        self.gateway.undo(self.session.generation, self.session.revision)
+        original = find_node(self.session.report_snapshot(), address)
+        self.assertEqual(original.text.original, "Inspection note")
+        self.assertEqual(original.rich.runs, [TextRun(0, 10, bold=True)])
 
     def test_stale_source_cannot_overwrite_pending_draft(self):
         self.drafts.update(self.title, "From branch")
@@ -217,6 +230,14 @@ class BranchQtTests(unittest.TestCase):
         self.assertFalse(self.win.session.report_snapshot().modules[-1].blocks[-1].module.blocks)
         self.assertTrue(self.win.branch.redo())
         self.assertEqual(len(self.win.session.report_snapshot().modules[-1].blocks[-1].module.blocks), 1)
+
+    def test_bound_canvas_rejects_a_second_report_projection(self):
+        different = self.win.session.report_snapshot()
+        different.modules[0].title.update_original("Different canonical content")
+        before = self.win.branch.visible_nodes
+        with self.assertRaises(ValueError):
+            self.win.branch.set_report(different)
+        self.assertEqual(self.win.branch.visible_nodes, before)
 
     def test_escape_on_inline_title_reverts_local_draft(self):
         from PySide6.QtCore import Qt
