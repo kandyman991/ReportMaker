@@ -12,8 +12,8 @@ from html import escape
 from pathlib import Path
 from uuid import uuid4
 
-from PySide6.QtCore import QDate, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPen, QPixmap, QTextCursor, QTextDocument
+from PySide6.QtCore import QBuffer, QDate, QIODevice, Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QColor, QImage, QKeySequence, QPainter, QPen, QPixmap, QShortcut, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
     QDialogButtonBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
@@ -31,11 +31,13 @@ from .model import (
 from .project_io import (LEGACY_VERSION, PREVIOUS_VERSION, VERSION, MAX_ASSET, ReportProject,
                          default_projects_directory, load_project, save_project)
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
-from .media_import import (PictureImportError, stage_pictures, commit_staged_pictures,
-                           remove_library_picture)
+from .media_import import (PictureImportError, MAX_DECODE_PIXELS, MAX_IMPORT_BATCH,
+                           MAX_SOURCE_BYTES, add_imported_picture, convert_picture_bytes,
+                           stage_pictures, commit_staged_pictures, remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
-from .photo_gallery import PHOTO_MIME, ProjectPictureList, scaled_project_image
+from .photo_gallery import (PHOTO_MIME, PictureGalleryDialog, ProjectPictureList,
+                            local_picture_paths, scaled_project_image)
 from .rich_editor import SafeRichTextEdit, RichTextRibbon, apply_rich, capture_rich
 from .rich_text import safe_html
 from .page_editor import EditableDocumentPage
@@ -1008,7 +1010,7 @@ class VisualReportEditor:
             self._picture_gallery.raise_()
             self._picture_gallery.activateWindow()
             return True
-        dialog = QDialog(self.owner)
+        dialog = PictureGalleryDialog(self.owner)
         dialog.setObjectName("projectPictureGallery")
         dialog.setModal(False)
         dialog.setWindowTitle("Project Pictures — drag thumbnails into report")
@@ -1016,7 +1018,8 @@ class VisualReportEditor:
         layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel(
             "All thumbnails are project-owned working copies. Drag onto a blue block-list "
-            "insertion marker or a page drop zone; original photos stay unchanged."))
+            "insertion marker or a page drop zone; original photos stay unchanged. "
+            "Drop local image files here or press Ctrl+V to import."))
         choices = QHBoxLayout()
         preset = QComboBox()
         preset.setObjectName("pictureImportPreset")
@@ -1077,13 +1080,19 @@ class VisualReportEditor:
             empty.setVisible(pictures.count() == 0)
             show_preview()
 
+        status = QLabel("Drop image files from Explorer or paste a screenshot (Ctrl+V).")
+        status.setObjectName("pictureImportStatus")
+        status.setWordWrap(True)
+        layout.addWidget(status)
         buttons = QHBoxLayout()
         do_import = QPushButton("Import pictures…")
+        paste = QPushButton("Paste image (Ctrl+V)")
+        paste.setObjectName("pasteProjectPictureAction")
         do_import.setObjectName("importProjectPicturesAction")
         insert = QPushButton("Insert selected")
         remove = QPushButton("Remove unused")
         close = QPushButton("Close")
-        for button in (do_import, insert, remove, close):
+        for button in (do_import, paste, insert, remove, close):
             buttons.addWidget(button)
         layout.addLayout(buttons)
 
@@ -1174,6 +1183,120 @@ class VisualReportEditor:
             populate()
             self.refresh()
 
+        # External Explorer drops import files to the library ONLY. Existing
+        # report-photo internal drags remain asset-ID-based and editor-only.
+        generation = self._photo_drag_token
+
+        def _after_added(keys, failures):
+            if keys:
+                self.dirty = True
+                populate()
+                newest = pictures._items_by_key.get(keys[-1])
+                if newest is not None:
+                    pictures.setCurrentItem(newest)
+                self.refresh()
+            count = len(keys)
+            status.setText(f"Imported {count} picture(s) into this project." +
+                           (" Repeated imports create independent library items."
+                            if count else "") +
+                           (f" {len(failures)} failed." if failures else ""))
+            if failures:
+                QMessageBox.warning(
+                    dialog, "Some pictures could not be imported",
+                    "\\n".join(failures))
+
+        def import_dropped_files(paths, rejected):
+            if generation != self._photo_drag_token or self._picture_gallery is not dialog:
+                return  # queued drop from a replaced project must never be committed
+            failures = list(rejected)
+            if len(paths) > MAX_IMPORT_BATCH:
+                failures.append(f"Import at most {MAX_IMPORT_BATCH} images at once")
+                _after_added([], failures)
+                return
+            staged = []
+            for path in paths:
+                try:
+                    staged.extend(stage_pictures(
+                        [path], preset=preset.currentData(),
+                        output_format=fmt.currentData()))
+                except (PictureImportError, ValueError, OSError) as exc:
+                    failures.append(f"{Path(path).name[:100]}: {exc}")
+            if not staged:
+                _after_added([], failures or ["No supported local pictures found"])
+                return
+            if not self._flush_block() or not self._flush_info() or not self._flush_page():
+                status.setText("Import cancelled: resolve pending report edits first.")
+                return
+            try:
+                keys = commit_staged_pictures(
+                    ReportProject(self.report, self.assets, self.media_library), staged)
+            except (PictureImportError, ValueError, OSError) as exc:
+                failures.append(f"Project import failed: {exc}")
+                _after_added([], failures)
+                return
+            _after_added(keys, failures)
+
+        def paste_image():
+            mime = QApplication.clipboard().mimeData()
+            if mime is None or mime.hasFormat(PHOTO_MIME):
+                status.setText("No supported clipboard image is available.")
+                return
+            # Explorer file-list payloads take priority over a simultaneous
+            # bitmap; never import both representations of the same paste.
+            if mime.hasUrls():
+                files, rejected = local_picture_paths(mime)
+                import_dropped_files(files, rejected)
+                return
+            if not mime.hasImage():
+                status.setText("Clipboard contains no image pixels or local image files.")
+                return
+            image = QApplication.clipboard().image()
+            if image.isNull():
+                status.setText("Clipboard image cannot be read.")
+                return
+            try:
+                if (image.width() <= 0 or image.height() <= 0
+                    or image.width() * image.height() > MAX_DECODE_PIXELS
+                    or image.sizeInBytes() > 4 * MAX_SOURCE_BYTES):
+                    raise PictureImportError("Clipboard image exceeds safe pixel limits")
+                buffer = QBuffer()
+                if not buffer.open(QIODevice.OpenModeFlag.WriteOnly) or not image.save(buffer, "PNG"):
+                    raise PictureImportError("Cannot encode clipboard pixels as PNG")
+                photo = convert_picture_bytes(
+                    bytes(buffer.data()), preset=preset.currentData(),
+                    output_format=fmt.currentData())
+                if not self._flush_block() or not self._flush_info() or not self._flush_page():
+                    status.setText("Paste cancelled: resolve pending report edits first.")
+                    return
+                key = add_imported_picture(
+                    ReportProject(self.report, self.assets, self.media_library),
+                    photo, "Clipboard image")
+            except (PictureImportError, ValueError, OSError) as exc:
+                _after_added([], [str(exc)])
+                return
+            _after_added([key], [])
+
+        clipboard = QApplication.clipboard()
+
+        def update_paste_enabled():
+            mime = clipboard.mimeData()
+            files, _ = local_picture_paths(mime)
+            can_paste = bool(files) if mime is not None and mime.hasUrls() else (
+                mime is not None and not mime.hasFormat(PHOTO_MIME) and mime.hasImage())
+            paste.setEnabled(can_paste)
+
+        clipboard.dataChanged.connect(update_paste_enabled)
+        def disconnect_clipboard(*_):
+            try:
+                clipboard.dataChanged.disconnect(update_paste_enabled)
+            except (RuntimeError, TypeError):
+                pass
+        dialog.destroyed.connect(disconnect_clipboard)
+        update_paste_enabled()
+        QShortcut(QKeySequence.StandardKey.Paste, dialog).activated.connect(paste_image)
+        dialog.on_external_import = import_dropped_files
+        pictures.on_external_import = import_dropped_files
+
         def insert_selected():
             key = selected_key()
             if not key:
@@ -1200,6 +1323,7 @@ class VisualReportEditor:
             self.refresh()
 
         do_import.clicked.connect(import_selected)
+        paste.clicked.connect(paste_image)
         insert.clicked.connect(insert_selected)
         remove.clicked.connect(delete_selected)
         close.clicked.connect(dialog.close)
