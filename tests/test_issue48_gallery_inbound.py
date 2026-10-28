@@ -215,11 +215,11 @@ class InboundGalleryTests(unittest.TestCase):
     def test_source_orientation_uses_shared_decoder(self):
         from reportmaker.media_import import convert_picture
         path = self.root / "rotated.jpg"
-        Image.new("RGB", (120, 80), "blue").save(path, exif=Image.Exif())
-        img = Image.open(path)
-        exif = img.getexif()
+        # Write the EXIF orientation once: never reopen a file for overwrite
+        # while Pillow still holds a handle (important on Windows runners).
+        exif = Image.Exif()
         exif[274] = 6
-        img.save(path, exif=exif)
+        Image.new("RGB", (120, 80), "blue").save(path, exif=exif)
         converted = convert_picture(path)
         self.assertEqual((converted.width, converted.height), (80, 120))
         self.assertEqual((converted.original_width, converted.original_height), (120, 80))
