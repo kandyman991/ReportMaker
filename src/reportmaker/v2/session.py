@@ -23,6 +23,10 @@ class StaleIntentError(RuntimeError):
     """An action refers to an obsolete revision or project generation."""
 
 
+class UnsavedChangesError(RuntimeError):
+    """A project switch would discard unsaved canonical report edits."""
+
+
 class ReportSession:
     def __init__(self, project: ReportProject) -> None:
         self._listeners: list[Callable[[object], None]] = []
@@ -101,9 +105,13 @@ class ReportSession:
         if not self._draft_guard():
             raise PendingDraftError("Resolve pending edits before changing or saving a project")
 
-    def replace_project(self, project: ReportProject) -> None:
-        """Atomically switch project after the host resolves pending drafts."""
+    def replace_project(self, project: ReportProject, *, discard_unsaved: bool = False) -> None:
+        """Switch projects only after explicit consent to discard unsaved edits."""
         self.require_clean_drafts()
+        if type(discard_unsaved) is not bool:
+            raise TypeError("discard_unsaved must be a boolean")
+        if self.dirty and not discard_unsaved:
+            raise UnsavedChangesError("Save the current report or confirm discarding changes")
         replacement = ReportSession(project)  # fully validated first
         self._editor = replacement._editor
         self._assets = replacement._assets
