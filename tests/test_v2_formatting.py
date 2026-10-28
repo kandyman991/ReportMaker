@@ -179,7 +179,7 @@ class ContextualRibbonQtTests(unittest.TestCase):
         editor.setFocus()
         for _ in range(4):
             self.app.processEvents()
-        ribbon = self.win.branch.findChild(QWidget, "v2RichRibbon")
+        ribbon = self.win.branch._ribbons.get(address, (None,))[0]
         self.assertIsNotNone(ribbon)
         self.assertTrue(ribbon.isVisible())
         return editor, ribbon
@@ -193,7 +193,13 @@ class ContextualRibbonQtTests(unittest.TestCase):
     def test_contextual_visibility_focus_and_selected_style_state(self):
         from PySide6.QtGui import QTextCursor
         from PySide6.QtWidgets import QWidget
-        self.assertIsNone(self.win.branch.findChild(QWidget, "v2RichRibbon"))
+        # Initial focus can vary by platform/window manager. Force the
+        # non-rich title active and require any ribbons to be inactive.
+        self.win.branch.editor_for(self.title).setFocus()
+        for _ in range(4):
+            self.app.processEvents()
+        self.assertFalse(any(item.isVisible() for item, _ in
+                             self.win.branch._ribbons.values()))
         editor, ribbon = self.focused()
         bold = self.action("v2RichBold")
         self.assertFalse(bold.isEnabled())
