@@ -1,0 +1,13 @@
+[package]
+name = "reportmaker-tauri-spike"
+version = "0.1.0"
+description = "Isolated ReportMaker V2 Tauri front-end experiment"
+authors = ["ReportMaker contributors"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = { version = "2" }

@@ -1,0 +1,48 @@
+name: V2 Tauri prototype Windows compile (experimental)
+
+on:
+  pull_request:
+    paths:
+      - "benchmarks/tauri-spike/**"
+      - ".github/workflows/v2-tauri-prototype.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-tauri-spike:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: benchmarks/tauri-spike
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install canonical Python and sidecar build dependencies
+        run: python -m pip install -e "../..[desktop]" pyinstaller
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: benchmarks/tauri-spike/package-lock.json
+      - name: Install React and Tauri frontend
+        run: npm ci
+      - name: Create exclusively synthetic project projections
+        run: python fixtures.py public/data
+      - name: Build React renderer
+        run: npm run build
+      - name: Validate Python bridge in isolated subprocess
+        run: node bench-bridge.mjs
+      - name: Build packaged synthetic Python sidecar
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --name reportmaker-bench-bridge --paths ../../src bridge.py
+          $dest = "src-tauri/binaries/reportmaker-bench-bridge-x86_64-pc-windows-msvc.exe"
+          Copy-Item "dist/reportmaker-bench-bridge.exe" $dest
+          if (-not (Test-Path $dest)) { throw "Missing sidecar" }
+      - name: Compile native Tauri Windows shell without installer/release
+        run: npx tauri build --no-bundle

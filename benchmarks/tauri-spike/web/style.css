@@ -1,0 +1,15 @@
+:root{font-family:"Segoe UI",Arial,sans-serif;color:#182b3a;background:#eaf0f6;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}main{height:100vh;display:flex}
+.workspace{width:100%;height:100%;display:flex;flex-direction:column}.toolbar{background:#153650;color:#fff;display:flex;justify-content:space-between;gap:12px;padding:14px 20px;align-items:center}.toolbar span{opacity:.7;font-size:13px}
+.buttons{display:flex;gap:8px}button{font-family:inherit;cursor:pointer}.buttons button{border:1px solid #7f9eb9;background:#254e6e;color:#fff;padding:6px 10px;border-radius:5px}
+.notice{padding:9px 20px;color:#415468;font-size:12px;border-bottom:1px solid #c9d7e4}.canvas{padding:12px 26px;overflow-y:auto;flex:1}
+.branch-row{display:flex;position:relative;min-height:95px}.gutter{position:relative;flex:none;width:calc(18px + var(--depth)*25px)}
+.connector{position:absolute;right:0;top:50%;width:22px;border-top:2px solid #8199ae}.gutter:after{content:"";position:absolute;right:19px;top:0;bottom:50%;border-left:2px solid #8199ae}
+.branch-card{position:relative;min-width:180px;flex:1;border:1px solid #cbd5e1;background:white;border-radius:8px;margin:3px 0 7px;padding:9px 15px}
+.branch-card header{display:flex;align-items:center;gap:5px;color:#526c83;font-size:10px;font-weight:bold}.spacer{flex:1}
+.drag{color:#1e4568;background:#e5edf6;border:1px solid #91abc4;border-radius:5px;padding:3px 8px;cursor:grab}
+.editor{display:flex;gap:7px;align-items:center;padding-top:7px}.editor input,.editor textarea{width:100%;color:#182b3a;border:1px solid #becbd8;padding:8px;border-radius:4px;font:15px "Segoe UI",Arial,sans-serif}
+.editor textarea{resize:vertical;min-height:48px}.apply{background:#176eaa;color:#fff;border:0;border-radius:4px;padding:7px 10px}
+.value{color:#182b3a;font-size:15px;padding:10px 1px;overflow-wrap:anywhere}
+.indicator{position:absolute;right:8px;top:40%;font-size:12px;background:#176eaa;color:#fff;padding:4px 7px;border-radius:4px}
+.indicator.before{top:0}.indicator.after{top:auto;bottom:0}.hover-before .branch-card{border-top:3px solid #176eaa}.hover-after .branch-card{border-bottom:3px solid #176eaa}.hover-inside .branch-card{outline:3px solid #176eaa}

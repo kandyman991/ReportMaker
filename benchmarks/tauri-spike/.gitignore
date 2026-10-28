@@ -1,0 +1,8 @@
+node_modules/
+dist/
+data/*.json
+playwright-report/
+*.log
+public/data/
+src-tauri/binaries/*
+data/*.json
