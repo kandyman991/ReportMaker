@@ -32,7 +32,7 @@ from .project_io import (LEGACY_VERSION, PREVIOUS_VERSION, VERSION, MAX_ASSET, R
                          default_projects_directory, load_project, save_project)
 from .export import ExportError, ExportStyle, MAX_BRAND_LOGO_BYTES, export_project
 from .media_import import (PictureImportError, MAX_DECODE_PIXELS, MAX_IMPORT_BATCH,
-                           MAX_SOURCE_BYTES, add_imported_picture, convert_picture_bytes,
+                           MAX_SOURCE_BYTES, MAX_TOTAL_ASSETS, add_imported_picture, convert_picture_bytes,
                            stage_pictures, commit_staged_pictures, remove_library_picture)
 from .reference import CustomerSnapshot, manual_snapshot
 from .photo_editor import PictureEditorDialog, render_photo
@@ -1214,13 +1214,21 @@ class VisualReportEditor:
                 _after_added([], failures)
                 return
             staged = []
+            staged_bytes = 0
             for path in paths:
                 try:
-                    staged.extend(stage_pictures(
+                    item = stage_pictures(
                         [path], preset=preset.currentData(),
-                        output_format=fmt.currentData()))
+                        output_format=fmt.currentData())
+                    staged_bytes += sum(len(x.photo.data) for x in item)
+                    if staged_bytes > MAX_TOTAL_ASSETS:
+                        raise PictureImportError("Import batch exceeds project media limit")
+                    staged.extend(item)
                 except (PictureImportError, ValueError, OSError) as exc:
                     failures.append(f"{Path(path).name[:100]}: {exc}")
+                    if staged_bytes > MAX_TOTAL_ASSETS:
+                        staged = []  # never partially commit an oversized batch
+                        break
             if not staged:
                 _after_added([], failures or ["No supported local pictures found"])
                 return
