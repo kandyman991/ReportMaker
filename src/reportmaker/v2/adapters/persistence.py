@@ -21,12 +21,13 @@ class ProjectPersistence:
     def open(self, path: str | Path) -> ReportProject:
         return load_project(path)
 
-    def open_into(self, session: ReportSession, path: str | Path) -> None:
+    def open_into(self, session: ReportSession, path: str | Path,
+                  *, discard_unsaved: bool = False) -> None:
         # Uncommitted drafts and invalid/untrusted files cannot replace the
         # active project. No mutation occurs until both checks succeed.
         session.require_clean_drafts()
         candidate = self.open(path)
-        session.replace_project(candidate)
+        session.replace_project(candidate, discard_unsaved=discard_unsaved)
 
     def save(self, session: ReportSession, path: str | Path | None = None) -> Path:
         session.require_clean_drafts()
