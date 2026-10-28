@@ -83,13 +83,13 @@ These are *architectural responsibilities*, not a fixed file/directory naming ma
 The user explicitly decided: **ChatGPT integration stays as-is; the interface between ChatGPT and the report is manual copy/paste.**
 
 1. ChatGPT remains an ordinary embedded website operated by the user, with manual login as supported by the site and an external-browser fallback.
-2. Users may manually select and copy text from a branch, paste it into ChatGPT, manually copy a response, and paste into a chosen branch block. Source is treated as untrusted plain text.
+2. Users may manually select and copy text from a branch, paste it into ChatGPT, manually copy a response, and paste into a chosen branch block. Text handed into report editors is treated as untrusted plain text. Ordinary user-initiated browser image copy/download is also permitted; any image intentionally added to a report must go through the existing validated Gallery, clipboard-image or local-file importer, never an automatic browser-to-report channel.
 3. Users decide whether and where to paste; existing canonical editing/undo behavior applies once they paste.
 4. Do **not** implement OpenAI API/SDK calls, hidden prompts, background agents, automated messaging, website scripting/DOM inspection, scraping, browser cookies/tokens export, account automation, automated context synchronization or insertion of website responses.
-5. No project customer/machine/report data is transmitted to the ChatGPT browser except text the user intentionally transfers.
+5. ReportMaker does not transmit project customer/machine/report data to ChatGPT. Only content the user deliberately transfers using normal website/browser controls may reach the site; no background transfer is permitted.
 6. No browser profile data in report archives, GitHub, logs or test fixtures.
 
-This replaces the earlier speculative **automatic AI editing of selected branch content** interpretation. RM-BE-001 BE-I06 is fulfilled as **manual, user-directed AI-assisted copy/paste only**. Any automated variant would be a separately authorized and reviewed architecture change, not V2 scope.
+This replaces the earlier speculative **automatic AI editing of selected branch content** interpretation. RM-BE-001 BE-I06 is fulfilled by **manual, user-directed plain-text copy/paste**; ordinary manual browser image copy/download and separate safe image import do not create an AI integration. Any automated variant would be a separately authorized and reviewed architecture change, not V2 scope.
 
 ## 6. Key transaction and interaction rules
 
@@ -100,7 +100,7 @@ This replaces the earlier speculative **automatic AI editing of selected branch 
 - A failed command preserves model, pending drafts, asset references and undo history; a valid compound change must undo in one step.
 - Keyboard focus, Qt selection and rich-text formatting survive normal edits; structural drag handles must not conflict with text selection.
 - Generate IDs only for genuinely new/duplicated objects; preserve existing IDs through moves, tab transitions, save/load and output.
-- Preserve image original bytes and independent per-placement visual data; clipboard/Explorer ingestion passes through existing safe local importer and explicit copy semantics.
+- Preserve the immutable bytes of each approved **project-owned imported image working copy** and its independent per-placement visual data. Import may explicitly convert/optimize an external original (for example, HEIC to JPEG) under the existing M4.5 media contract; the external original is never modified, need not be stored verbatim and is not required to reopen the report. Clipboard/Explorer ingestion passes through the existing safe local importer and explicit copy semantics.
 - Editing transactions may be batched for performance. Never deep-copy/re-render a large hierarchy on every keystroke if this causes lost selection or unresponsive input.
 
 ## 7. Persistence and migration
