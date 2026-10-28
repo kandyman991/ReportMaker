@@ -1413,12 +1413,18 @@ class VisualReportEditor:
             if mime is None or mime.hasFormat(PHOTO_MIME):
                 status.setText("No supported clipboard image is available.")
                 return
-            # Explorer file-list payloads take priority over a simultaneous
-            # bitmap; never import both representations of the same paste.
+            # Real, validated Explorer file-list payloads take priority over
+            # simultaneous pixels. If URLs are untrusted (HTML, remote or
+            # invalid files), native image pixels remain a safe fallback.
+            # Never parse clipboard HTML or fetch linked images.
             if mime.hasUrls():
                 files, rejected = local_picture_paths(mime)
-                import_dropped_files(files, rejected)
-                return
+                if files:
+                    import_dropped_files(files, rejected)
+                    return
+                if not mime.hasImage():
+                    status.setText("Clipboard contains no supported local image files.")
+                    return
             if not mime.hasImage():
                 status.setText("Clipboard contains no image pixels or local image files.")
                 return
@@ -1447,8 +1453,8 @@ class VisualReportEditor:
         def update_paste_enabled():
             mime = clipboard.mimeData()
             files, _ = local_picture_paths(mime)
-            can_paste = bool(files) if mime is not None and mime.hasUrls() else (
-                mime is not None and not mime.hasFormat(PHOTO_MIME) and mime.hasImage())
+            can_paste = (mime is not None and not mime.hasFormat(PHOTO_MIME)
+                         and (bool(files) or mime.hasImage()))
             paste.setEnabled(can_paste)
 
         clipboard.dataChanged.connect(update_paste_enabled)
