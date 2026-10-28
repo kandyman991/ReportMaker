@@ -46,6 +46,30 @@ class RichModelTests(unittest.TestCase):
             self.assertEqual(result.rich, format)
             self.assertEqual(reloaded.loaded_version, 4)
 
+    def test_installed_font_family_with_bracket_suffix_roundtrips_safely(self):
+        # Fontconfig/Qt exposes legitimate families such as "C059 [UKWN]".
+        # They must remain valid canonical formatting, not make Apply fail.
+        name = "C059 [UKWN]"
+        text = "Valve inspection"
+        formatting = RichFormatting(runs=[TextRun(0, 5, family=name)])
+        validate_rich(formatting, text)
+        self.assertIn("font-family:'C059 [UKWN]'", safe_html(text, formatting))
+        target = synthetic_project()
+        block = next(x for x in target.report.modules[0].blocks
+                     if isinstance(x, ParagraphBlock))
+        block.text.update_original(text)
+        block.rich = formatting
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "font-qualifier.rmproj"
+            save_project(target, path)
+            restored = load_project(path)
+            restored_block = next(x for x in restored.report.modules[0].blocks
+                                  if isinstance(x, ParagraphBlock))
+            self.assertEqual(restored_block.rich, formatting)
+        with self.assertRaises(ValueError):
+            validate_rich(RichFormatting(runs=[
+                TextRun(0, 5, family="Bad\nFont")]), text)
+
     def test_tampered_format_ranges_rejected_atomically(self):
         project = synthetic_project()
         block = next(x for x in project.report.modules[0].blocks
