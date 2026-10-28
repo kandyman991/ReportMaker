@@ -111,6 +111,56 @@ class TemplateImportTests(unittest.TestCase):
             self.assertAlmostEqual(float(pdf_pages[0].mediabox.height), 25*72/2.54, delta=2)
             self.assertIn("Lab use only", pdf_pages[0].extract_text())
 
+    def test_imported_word_logo_is_scaled_inside_pdf_header(self):
+        # A real import path must preserve the embedded logo and header/footer
+        # even when the source Word margins are too tight for its default size.
+        with TemporaryDirectory() as folder:
+            source = Path(folder) / "tight-letterhead.docx"
+            create_sample(source)
+            doc = Document(source)
+            section = doc.sections[0]
+            section.top_margin = Cm(1.6)
+            section.header_distance = Cm(1.0)
+            doc.save(source)
+            original = source.read_bytes()
+
+            template = import_word_template(source).template
+            self.assertTrue(template.logo)
+            style = ExportStyle(
+                template.header_text, template.footer_text, template.logo,
+                template.page_width_cm, template.page_height_cm,
+                template.left_margin_cm, template.right_margin_cm,
+                template.top_margin_cm, template.bottom_margin_cm,
+                template.header_distance_cm, template.footer_distance_cm,
+                template.normal_font, template.normal_size_pt,
+                template.heading_font, template.heading_size_pt)
+            pdf = Path(folder) / "imported-letterhead.pdf"
+            export_project(synthetic_project(), pdf, format="pdf", style=style)
+            self.assertEqual(source.read_bytes(), original)
+            reader = PdfReader(pdf)
+            self.assertGreaterEqual(len(reader.pages), 2)
+            for page in reader.pages:
+                self.assertIn("SYNTHETIC COMPANY", page.extract_text())
+                self.assertIn("Lab use only", page.extract_text())
+                self.assertIn("Page ", page.extract_text())
+                # Header drawing precedes the report body, including photos.
+                from pypdf.generic import ContentStream
+                commands = ContentStream(page.get_contents(), reader).operations
+                for i, (args, operation) in enumerate(commands):
+                    if operation == b"Do" and str(args[0]).startswith("/FormXob"):
+                        transform, kind = commands[i - 1]
+                        self.assertEqual(kind, b"cm")
+                        width, _, _, height, x, y = map(float, transform)
+                        self.assertGreater(width, 0)
+                        self.assertAlmostEqual(x, style.left_margin_cm * 72/2.54, delta=.1)
+                        self.assertLessEqual(height,
+                            (style.top_margin_cm-style.header_distance_cm-.2)*72/2.54 + .1)
+                        self.assertGreaterEqual(y + .1,
+                            (style.page_height_cm-style.top_margin_cm)*72/2.54)
+                        break
+                else:
+                    self.fail("Imported header logo was missing from PDF")
+
     def test_long_multiline_letterhead_fields_and_export_roundtrip(self):
         """Both >120-char fields and a cached Word PAGE value survive safely."""
         with TemporaryDirectory() as folder:

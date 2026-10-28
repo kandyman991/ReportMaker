@@ -105,11 +105,12 @@ def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
     return width * scale, height * scale
 
 
-def _logo_dimensions(image: bytes) -> tuple[float, float]:
+def _logo_dimensions(image: bytes, *, max_height_cm: float = 1.05) -> tuple[float, float]:
+    """Logo at its natural (96-dpi) size, bounded without changing aspect ratio."""
     from PIL import Image
     with Image.open(BytesIO(image)) as im:
         width, height = im.size
-    scale = min(2.54 / 96.0, 2.6 / width, 1.05 / height)
+    scale = min(2.54 / 96.0, 2.6 / width, max_height_cm / height)
     return width * scale, height * scale
 
 
@@ -552,6 +553,55 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
             except (ValueError, OSError, TTFError):
                 continue
 
+    # Resolve the complete page decoration before ReportLab's onPage callback.
+    # Raising there wraps a helpful ExportError as "handle_pageBegin args=()".
+    # Header distance is measured from the top edge, while the top margin is
+    # the start of body content; the logo must fit between the two.
+    header_room_cm = style.top_margin_cm - style.header_distance_cm - .2
+    if (style.logo or style.company_name) and header_room_cm <= 1e-6:
+        raise ExportError("PDF header has no space above the report body; "
+                          "increase the top margin or reduce the header distance")
+    header_top_y = (style.page_height_cm - style.header_distance_cm - .2)*cm
+    header_text_x = style.left_margin_cm*cm
+    logo_w = logo_h = 0.0
+    logo_image = None
+    if style.logo:
+        # Keep the existing maximum logo dimensions, but scale down further
+        # for a tight imported template instead of aborting mid-export.
+        logo_w, logo_h = _logo_dimensions(style.logo, max_height_cm=header_room_cm)
+        logo_image = ImageReader(BytesIO(style.logo))
+        header_text_x += (logo_w + .25)*cm
+
+    header = None
+    header_height = 0.0
+    if style.company_name:
+        header_style = ParagraphStyle("RMHeader", fontName=bold_font,
+                                      fontSize=9, leading=11)
+        markup = escape(style.company_name).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
+        header = Paragraph(markup, header_style)
+        available_width = (style.page_width_cm - style.right_margin_cm)*cm - header_text_x
+        if available_width <= 0:
+            raise ExportError("PDF header text has no space beside the logo; "
+                              "increase page width or reduce side margins")
+        _, header_height = header.wrap(available_width, header_room_cm*cm)
+        if header_height > header_room_cm*cm:
+            raise ExportError("Header text does not fit the PDF top margin; "
+                              "increase the top margin or shorten the header")
+
+    footer = None
+    if style.footer_note:
+        footer_style = ParagraphStyle("RMFooter", fontName=body_font,
+                                      fontSize=8, leading=10)
+        markup = escape(style.footer_note).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
+        footer = Paragraph(markup, footer_style)
+        note_width = max(2*cm, (style.page_width_cm-style.left_margin_cm-
+                                style.right_margin_cm-3)*cm)
+        allowed_height = (style.bottom_margin_cm-style.footer_distance_cm-.15)*cm
+        _, footer_height = footer.wrap(note_width, max(0, allowed_height))
+        if allowed_height <= 0 or footer_height > allowed_height:
+            raise ExportError("Footer text does not fit the PDF bottom margin; "
+                              "increase the bottom margin or shorten the footer")
+
     class ReportPDF(BaseDocTemplate):
         def __init__(self, path):
             super().__init__(str(path),
@@ -568,43 +618,20 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
         def page_decoration(self, canvas, doc):
             canvas.saveState()
             try:
-                text_x = style.left_margin_cm*cm
-                if style.logo:
-                    logo_w, logo_h = _logo_dimensions(style.logo)
-                    if logo_h > style.top_margin_cm - style.header_distance_cm - .2:
-                        raise ExportError("Header logo does not fit the PDF top margin; "
-                                          "increase the top margin or move the header upward")
-                    canvas.drawImage(ImageReader(BytesIO(style.logo)),
-                                     text_x, style.page_height_cm*cm - (style.header_distance_cm + .2)*cm - logo_h*cm,
+                if logo_image is not None:
+                    canvas.drawImage(logo_image, style.left_margin_cm*cm,
+                                     header_top_y - logo_h*cm,
                                      width=logo_w*cm, height=logo_h*cm,
                                      mask="auto")
-                    text_x += (logo_w + .25)*cm
-                if style.company_name:
-                    header_style = ParagraphStyle(
-                        "RMHeader", fontName=bold_font, fontSize=9, leading=11)
-                    markup = escape(style.company_name).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
-                    header = Paragraph(markup, header_style)
-                    avail = style.page_width_cm*cm - style.right_margin_cm*cm - text_x
-                    allowed_height = (style.top_margin_cm - style.header_distance_cm - .2)*cm
-                    _, height = header.wrap(avail, allowed_height)
-                    if height > allowed_height:
-                        raise ExportError("Header text does not fit the PDF top margin; "
-                                          "increase the top margin or shorten the header")
-                    header.drawOn(canvas, text_x, style.page_height_cm*cm - (style.header_distance_cm + .2)*cm - height)
-                if style.footer_note:
-                    note_style = ParagraphStyle(
-                        "RMFooter", fontName=body_font, fontSize=8, leading=10)
-                    markup = escape(style.footer_note).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
-                    note = Paragraph(markup, note_style)
-                    note_width = max(2*cm, (style.page_width_cm-style.left_margin_cm-style.right_margin_cm-3)*cm)
-                    allowed_height = (style.bottom_margin_cm - style.footer_distance_cm - .15)*cm
-                    _, height = note.wrap(note_width, allowed_height)
-                    if height > allowed_height:
-                        raise ExportError("Footer text does not fit the PDF bottom margin; "
-                                          "increase the bottom margin or shorten the footer")
-                    note.drawOn(canvas, style.left_margin_cm*cm, style.footer_distance_cm*cm)
+                if header is not None:
+                    header.drawOn(canvas, header_text_x,
+                                  header_top_y - header_height)
+                if footer is not None:
+                    footer.drawOn(canvas, style.left_margin_cm*cm,
+                                  style.footer_distance_cm*cm)
                 canvas.setFont(body_font, 9)
-                canvas.drawRightString((style.page_width_cm-style.right_margin_cm)*cm, style.footer_distance_cm*cm,
+                canvas.drawRightString((style.page_width_cm-style.right_margin_cm)*cm,
+                                       style.footer_distance_cm*cm,
                                        "Page " + str(doc.page))
             finally:
                 canvas.restoreState()
