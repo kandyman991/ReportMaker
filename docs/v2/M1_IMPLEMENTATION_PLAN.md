@@ -12,12 +12,54 @@ M1 should be a small sequence of independently reviewed PRs; do not open a monol
 
 | PR | Exclusive responsibility | Code ownership (proposed) | Required isolated proof |
 | --- | --- | --- | --- |
-| **M1.1 — V2 launch + import firewall** | `python -m reportmaker.v2` launch, a new native `QMainWindow` that defaults to a placeholder/skeleton connected Branch Editor canvas; V1 entry unchanged. Add static forbidden-import test. | `v2/__main__.py`, `app.py`, `branch/canvas.py` minimal, V2 import test | Startup creates fresh V2 app with **no V1 three-panel interface**, and `visual_editor` absent from transitive import graph; V1 smoke remains green |
-| **M1.2 — Session, adapter, basic safe commands** | Wrap existing `ProjectEditor`, `ReportProject`, `load_project/save_project`; stable-ID resolver/projection and simple `add_module`, `add_nested_module`, `add_paragraph`, `rename_module`, `set_paragraph`, Undo/Redo, revision+generation events | `v2/session.py`, `commands.py`, `projections.py`, `adapters/persistence.py`, tests | Synthetic tree with mixed child index and Conclusions last; valid/invalid transaction atomicity; full report Save/Open; v1–v4 Save As and stable IDs; no Qt in pure adapter |
+| **M1.1 — V2 launch + import firewall** | `python -m reportmaker.v2` launch, a new native `QMainWindow` that defaults to a placeholder/skeleton connected Branch Editor canvas; V1 entry unchanged. Add static and isolated-process runtime tests forbidding transitive imports of both `reportmaker.ui` and `reportmaker.visual_editor`. | `v2/__main__.py`, `app.py`, `branch/canvas.py` minimal, V2 import test | Startup creates fresh V2 app with **no V1 three-panel interface**, and both legacy UI modules absent from the transitive import graph; V1 smoke remains green |
+| **M1.2 — Session, adapter, basic safe commands** | Wrap existing `ProjectEditor`, `ReportProject`, `load_project/save_project`; stable-ID resolver/projection and simple `add_module`, `add_nested_module`, `add_paragraph`, `rename_module`, `set_paragraph`, Undo/Redo, revision+generation events | `v2/session.py`, `commands.py`, `projections.py`, `adapters/persistence.py`, tests | Synthetic tree with mixed child index and Conclusions last; valid/invalid transaction atomicity; detached view snapshot cannot mutate canonical report; full report Save/Open; v1–v4 Save As and stable IDs; no Qt in pure adapter |
 | **M1.3 — First directly editable branch** | Connected lines; real inline root → module → nested module and text, direct inline title and paragraph editing; contextual editor activation, scroll/selection; no decorative diagram replacing content | `v2/branch/{canvas,module_card,content_card}.py`, `v2/drafts.py`, `v2/adapters/rich_text.py`, targeted Qt tests | From branch view alone: create module + child, edit both titles and Unicode paragraph, undo/redo; focus/selection intact, canonical order matched; no widget mutates report directly |
-| **M1.4 — Project lifecycle & checkpoint A acceptance** | Hook New/Open/Save/Save As into session and guard drafts; real V2 offline Qt smoke/Windows-hosted CI, integration with V1 regressions; measured basic performance and Windows manual checklist | `v2/app.py`, `v2/__main__.py`, session/Qt integration tests, CI probe | Fully create, edit, save, close, reopen, undo/redo nested report **entirely in branch workspace**; legacy source unmodified; no V1 UI import; user visual approval of Branch Editor sketch |
+| **M1.4 — Project lifecycle & checkpoint A acceptance** | Hook New/Open/Save/Save As into session and guard drafts; real V2 offline Qt smoke/Windows-hosted CI, integration with V1 regressions; measured basic performance and Windows manual checklist | `v2/app.py`, `v2/__main__.py`, session/Qt integration tests, CI probe | Fully create, edit, save, close, reopen, undo/redo nested report **entirely in branch workspace**; legacy source unmodified; failed Save As retains identity and drafts; first-Save/Save-As settings identity migration; no V1 UI import; user visual approval of Branch Editor sketch |
 
 **Keep shared-file ownership explicit.** M1.1 owns shell/canvas skeleton; M1.2 owns core gateway; M1.3 owns Qt nodes/drafts/rich helpers; M1.4 integrates. Avoid parallel edits to `engine.py`, `project_io.py`, `rich_editor.py` until M1.2 contract tests pass. Any essential shared-core change gets a narrow earlier PR with regression tests; never fork a second report engine. Existing V1 modules remain unchanged whenever adapters suffice.
+
+## Requirement-to-milestone traceability (all 33 approved BE IDs)
+
+This is the *implementation owner and proof plan*, not a statement that any feature is already implemented. All rows require the common M7 end-to-end/native Windows acceptance gate. Split milestones show first usable subset followed by final completion.
+
+| Requirement | Implement / finish | Dedicated acceptance focus |
+| --- | --- | --- |
+| BE-L01 | M1 | Full Branch Editor default workspace, editing without separate tree |
+| BE-L02 | M1 | Connected root/module/submodule lines after redraw |
+| BE-L03 | M2, M5 | Arbitrarily deep conceptual nesting; safe bound and deep round-trips |
+| BE-L04 | M1, M3, M4 | Real inline text, then tables and photo previews |
+| BE-L05 | M1 | Canvas matches mixed canonical saved/export order |
+| BE-L06 | M1 | No duplicated navigation tree or model |
+| BE-E01 | M1 basic, M3 complete | Inline Unicode and selection/format/undo fidelity |
+| BE-E02 | M1 | Inline title, derived outline, undo |
+| BE-E03 | M4 | Project-owned thumbnail, caption and restore |
+| BE-E04 | M4, M6 export | Non-destructive placement edits and annotated DOCX/PDF |
+| BE-E05 | M3 | Table cell and row/column editing/round-trip |
+| BE-E06 | M1 basic, M3 complete | Insert every supported block at exact mixed index |
+| BE-E07 | M3 | Active-editor contextual ribbon/focus retention |
+| BE-S01 | M2 | Reorder/reparent subtree without identity loss |
+| BE-S02 | M2 | BEFORE/AFTER/INSIDE hit-target, invalid-drop rollback |
+| BE-S03 | M2 | Collapse hides only, no export omission |
+| BE-S04 | M2 | Keyboard and toolbar move-up/down boundaries |
+| BE-S05 | M2 | Duplicate IDs, delete confirmation, Outdent, undo |
+| BE-S06 | M2 | Expansion persistence across reopen/Save As |
+| BE-S07 | M2 | Canonical descendant counts for collapsed branches |
+| BE-U01 | M5 | Focus subtree and restore context |
+| BE-U02 | M5 | Zoom/pan/fit versus export geometry and DPI |
+| BE-U03 | M5 | Canonical search reveals collapsed matches |
+| BE-U04 | M5 | Context menus reuse command validation |
+| BE-U05 | M3, M5 | Editable display resize; local versus printable semantics |
+| BE-U06 | M4 | Explorer file drop CopyAction, safe local import |
+| BE-U07 | M4 | Intentional native clipboard image/file import only |
+| BE-I01 | M1, M6 | One model and IDs across every tab/summary/export |
+| BE-I02 | M2, M6 | Derived numbering/TOC after all structure changes |
+| BE-I03 | M6 | Separate Editor shares same data and draft coordinator |
+| BE-I04 | M6 | Gallery tab and unchanged user-controlled browser tab |
+| BE-I05 | M6 | Refresh guard and accurate supported DOCX/PDF visual output |
+| BE-I06 | M6 | Manual plain-text browser copy/paste only; no API/DOM automation |
+
+**Gate accountability:** M1 covers only its named subset. M2–M6 own their listed proof and M7 verifies **all 33** against [RM-BE-001](BRANCH_EDITOR_REQUIREMENTS.md), including real installed Windows acceptance. If an owner milestone slips, update this mapping in a reviewed PR; do not silently drop the requirement.
 
 ## M1 minimum command and layout acceptance (Checkpoint A)
 
