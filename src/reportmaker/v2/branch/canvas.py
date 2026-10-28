@@ -213,7 +213,9 @@ class DropRow(QWidget):
             return "inside"
         if self.kind in ("module", "conclusion"):
             return "before" if fraction < .25 else ("after" if fraction > .75 else "inside")
-        return "before" if fraction < .5 else "after"
+        # Integer pixel threshold is stable for odd/even Qt row heights on
+        # Windows and Linux (the center pixel belongs to the After half).
+        return "before" if y < max(1, self.height() // 2) else "after"
 
     def show_indicator(self, position: str, valid: bool, reason: str = "") -> None:
         if (self._position == position and self._valid == valid
