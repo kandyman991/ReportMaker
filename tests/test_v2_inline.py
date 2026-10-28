@@ -111,6 +111,23 @@ class DraftModelTests(unittest.TestCase):
         self.assertEqual(original.text.original, "Inspection note")
         self.assertEqual(original.rich.runs, [TextRun(0, 10, bold=True)])
 
+    def test_reentrant_listener_cannot_bypass_other_pending_drafts(self):
+        self.drafts.update(self.title, "Committed")
+        self.drafts.update(self.paragraph, "Still pending")
+        rejected = []
+        def listener(change):
+            try:
+                self.gateway.execute(CommandIntent(
+                    "add_module", None, {"title": "Not permitted"},
+                    self.session.revision, self.session.generation))
+            except PendingDraftError:
+                rejected.append(True)
+        self.session.subscribe(listener)
+        self.drafts.commit(self.title)
+        self.assertEqual(rejected, [True])
+        self.assertEqual(len(self.session.report_snapshot().modules), 1)
+        self.assertTrue(self.drafts.pending)
+
     def test_stale_source_cannot_overwrite_pending_draft(self):
         self.drafts.update(self.title, "From branch")
         self.drafts._committing = True  # Simulate an external adapter violation.

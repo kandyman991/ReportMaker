@@ -1,5 +1,4 @@
-"""V2 Branch Editor visual components.
+"""Direct Qt Branch Editor cards and canvas; mutations use typed M1.2 commands.
 
-Structural and content changes will be delegated to the canonical command
-gateway in M1.2/M1.3; visual widgets never own a second report model.
+No second report hierarchy or V1 UI dependency lives in this package.
 """

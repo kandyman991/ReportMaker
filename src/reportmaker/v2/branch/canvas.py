@@ -1,9 +1,7 @@
-"""Connected, read-only M1.1 Branch Editor scaffold over the shared model.
+"""Connected M1.3 Branch Editor with guarded inline titles and paragraphs.
 
-This is a projection of ReportMaker's single ordered hierarchy, not a new
-report document or a parallel navigation tree. Inline editing, draft guards
-and efficient viewport virtualization are separate reviewed M1.2/M1.3/M5
-work. No legacy UI or browser module is imported here.
+The single canonical report drives visible order and connectors. Widgets hold
+only drafts; no V1 UI, parallel report model or browser is imported here.
 """
 from __future__ import annotations
 

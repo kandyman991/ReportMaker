@@ -1,7 +1,7 @@
-"""Fresh V2 native application shell; V1's three-panel UI is not imported.
+"""Fresh V2 native application shell with M1.3 inline branch editing.
 
-M1.1 displays an explicitly synthetic, read-only canonical hierarchy.
-The project session/commands arrive in M1.2 and direct branch editing in M1.3.
+V1\'s independent UI and browser remain untouched; the V2 workspace uses
+one M1.2 canonical session and typed command gateway for every edit.
 """
 from __future__ import annotations
 
