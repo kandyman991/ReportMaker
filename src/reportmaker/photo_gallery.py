@@ -1,16 +1,20 @@
-"""Project-owned thumbnail drag source and explicit structural photo drop zones.
+"""Project-owned thumbnail drag source, external file import target and report drop zones.
 
-No external file/url/html payload is accepted. All thumbnails decode lazily at
-bounded display dimensions; only the optimized project-owned bytes are read.
+Internal asset-ID drags are separate from inbound local-file URLs. Never accept
+remote URLs, arbitrary HTML or clipboard text as image import instructions.
 """
 from __future__ import annotations
 
 from collections import OrderedDict
+import os
+from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QMimeData, QSize, Qt, QTimer
 from PySide6.QtGui import QDrag, QIcon, QImage, QImageReader, QPixmap
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem
+from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem
+
+from .media_import import INPUT_SUFFIXES, MAX_IMPORT_BATCH
 
 PHOTO_MIME = "application/x-reportmaker-project-photo-asset"
 MAX_THUMBNAILS = 80
@@ -35,7 +39,101 @@ def scaled_project_image(image_bytes: bytes, width: int, height: int) -> QImage:
     return reader.read()
 
 
-class ProjectPictureList(QListWidget):
+def local_picture_paths(mime: QMimeData | None) -> tuple[list[str], list[str]]:
+    """Validate OS file-URL payloads; never interpret strings as file paths.
+
+    Return supported local paths and per-file errors separately so mixed drops
+    can import the good files while reporting the rejected ones. The converter
+    performs the final byte, decoded-format and resource-budget checks.
+    """
+    if mime is None or mime.hasFormat(PHOTO_MIME) or not mime.hasUrls():
+        return [], []
+    urls = mime.urls()
+    if len(urls) > MAX_IMPORT_BATCH:
+        return [], [f"Import at most {MAX_IMPORT_BATCH} image files at once"]
+    paths, errors, seen = [], [], set()
+    for url in urls:
+        if not url.isLocalFile():
+            errors.append("Remote URLs and non-file drops are not supported")
+            continue
+        value = url.toLocalFile()
+        # Network shares and UNC paths are not independent local originals.
+        if not value or value.startswith(("\\\\", "//")):
+            errors.append("Network paths are not supported")
+            continue
+        path = Path(value)
+        label = path.name[:100] or "Unnamed file"
+        if not path.is_absolute() or not path.is_file():
+            errors.append(f"{label}: not an existing local file")
+            continue
+        if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+            errors.append(f"{label}: links and junctions are not supported")
+            continue
+        if path.suffix.lower() not in INPUT_SUFFIXES:
+            errors.append(f"{label}: unsupported image extension")
+            continue
+        normalized = os.path.normcase(os.path.abspath(value))
+        if normalized not in seen:
+            paths.append(str(path))
+            seen.add(normalized)
+    return paths, errors
+
+
+class ExternalPictureDropMixin:
+    """Strict Explorer inbound drop handlers, never project-photo receivers."""
+
+    on_external_import: Callable[[list[str], list[str]], None] | None = None
+
+    def _set_file_drop_hint(self, active: bool) -> None:
+        self.setStyleSheet(
+            "border: 2px dashed #1672c7; background: #edf6ff;" if active else "")
+
+    def _can_accept_files(self, event) -> bool:
+        paths, _errors = local_picture_paths(event.mimeData())
+        # Qt identifies foreign-process Explorer drags with source() == None.
+        # Never allow a gallery's own internal PHOTO_MIME drag to reimport.
+        return event.source() is None and bool(paths) and callable(self.on_external_import)
+
+    def dragEnterEvent(self, event):
+        if not self._can_accept_files(event):
+            event.ignore()
+            return
+        self._set_file_drop_hint(True)
+        event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+        if not self._can_accept_files(event):
+            self._set_file_drop_hint(False)
+            event.ignore()
+            return
+        event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event):
+        self._set_file_drop_hint(False)
+        event.accept()
+
+    def dropEvent(self, event):
+        self._set_file_drop_hint(False)
+        if not self._can_accept_files(event):
+            event.ignore()
+            return
+        paths, errors = local_picture_paths(event.mimeData())
+        callback = self.on_external_import
+        event.acceptProposedAction()
+        # Qt may still own the source MIME object during drop dispatch; use a
+        # copied path list and delay mutations until after the event returns.
+        QTimer.singleShot(0, lambda: callback(paths, errors))
+
+
+class PictureGalleryDialog(ExternalPictureDropMixin, QDialog):
+    """Gallery chrome is a drop surface as well as its thumbnail viewport."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+
+class ProjectPictureList(ExternalPictureDropMixin, QListWidget):
     """Resizable icon grid. Only visible tiles are decoded; icon cache is bounded."""
 
     def __init__(self, allowed: Callable[[str], bool], assets: Callable[[str], bytes],
@@ -55,8 +153,8 @@ class ProjectPictureList(QListWidget):
         self.setWordWrap(True)
         self.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self.setDragEnabled(True)
-        self.setAcceptDrops(False)
-        self.setDragDropMode(QListWidget.DragDropMode.DragOnly)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QListWidget.DragDropMode.DragDrop)
         self.setIconSize(QSize(self._thumb_side, self._thumb_side))
         self.setGridSize(QSize(self._thumb_side + 38, self._thumb_side + 55))
         self.setSpacing(7)
