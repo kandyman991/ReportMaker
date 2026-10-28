@@ -221,7 +221,10 @@ class BranchCanvas(QScrollArea):
     def _capture(self, address):
         editor = self._editors.get(address)
         if isinstance(editor, QLineEdit):
-            self._restore = (address, editor.cursorPosition(), editor.selectionStart())
+            # Qt selection offsets use UTF-16 units, including emoji pairs.
+            selected_length = len(editor.selectedText().encode("utf-16-le")) // 2
+            self._restore = (address, editor.cursorPosition(),
+                             editor.selectionStart(), selected_length)
         elif isinstance(editor, QPlainTextEdit):
             c = editor.textCursor()
             self._restore = (address, c.position(), c.anchor())
@@ -230,11 +233,15 @@ class BranchCanvas(QScrollArea):
         state, self._restore = self._restore, None
         if state is None:
             return
-        address, position, anchor = state
+        address, position, anchor, *selection = state
         editor = self._editors.get(address)
         if isinstance(editor, QLineEdit):
             editor.setFocus()
-            editor.setCursorPosition(min(position, len(editor.text())))
+            limit = len(editor.text().encode("utf-16-le")) // 2
+            editor.setCursorPosition(min(position, limit))
+            if selection and selection[0] and anchor >= 0:
+                start = min(anchor, limit)
+                editor.setSelection(start, min(selection[0], limit - start))
         elif isinstance(editor, QPlainTextEdit):
             editor.setFocus()
             c = editor.textCursor()
