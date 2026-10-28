@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T19:42:07.360Z",
+  "generatedAt": "2026-10-28T20:51:16.950Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "27533c8573b428ce23c9a8b6e259317399b14ce4",
-    "message": "Merge pull request #74: V2 M2.3 structural actions and natural-card integration\n\nV2 M2.3 — Indent/Outdent, Duplicate and Delete",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/27533c8573b428ce23c9a8b6e259317399b14ce4"
+    "sha": "e77c445672e9ac1c6015f3858c43cb3d90fc6a1a",
+    "message": "Merge pull request #76 from kandyman991/feature/v2-m2-4-outline-state\n\nV2 M2.4 — Expand/Collapse, Descendant Counts and Derived TOC",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/e77c445672e9ac1c6015f3858c43cb3d90fc6a1a"
   },
   "openPullRequests": [
     {
@@ -109,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40756624715,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "27533c8573b428ce23c9a8b6e259317399b14ce4",
-      "event": "push",
-      "updatedAt": "2026-10-28T19:42:01Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756624715"
-    },
-    {
-      "id": 40756624671,
-      "name": "ReportMaker continuity contract",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "27533c8573b428ce23c9a8b6e259317399b14ce4",
-      "event": "push",
-      "updatedAt": "2026-10-28T19:42:02Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756624671"
-    },
-    {
-      "id": 40756624666,
+      "id": 40766931423,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "27533c8573b428ce23c9a8b6e259317399b14ce4",
+      "headSha": "e77c445672e9ac1c6015f3858c43cb3d90fc6a1a",
       "event": "push",
-      "updatedAt": "2026-10-28T19:42:02Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756624666"
+      "updatedAt": "2026-10-28T20:51:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766931423"
     },
     {
-      "id": 40756257072,
+      "id": 40766931312,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m2-3-structural-actions",
-      "headSha": "f198f64a587d4e8d1c29cc25f893014f433b16ab",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T19:39:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756257072"
+      "branch": "main",
+      "headSha": "e77c445672e9ac1c6015f3858c43cb3d90fc6a1a",
+      "event": "push",
+      "updatedAt": "2026-10-28T20:51:15Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766931312"
     },
     {
-      "id": 40756256921,
-      "name": "V2 M1.1 Branch Editor shell",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-3-structural-actions",
-      "headSha": "f198f64a587d4e8d1c29cc25f893014f433b16ab",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T19:40:17Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756256921"
+      "id": 40766931271,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "e77c445672e9ac1c6015f3858c43cb3d90fc6a1a",
+      "event": "push",
+      "updatedAt": "2026-10-28T20:51:11Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766931271"
     },
     {
-      "id": 40756256892,
-      "name": "V2 M1.4 project lifecycle and Checkpoint A",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-3-structural-actions",
-      "headSha": "f198f64a587d4e8d1c29cc25f893014f433b16ab",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T19:40:41Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756256892"
-    },
-    {
-      "id": 40756256846,
-      "name": "V2 M1.2 session, commands and persistence",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-3-structural-actions",
-      "headSha": "f198f64a587d4e8d1c29cc25f893014f433b16ab",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T19:40:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756256846"
-    },
-    {
-      "id": 40756256710,
-      "name": "V2 M1.3 inline branch editing",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-3-structural-actions",
-      "headSha": "f198f64a587d4e8d1c29cc25f893014f433b16ab",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T19:40:35Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756256710"
-    },
-    {
-      "id": 40756256694,
-      "name": "V2 M2 structural placement",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m2-3-structural-actions",
-      "headSha": "f198f64a587d4e8d1c29cc25f893014f433b16ab",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T19:40:30Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756256694"
-    },
-    {
-      "id": 40756256688,
+      "id": 40766445524,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m2-3-structural-actions",
-      "headSha": "f198f64a587d4e8d1c29cc25f893014f433b16ab",
+      "branch": "feature/v2-m2-4-outline-state",
+      "headSha": "ab7e5ca5023e63c8b6e436df73b3816c6964d305",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T19:40:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40756256688"
+      "updatedAt": "2026-10-28T20:50:23Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766445524"
+    },
+    {
+      "id": 40766445514,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-4-outline-state",
+      "headSha": "ab7e5ca5023e63c8b6e436df73b3816c6964d305",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T20:50:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766445514"
+    },
+    {
+      "id": 40766445490,
+      "name": "V2 M1.4 project lifecycle and Checkpoint A",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-4-outline-state",
+      "headSha": "ab7e5ca5023e63c8b6e436df73b3816c6964d305",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T20:48:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766445490"
+    },
+    {
+      "id": 40766445482,
+      "name": "V2 M1.2 session, commands and persistence",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-4-outline-state",
+      "headSha": "ab7e5ca5023e63c8b6e436df73b3816c6964d305",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T20:48:32Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766445482"
+    },
+    {
+      "id": 40766445478,
+      "name": "V2 M2 structural placement",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-4-outline-state",
+      "headSha": "ab7e5ca5023e63c8b6e436df73b3816c6964d305",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T20:49:06Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766445478"
+    },
+    {
+      "id": 40766445463,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-4-outline-state",
+      "headSha": "ab7e5ca5023e63c8b6e436df73b3816c6964d305",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T20:47:56Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766445463"
+    },
+    {
+      "id": 40766445462,
+      "name": "V2 M1.3 inline branch editing",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m2-4-outline-state",
+      "headSha": "ab7e5ca5023e63c8b6e436df73b3816c6964d305",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T20:49:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40766445462"
     }
   ]
 }
