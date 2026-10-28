@@ -762,6 +762,17 @@ class BranchCanvas(QScrollArea):
     def _changed(self, address, text, buttons):
         try:
             self.drafts.update(address, text)
+            # A native editor may inherit nearby visual character formatting
+            # while typing; the staged Unicode ranges are authoritative.
+            # Highlighter-only refresh does not mutate Qt's text undo stack.
+            editor = self._editors.get(address)
+            if isinstance(editor, InlineParagraph):
+                try:
+                    paint_rich(editor, text, self.drafts.rich(address))
+                except ValueError:
+                    # Ambiguous styled delimiter edits retain their visible
+                    # draft and fail closed on Apply, as before.
+                    pass
             buttons.setVisible(self.drafts.is_dirty(address))
             self.feedback.emit("Unapplied draft — Apply or Revert before Save/Undo")
         except (ValueError, LookupError, RuntimeError) as exc:

@@ -9,7 +9,7 @@
 - Toolbar controls have Qt NoFocus, preserving text selection and caret. All Qt UTF-16 selection offsets are converted to the canonical model's Unicode code-point offsets, without allowing half of a surrogate pair. A font size change or alignment may expand the widget's natural height; no inner/workspace scrollbars are introduced.
 - Pure, validated run/paragraph transformations preserve all unmodified typography properties and coalesce adjacent equal runs. Paragraph styling excludes the next paragraph if a selection ends at its first character; contiguous decimal-list paragraphs share one native Qt list so numbering does not restart at 1.
 - Formatting-only drafts, combined text-and-formatting drafts, Apply/Revert, stale source rejection, revision guard, Save/Undo barriers and formatting rebase after typing use the **existing canonical CommandGateway**. Every successful Apply is one Undo/Redo transaction. Source wording and translations remain distinct; format-only edits do **not** mark translations stale.
-- Qt QPlainTextEdit remains the natural-height in-place input. Its rich projection is a temporary UI view, **not** a saved HTML document, alternate report model, or V1 rich_editor dependency. The existing allowlisted RichFormatting data is consumed by project saving and export without a schema change.
+- Qt QPlainTextEdit remains the natural-height in-place input. Its rich projection is a temporary UI view, **not** a saved HTML document, alternate report model, or V1 rich_editor dependency. Canonical character styles use QSyntaxHighlighter so typing, selection and native Ctrl+Z do not acquire phantom formatting-undo actions; paragraph/list geometry uses Qt block formats only when required. The existing allowlisted RichFormatting data is consumed by project saving and export without a schema change.
 
 ## Explicit boundaries
 
@@ -23,6 +23,6 @@
 - python -m compileall -q src/reportmaker/v2 tests/test_v2_formatting.py
 - git diff --check
 - .github/workflows/v2-inline.yml adds test_v2_formatting.py on hosted Windows Python 3.11 and 3.12; require passing **exact final PR-head** hosted workflow results before merge.
-- Regression cases cover active-only contextual controls, focus/selection preservation, Unicode offsets, staged formatting, paragraph/list semantics, keyboard shortcuts, undo/redo, translation provenance, Save/reopen and invalid/stale commands.
+- Regression cases cover active-only contextual controls, focus/selection preservation, Unicode offsets, staged formatting, paragraph/list semantics, keyboard shortcuts, undo/redo, translation provenance, Save/reopen and invalid/stale commands. Independent review added typing-after-formatting / native Ctrl+Z projection tests and a heading weight-inheritance check (16 formatting tests, 128 local V2 tests).
 
 **Next action:** independent review of draft PR, run exact-head Windows hosted CI and address findings before user-authorized merge. Then proceed to M3.3.

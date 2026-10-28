@@ -309,6 +309,63 @@ class ContextualRibbonQtTests(unittest.TestCase):
         self.win.branch.revert_draft(self.address)
         self.assertFalse(self.win.branch.drafts.pending)
 
+    def test_rich_highlighter_tracks_typed_text_without_polluting_native_undo(self):
+        from PySide6.QtGui import QTextCursor
+        from PySide6.QtTest import QTest
+        editor, _ = self.focused()
+        cursor = editor.textCursor()
+        cursor.setPosition(0)
+        cursor.setPosition(5, QTextCursor.MoveMode.KeepAnchor)
+        editor.setTextCursor(cursor)
+        self.action("v2RichBold").click()
+        self.assertFalse(editor.document().isUndoAvailable(),
+                         "Formatting projection must not create a native undo command")
+        cursor = editor.textCursor()
+        cursor.clearSelection()
+        cursor.setPosition(3)
+        editor.setTextCursor(cursor)
+        QTest.keyClicks(editor, "X")
+        self.app.processEvents()
+        self.assertEqual(editor.toPlainText(), "InsXpection note")
+        self.assertEqual([(r.start, r.end) for r in
+                          self.win.branch.drafts.rich(self.address).runs],
+                         [(0, 3), (4, 6)])
+        # Character highlighting must follow the rebased canonical ranges;
+        # Qt must not show inherited bold on the unstyled inserted character.
+        bold_offsets = {i for entry in editor.document().firstBlock().layout().formats()
+                        if entry.format.fontWeight() >= 700
+                        for i in range(entry.start, entry.start + entry.length)}
+        self.assertEqual(bold_offsets, {0, 1, 2, 4, 5})
+        self.assertTrue(editor.document().isUndoAvailable())
+        editor.undo()
+        self.app.processEvents()
+        self.assertEqual(editor.toPlainText(), "Inspection note")
+        self.assertEqual([(r.start, r.end) for r in
+                          self.win.branch.drafts.rich(self.address).runs],
+                         [(0, 5)])
+
+    def test_underline_highlighter_does_not_override_heading_base_weight(self):
+        from PySide6.QtGui import QTextCursor, QTextFormat
+        self.win.branch._selected_module_id = self.address.module_id
+        self.assertTrue(self.win.branch.add_heading(level=2))
+        for _ in range(5):
+            self.app.processEvents()
+        report = self.win.session.report_snapshot()
+        heading_id = report.modules[0].blocks[0].module.blocks[-1].id
+        address = NodeAddress(report.id, self.address.module_id, heading_id, "text")
+        editor, _ = self.focused(address)
+        editor.setPlainText("Headline")
+        cursor = editor.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        editor.setTextCursor(cursor)
+        self.action("v2RichUnderline").click()
+        formats = editor.document().firstBlock().layout().formats()
+        underlines = [entry for entry in formats if entry.format.fontUnderline()]
+        self.assertTrue(underlines)
+        self.assertFalse(any(entry.format.hasProperty(QTextFormat.Property.FontWeight)
+                             for entry in underlines),
+                         "Underline alone must not suppress the heading's base bold")
+
     def test_heading_formatting_selection_preserves_level_and_unicode(self):
         from PySide6.QtGui import QTextCursor
         self.win.branch._selected_module_id = self.address.module_id

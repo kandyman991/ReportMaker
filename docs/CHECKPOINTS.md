@@ -378,3 +378,8 @@ Next reproducible action:
 - Added a focus-only rich ribbon to paragraph/heading cards, font/emphasis/paragraph/list controls, checked selection state, Ctrl+B/I/U shortcuts, strict Unicode UTF-16 boundary adapter, pure canonical run/paragraph transformations and rich draft staging with Undo/Redo. No second report model, schema or export change.
 - Tests are in tests/test_v2_formatting.py and the hosted Windows 3.11/3.12 v2-inline workflow gate. Physical installed-Windows DPI/accessibility and full native keyboard acceptance remain pending.
 - Next: final local suite + exact-head Windows CI, independent PR review, explicit authorization before merge; then M3.3 inline tables. See docs/v2/M3_2_CONTEXTUAL_RICH_RIBBON.md.
+
+### CP-V2-M3.2 independent review correction — PR #78 (2026-10-28)
+- Original head e872db99ad078cb3586ac5d8a9a9e3b9f7b3a56d; independent review found stale native character styling after typing and character-preview changes accumulating native Qt undo commands. Introduced non-mutating, Unicode-safe QSyntaxHighlighter projection; retained native Qt paragraph/list formatting with undo-safe regeneration.
+- Expanded formatting tests from 14 to 16; verified 128 local Linux/offscreen V2 tests passing, including typing after styling, native draft Ctrl+Z, and heading underline base weight. Confirm Windows CI against **final corrected branch HEAD** before merge; no physical installed Windows acceptance claimed.
+- Authorized next after successful merge: M3.3 inline tables. V1 fallback, schema v4, exporters and browser-only manual ChatGPT unchanged.
