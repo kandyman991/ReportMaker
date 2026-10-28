@@ -270,6 +270,20 @@ class PersistenceTests(unittest.TestCase):
             self.p.save_as(self.s, self.b)
         self.assertEqual(self.s.path, self.b)
 
+    def test_undo_to_saved_content_clears_dirty_without_reusing_revision(self):
+        self.p.save(self.s, self.a)
+        report = self.s.report_snapshot()
+        address = module_address(report, report.modules[0].id)
+        old_generation = self.s.generation
+        self.g.execute(intent(self.s, "rename_module", address, title="Temporarily edited"))
+        self.assertTrue(self.s.dirty)
+        self.assertIsNotNone(self.g.undo(old_generation))
+        self.assertFalse(self.s.dirty)
+        self.assertEqual(self.s.revision, 2)
+        self.assertIsNotNone(self.g.redo(old_generation))
+        self.assertTrue(self.s.dirty)
+        self.assertEqual(self.s.revision, 3)
+
     def test_pending_drafts_block_saves_open_and_undo(self):
         self.p.save(self.s, self.a)
         before = self.a.read_bytes()

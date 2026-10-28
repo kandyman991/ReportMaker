@@ -48,6 +48,7 @@ class ReportSession:
         self._generation = uuid4().hex
         self._revision = 0
         self._saved_revision: int | None = 0 if path is not None else None
+        self._saved_report = deepcopy(editor.report) if path is not None else None
 
     @property
     def generation(self) -> str:
@@ -67,7 +68,11 @@ class ReportSession:
 
     @property
     def dirty(self) -> bool:
-        return self._saved_revision != self._revision
+        if self._saved_revision == self._revision:
+            return False
+        # Undo can return to the exact saved report while the revision token
+        # must keep increasing to reject queued stale commands.
+        return self._saved_report is None or self._editor.report != self._saved_report
 
     @property
     def assets(self):
@@ -108,6 +113,7 @@ class ReportSession:
         self._generation = replacement._generation
         self._revision = 0
         self._saved_revision = replacement._saved_revision
+        self._saved_report = replacement._saved_report
         self._notify(None)  # generation changed; all prior addresses are stale
 
     def subscribe(self, callback: Callable[[object], None]):
@@ -140,3 +146,4 @@ class ReportSession:
         self._path = Path(target).absolute()
         self._loaded_version = VERSION
         self._saved_revision = self._revision
+        self._saved_report = deepcopy(self._editor.report)
