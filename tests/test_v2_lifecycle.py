@@ -184,6 +184,19 @@ class ProjectLifecycleQtTests(unittest.TestCase):
         self.assertEqual(first.read_bytes(), old_bytes)
         self.assertTrue(self.win.session.dirty)
 
+    def test_save_as_same_destination_does_not_prompt_for_overwrite(self):
+        from PySide6.QtWidgets import QMessageBox
+        target = self.folder / "current.rmproj"
+        self.assertTrue(self.win.save_project(target))
+        original_bytes = target.read_bytes()
+        with patch.object(QMessageBox, "question") as confirm, \
+             patch.object(QMessageBox, "warning") as warn:
+            self.assertFalse(self.win.save_project_as(target))
+        confirm.assert_not_called()
+        warn.assert_called_once()
+        self.assertEqual(target.read_bytes(), original_bytes)
+        self.assertEqual(self.win.session.path, target)
+
     def test_pending_drafts_block_new_open_save_close_without_discard(self):
         from PySide6.QtWidgets import QMessageBox
         existing = self.folder / "existing.rmproj"
@@ -265,6 +278,13 @@ class ProjectLifecycleQtTests(unittest.TestCase):
         with patch.object(QMessageBox, "question",
                           return_value=QMessageBox.StandardButton.Discard):
             self.assertTrue(self.win.open_project(source))
+        self.assertEqual(self.win.session.loaded_version, 3)
+        # The pure adapter must enforce legacy protection even if called
+        # without the toolbar/UI safeguards.
+        with self.assertRaisesRegex(ValueError, "Legacy projects require Save As"):
+            self.win.persistence.save(self.win.session)
+        self.assertEqual(source.read_bytes(), original_bytes)
+        self.assertEqual(self.win.session.path, source)
         self.assertEqual(self.win.session.loaded_version, 3)
         with patch.object(self.win, "_choose_save_path", return_value=upgraded):
             self.assertTrue(self.win.save_project())
