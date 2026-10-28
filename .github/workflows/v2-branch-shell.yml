@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - "src/reportmaker/v2/**"
+      - "src/reportmaker/model.py"
+      - "src/reportmaker/engine.py"
+      - "src/reportmaker/reference.py"
+      - "src/reportmaker/rich_text.py"
+      - "pyproject.toml"
       - "tests/test_v2_shell.py"
       - ".github/workflows/v2-branch-shell.yml"
   workflow_dispatch:

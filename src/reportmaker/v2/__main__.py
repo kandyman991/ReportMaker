@@ -36,12 +36,19 @@ def main(argv: list[str] | None = None) -> int:
             window.show()
             app.processEvents()
             kinds = [kind for _, kind, _, _ in window.branch.visible_nodes]
-            assert kinds == ["root", "module", "module", "paragraph", "conclusion"]
-            assert window.centralWidget() is window.branch
-            assert not window.findChildren(QSplitter), "Legacy three-panel UI leaked into V2"
-            assert not window.findChildren(QTreeWidget), "Legacy module tree leaked into V2"
+            # These are runtime checks, not Python `assert` statements: -O
+            # must never silently turn the offline CI smoke into a no-op.
+            if kinds != ["root", "module", "module", "paragraph", "conclusion"]:
+                raise RuntimeError("Canonical sample branch order changed")
+            if window.centralWidget() is not window.branch:
+                raise RuntimeError("Branch Editor is not the central workspace")
+            if window.findChildren(QSplitter):
+                raise RuntimeError("Legacy three-panel UI leaked into V2")
+            if window.findChildren(QTreeWidget):
+                raise RuntimeError("Legacy module tree leaked into V2")
             forbidden = {"reportmaker.ui", "reportmaker.visual_editor"}
-            assert not forbidden.intersection(sys.modules), "Legacy UI import leaked into V2"
+            if forbidden.intersection(sys.modules):
+                raise RuntimeError("Legacy UI import leaked into V2")
         finally:
             window.close()
             app.processEvents()

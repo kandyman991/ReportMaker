@@ -80,7 +80,9 @@ class ConnectorGutter(QWidget):
         self._depth = depth
         self._ancestors = ancestors
         self._has_next = has_next
-        self.setFixedWidth(18 + _STEP * max(0, min(depth, 32)))
+        # The canonical model permits 256 nesting levels; never collapse
+        # connector geometry into the same position after level 32.
+        self.setFixedWidth(18 + _STEP * max(0, depth))
         self.setMinimumHeight(48)
 
     def paintEvent(self, event) -> None:
@@ -91,11 +93,11 @@ class ConnectorGutter(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(QPen(QColor("#8199ae"), 2))
         middle = self.height() // 2
-        for level, continues in enumerate(self._ancestors[:31]):
+        for level, continues in enumerate(self._ancestors):
             if continues:
                 x = 11 + _STEP * level
                 painter.drawLine(x, 0, x, self.height())
-        level = min(self._depth - 1, 31)
+        level = self._depth - 1
         x = 11 + _STEP * level
         painter.drawLine(x, 0, x, middle)
         painter.drawLine(x, middle, x + 16, middle)

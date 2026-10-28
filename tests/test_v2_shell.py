@@ -52,6 +52,25 @@ class V2ImportContractTests(unittest.TestCase):
                         f"Legacy UI dependency in {path}: {name}",
                     )
 
+    def test_offline_smoke_is_not_disabled_by_python_optimization(self):
+        tree = ast.parse((V2 / "__main__.py").read_text(encoding="utf-8"))
+        self.assertFalse(any(isinstance(node, ast.Assert) for node in ast.walk(tree)))
+        env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+        outcome = subprocess.run(
+            [sys.executable, "-O", "-m", "reportmaker.v2", "--offline-self-test"],
+            env=env, capture_output=True, text=True, timeout=60, check=False,
+        )
+        self.assertEqual(outcome.returncode, 0, outcome.stdout + outcome.stderr)
+        self.assertIn("V2 Branch Editor M1.1 offline smoke OK", outcome.stdout)
+
+    def test_shell_ci_tracks_transitive_shared_core_changes(self):
+        workflow = (ROOT / ".github/workflows/v2-branch-shell.yml").read_text(encoding="utf-8")
+        for path in ("src/reportmaker/model.py", "src/reportmaker/engine.py",
+                     "src/reportmaker/reference.py", "src/reportmaker/rich_text.py",
+                     "pyproject.toml"):
+            with self.subTest(path=path):
+                self.assertIn(f'      - "{path}"', workflow)
+
     def test_isolated_launch_never_imports_legacy_ui(self):
         env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
         outcome = subprocess.run(
@@ -116,6 +135,29 @@ class V2BranchCanvasTests(unittest.TestCase):
             self.assertEqual(nodes[2][3], "Before nested")
             self.assertEqual(nodes[6][3], "Cell A")
             self.assertEqual(nodes[-1][0], report.conclusion.id)
+        finally:
+            window.close()
+            self.app.processEvents()
+
+    def test_deep_connectors_retain_true_model_depth_beyond_32(self):
+        from reportmaker.model import LocalizedText, Module, NestedModuleBlock
+        from reportmaker.v2.app import V2MainWindow, example_report
+        from reportmaker.v2.branch.canvas import ConnectorGutter
+        report = example_report()
+        top = report.modules[0]
+        for number in range(35):
+            top = Module(LocalizedText("en", f"Outer {number}"),
+                         blocks=[NestedModuleBlock(top)])
+        report.modules = [top]
+        window = V2MainWindow(report)
+        try:
+            deepest = max(depth for _, _, depth, _ in window.branch.visible_nodes)
+            self.assertGreater(deepest, 32)
+            matching = [g for g in window.branch.findChildren(ConnectorGutter)
+                        if g._depth == deepest]
+            self.assertEqual(len(matching), 1)
+            self.assertEqual(matching[0].width(), 18 + 25 * deepest)
+            self.assertEqual(len(matching[0]._ancestors), deepest - 1)
         finally:
             window.close()
             self.app.processEvents()

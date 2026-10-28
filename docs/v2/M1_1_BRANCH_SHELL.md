@@ -37,6 +37,8 @@ M1.2 must first provide `ReportSession`, revision-scoped detached read projectio
 
 - Cards and text are read-only until M1.3; a usable New/Open/Save/Undo flow is an M1.2–M1.4 gate.
 - The scaffold eagerly creates one widget per visible canonical node. Large-report viewport virtualization and sophisticated focus/selection are future M5 concerns.
+- Connector geometry now retains all model-validated nesting depths (up to 256); very deep branches may require horizontal scrolling until M5 viewport layout improvements. A deeper-than-32-level regression verifies the gutter width.
+- The offline launch smoke uses explicit runtime checks even when Python runs with `-O`, and V2 Windows CI retriggers for changes to its shared core dependencies.
 - The initial connector drawing has only a synthetic/offline Qt smoke test, not native installed-Windows visual acceptance.
 - Browser interface and manual-only ChatGPT contract are unchanged; this stage does not touch profiles or attempt to fix V1 browser issue #64.
 - Current v4 schema and all V1 code paths are unchanged. No automatic migration, schema v5, release/installer publication or default-executable switch.
