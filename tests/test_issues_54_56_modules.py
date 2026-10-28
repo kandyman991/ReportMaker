@@ -261,6 +261,7 @@ class ModuleTreeQtTests(unittest.TestCase):
         self.assertTrue(self.drop("B", "C").ignored)
         self.assertEqual(root_titles(self.editor.report), ["A", "C"])
         self.assertTrue(self.drop("A", "B", inside=True).ignored)  # cycle
+        self.select("B")  # rejected drop selected the source A
         self.assertTrue(self.editor.move_module_out())
         self.assertEqual(root_titles(self.editor.report), ["A", "B", "C"])
         self.assertTrue(self.drop("B", "Conclusions").accepted)
