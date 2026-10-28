@@ -35,6 +35,8 @@ class TableDraft:
     original: list[list[LocalizedText]]
     rows: list[list[LocalizedText]]
     generation: str
+    # Provenance is only a transient draft mapping. TableBlock has no cell IDs.
+    origins: list[list[tuple[int, int] | None]]
 
 
 def _source(node, address: NodeAddress) -> str:
@@ -157,7 +159,30 @@ class DraftCoordinator:
             raise StaleIntentError("Table changed since editing began; draft preserved")
         return checked_rows(draft.rows)
 
-    def _stage_table(self, address: NodeAddress, rows: list) -> bool:
+    @staticmethod
+    def _origins(rows: list[list[LocalizedText]]) -> list[list[tuple[int, int] | None]]:
+        return [[(i, j) for j in range(len(cells))]
+                for i, cells in enumerate(rows)]
+
+    @staticmethod
+    def _remap_origins(origins: list[list[tuple[int, int] | None]],
+                       operation: str, index: int):
+        result = deepcopy(origins)
+        if operation == "insert_row":
+            width = max(1, len(result[0]) if result else 1)
+            result.insert(index, [None] * width)
+        elif operation == "delete_row":
+            result.pop(index)
+        elif operation == "insert_column":
+            for row in result:
+                row.insert(index, None)
+        elif operation == "delete_column":
+            for row in result:
+                row.pop(index)
+        return result
+
+    def _stage_table(self, address: NodeAddress, rows: list,
+                     origins: list[list[tuple[int, int] | None]] | None = None) -> bool:
         node = find_node(self.session.report_snapshot(), address)
         if not isinstance(node, TableBlock):
             raise ValueError("Not a table")
@@ -174,19 +199,41 @@ class DraftCoordinator:
             self._drafts.pop(address, None)
         else:
             self._drafts[address] = TableDraft(
-                address, original, checked_rows(rows), self.session.generation)
+                address, original, checked_rows(rows), self.session.generation,
+                deepcopy(origins) if origins is not None else (
+                    deepcopy(previous.origins) if isinstance(previous, TableDraft)
+                    else self._origins(original)))
         return True
 
     def update_cell(self, address: NodeAddress, row: int, column: int, value: str) -> bool:
         rows = self.table_rows(address)
-        return self._stage_table(address, edit_cell(rows, row, column, value))
+        updated = edit_cell(rows, row, column, value)
+        previous = self._drafts.get(address)
+        origins = (previous.origins if isinstance(previous, TableDraft)
+                   else self._origins(rows))
+        origin = origins[row][column]
+        if origin is not None:
+            # Recompute from the ORIGINAL localized cell, not the previous
+            # keystroke: changing text then restoring it must not stale a
+            # translation, even when columns/rows shifted within the draft.
+            initial = (previous.original if isinstance(previous, TableDraft)
+                       else rows)
+            baseline = deepcopy(initial[origin[0]][origin[1]])
+            baseline.update_original(value)
+            updated[row][column] = baseline
+        return self._stage_table(address, updated, origins=origins)
 
     def modify_table(self, address: NodeAddress, operation: str, index: int) -> bool:
         rows = self.table_rows(address)
+        previous = self._drafts.get(address)
+        origins = (previous.origins if isinstance(previous, TableDraft)
+                   else self._origins(rows))
         # New cells use the report's source language, not a neighboring
         # cell's potentially imported language tag.
-        return self._stage_table(address, change_grid(
-            rows, operation, index, self.session.report_snapshot().primary_language))
+        updated = change_grid(
+            rows, operation, index, self.session.report_snapshot().primary_language)
+        return self._stage_table(
+            address, updated, origins=self._remap_origins(origins, operation, index))
 
     def discard(self, address: NodeAddress):
         self._drafts.pop(address, None)

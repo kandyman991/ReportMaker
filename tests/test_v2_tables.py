@@ -61,6 +61,23 @@ class TableCommandTests(unittest.TestCase):
         self.assertTrue(self.gateway.redo(self.session.generation, self.session.revision))
         self.assertEqual(self.table(), changed)
 
+    def test_reverting_source_keeps_translation_fresh_even_after_grid_shift(self):
+        self.drafts.update_cell(self.address, 0, 1, "Temporary")
+        self.assertEqual(self.drafts.table_rows(self.address)[0][1].stale_languages, {"it"})
+        self.drafts.update_cell(self.address, 0, 1, "Ready")
+        self.assertFalse(self.drafts.pending)
+        self.assertEqual(self.session.revision, 0)
+        self.drafts.modify_table(self.address, "insert_column", 1)
+        self.drafts.modify_table(self.address, "insert_row", 0)
+        # The original translated cell moved from (0,1) to (1,2).
+        self.drafts.update_cell(self.address, 1, 2, "Temporarily edited")
+        self.drafts.update_cell(self.address, 1, 2, "Ready")
+        cell = self.drafts.table_rows(self.address)[1][2]
+        self.assertEqual(cell.translations, {"it": "Pronto"})
+        self.assertEqual(cell.stale_languages, set())
+        self.drafts.commit(self.address)
+        self.assertEqual(self.table().rows[1][2].stale_languages, set())
+
     def test_row_and_column_operations_preserve_unaffected_cells_and_undo_one_step(self):
         original = deepcopy(self.table())
         self.drafts.modify_table(self.address, "insert_row", 1)
