@@ -110,8 +110,16 @@ class CommandGateway:
         # queued edits, or erase the redo stack after an Undo.
         if kind == "rename_module" and find_node(editor.report, address).title.original == args["title"]:
             return None
-        if kind == "set_paragraph" and find_node(editor.report, address).text.original == args["text"]:
-            return None
+        if kind == "set_paragraph":
+            current = find_node(editor.report, address)
+            if current.text.original == args["text"]:
+                return None
+            # The legacy plain-text command has no formatting remap data.
+            # Reject edits to formatted sources even when the new text has
+            # the same length: otherwise old offsets can style wrong letters.
+            # Inline editors must use the atomic set_paragraph_rich command.
+            if current.rich.runs or current.rich.paragraphs:
+                raise ValueError("Formatted paragraphs require set_paragraph_rich")
         if kind == "set_paragraph_rich":
             current = find_node(editor.report, address)
             if current.text.original == args["text"] and current.rich == args["rich"]:
