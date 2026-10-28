@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 from ..model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, Report
 from ..project_io import ReportProject, VERSION, default_projects_directory
 from ..reference import manual_snapshot
-from .adapters.persistence import ProjectPersistence
+from .adapters.persistence import ProjectPersistence, _same_path
 from .branch.canvas import BranchCanvas
 from .commands import CommandGateway
 from .presentation import PresentationStore
@@ -261,6 +261,10 @@ class V2MainWindow(QMainWindow):
             if target is None:
                 return False
         target = Path(target)
+        if as_copy and self.session.path is not None and _same_path(target, self.session.path):
+            QMessageBox.warning(self, "Choose another destination",
+                                "Save As must use a different path from the current project.")
+            return False
         # A first Save may legitimately select an existing file through the
         # picker, but never overwrite without a separate explicit confirmation.
         existing = target.exists()
