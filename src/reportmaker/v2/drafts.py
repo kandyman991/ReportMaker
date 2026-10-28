@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..model import Module, ParagraphBlock
+from ..model import HeadingBlock, Module, ParagraphBlock
 from .adapters.rich_text import rebase_rich
 from .commands import CommandGateway, CommandIntent
 from .projections import NodeAddress, find_node
@@ -27,9 +27,10 @@ class TextDraft:
 def _source(node, address: NodeAddress) -> str:
     if address.field == "title" and address.block_id is None and isinstance(node, Module):
         return node.title.original
-    if address.field == "text" and address.block_id is not None and isinstance(node, ParagraphBlock):
+    if (address.field == "text" and address.block_id is not None
+            and isinstance(node, (ParagraphBlock, HeadingBlock))):
         return node.text.original
-    raise ValueError("Only module titles and paragraph text can be edited inline")
+    raise ValueError("Only module titles, paragraph and heading text can be edited inline")
 
 
 class DraftCoordinator:
@@ -97,7 +98,7 @@ class DraftCoordinator:
         if address.field == "title":
             kind, args = "rename_module", {"title": draft.value}
         else:
-            kind = "set_paragraph_rich"
+            kind = "set_heading_rich" if isinstance(node, HeadingBlock) else "set_paragraph_rich"
             args = {"text": draft.value,
                     "rich": rebase_rich(draft.original, draft.value, node.rich)}
         intent = CommandIntent(kind, address, args,

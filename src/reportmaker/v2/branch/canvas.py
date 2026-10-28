@@ -42,7 +42,7 @@ def _display(node, *, conclusion: bool = False) -> tuple[str, str, str]:
     if isinstance(node, ParagraphBlock):
         return "paragraph", "TEXT", node.text.original
     if isinstance(node, HeadingBlock):
-        return "heading", "HEADING", node.text.original
+        return "heading", f"HEADING {node.level}", node.text.original
     if isinstance(node, TableBlock):
         return "table", "TABLE", "\n".join(
             "  |  ".join(cell.original for cell in row) for row in node.rows
@@ -808,7 +808,7 @@ class BranchCanvas(QScrollArea):
         if change is not None:
             # Inserting through the toolbar into a collapsed container must
             # reveal the new block, not silently create invisible content.
-            if kind in ("add_nested_module", "add_paragraph") and target is not None:
+            if kind in ("add_nested_module", "add_paragraph", "add_heading") and target is not None:
                 reveal_insert_parent = target.module_id in self._collapsed
                 self._collapsed.discard(target.module_id)
             new_id = next(iter(change.changed_ids))
@@ -816,7 +816,8 @@ class BranchCanvas(QScrollArea):
             if kind in ("add_module", "add_nested_module"):
                 self._selected_module_id = new_id
                 self._restore = (NodeAddress(report_id, new_id), 0, -1)
-            elif kind == "add_paragraph":
+            elif kind in ("add_paragraph", "add_heading"):
+                self._selected_module_id = target.module_id
                 self._restore = (NodeAddress(report_id, target.module_id, new_id, "text"), 0, 0)
             elif kind == "duplicate_node":
                 if target.block_id is None:
@@ -859,6 +860,37 @@ class BranchCanvas(QScrollArea):
         return self._run("add_paragraph",
                          NodeAddress(self._session.report_snapshot().id, self._selected_module_id),
                          text="")
+
+    def add_heading(self, *, module_id: str | None = None,
+                    index: int | None = None, level: int = 2) -> bool:
+        if self._session is None:
+            return False
+        owner = module_id if module_id is not None else self._selected_module_id
+        if owner is None:
+            self.feedback.emit("Select a module title first")
+            return False
+        args = {"text": "", "level": level}
+        if index is not None:
+            args["index"] = index
+        return self._run("add_heading",
+                         NodeAddress(self._session.report_snapshot().id, owner),
+                         **args)
+
+    def insert_heading_after(self, address: NodeAddress) -> bool:
+        """Insert into the exact mixed-order slot after a visible content leaf."""
+        if self._session is None or not isinstance(address, NodeAddress):
+            return False
+        report = self._session.report_snapshot()
+        if address.report_id != report.id or address.block_id is None:
+            return False
+        try:
+            from ..projections import find_node
+            container = find_node(report, NodeAddress(report.id, address.module_id))
+            slot = next(i for i, block in enumerate(container.blocks)
+                        if block.id == address.block_id)
+        except (LookupError, StopIteration, ValueError):
+            return False
+        return self.add_heading(module_id=address.module_id, index=slot + 1)
 
     def _sibling_move_target(self, offset: int):
         """Find an adjacent *mixed* sibling without modifying the report."""
@@ -1010,6 +1042,16 @@ class BranchCanvas(QScrollArea):
             outdent.setEnabled(self._planned_indent(address, outdent=True) is not None)
             outdent.triggered.connect(lambda: self._structural_move(address, outdent=True))
             menu.addSeparator()
+        if address.block_id is None:
+            insert = menu.addAction("Insert heading inside")
+            insert.triggered.connect(
+                lambda checked=False, mid=address.module_id:
+                self.add_heading(module_id=mid))
+        else:
+            insert = menu.addAction("Insert heading after")
+            insert.triggered.connect(
+                lambda checked=False, a=address: self.insert_heading_after(a))
+        menu.addSeparator()
         duplicate = menu.addAction("Duplicate")
         duplicate.triggered.connect(lambda: self.duplicate_node(address))
         delete = menu.addAction("Delete…")
@@ -1044,10 +1086,12 @@ class BranchCanvas(QScrollArea):
             editor.setStyleSheet("color: #182b3a; font-size: 15px; font-weight: bold;")
         else:
             editor = InlineParagraph(card)
-            editor.setObjectName("v2InlineParagraph")
+            editor.setObjectName("v2InlineHeading" if kind == "heading" else "v2InlineParagraph")
             editor.setPlainText(text)
             editor.setTabChangesFocus(True)
-            editor.setStyleSheet("color: #182b3a; font-size: 14px;")
+            editor.setStyleSheet("color: #182b3a; font-size: 16px; font-weight: bold;"
+                                 if kind == "heading" else
+                                 "color: #182b3a; font-size: 14px;")
         editor.setProperty("nodeId", address.block_id or address.module_id)
         editor.setProperty("moduleId", address.module_id)
         editor.installEventFilter(self)
@@ -1152,8 +1196,9 @@ class BranchCanvas(QScrollArea):
                     self._context_menu(a, c.mapToGlobal(pt))
                 )
             card_layout.addLayout(header)
-            if self.drafts is not None and kind in ("module", "conclusion", "paragraph"):
-                address = (NodeAddress(report.id, identifier) if kind != "paragraph"
+            if self.drafts is not None and kind in ("module", "conclusion", "paragraph", "heading"):
+                address = (NodeAddress(report.id, identifier)
+                           if kind in ("module", "conclusion")
                            else NodeAddress(report.id, meta.parent_module_id, identifier, "text"))
                 self._inline(card, address, kind, text)
             else:

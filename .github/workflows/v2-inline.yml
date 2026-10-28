@@ -9,6 +9,7 @@ on:
       - "src/reportmaker/engine.py"
       - "src/reportmaker/rich_text.py"
       - "tests/test_v2_inline.py"
+      - "tests/test_v2_heading.py"
       - "tests/test_v2_natural_cards.py"
       - "tests/test_v2_session.py"
       - ".github/workflows/v2-inline.yml"
@@ -35,7 +36,7 @@ jobs:
       - name: Install desktop application
         run: python -m pip install -e ".[desktop]"
       - name: Compile V2 source and regression suites
-        run: python -m compileall -q src/reportmaker/v2 tests/test_v2_inline.py tests/test_v2_natural_cards.py
+        run: python -m compileall -q src/reportmaker/v2 tests/test_v2_inline.py tests/test_v2_heading.py tests/test_v2_natural_cards.py
       - name: Run pure and offline Qt branch editing regressions
         shell: pwsh
         run: |
@@ -43,6 +44,13 @@ jobs:
           $env:QT_QPA_PLATFORM = "offscreen"
           python -m unittest discover -s tests -p test_v2_inline.py -v
           if ($LASTEXITCODE -ne 0) { throw "V2 M1.3 regressions failed" }
+      - name: Verify M3.1 heading edits and mixed-position insertions
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "src"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -m unittest discover -s tests -p test_v2_heading.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M3.1 heading editing regressions failed" }
       - name: Verify natural-height card geometry and invisible scrollbars
         shell: pwsh
         run: |

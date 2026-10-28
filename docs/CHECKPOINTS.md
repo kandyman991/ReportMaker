@@ -360,3 +360,10 @@ Next reproducible action:
 - Initiated from live `main a4a8821988009cfc38569917d8623442f835a4c3`, after PR #74 merged, on isolated `feature/v2-m2-4-outline-state` (draft PR #76). Invariants: one canonical hierarchy, `engine.module_outline` sole numbering/TOC authority, device-local expansion state (M0), V1/ChatGPT/browser unchanged.
 - Implemented toggle-only visibility, collapsed descendant counts, numbered Branch Editor labels and ephemeral derived Contents menu, with reveal of collapsed ancestors; versioned `QSettings` state and legacy M1.4 settings fallback; no `.rmproj` schema change, no separate persisted TOC tree.
 - Tests: 273 local Linux/offscreen regressions passed (12 new M2.4 tests), compileall and independent V2 launcher passed; hosted Windows 3.11/3.12 M2 structural workflow must validate the exact final PR head before merge. Unverified: physically installed Windows DPI/accessibility/performance. Manual acceptance and independent PR review still required; PR #21 release branch untouched. Future milestones M3–M7 remain scoped by V2 roadmap.
+
+
+## CP-V2-M3.1 — Inline heading editing (2026-10-28)
+- Baseline live main 9dbd22b0896f644cd1e2991536c3ba4d13e1a820 after PR #76 merge, branch feature/v2-m3-1-heading-editing. M3 starts with heading editing and exact mixed-order insertion; M3.2 ribbon, M3.3 inline tables, M3.4 remaining insertion/cross-tab conflicts remain separate.
+- Added typed add_heading/set_heading_rich commands, Apply/Revert drafts, native natural-height heading editor, contextual Insert heading after/inside and + Heading toolbar, collapsed-parent reveal; no schema v4, V1, browser/ChatGPT, installer or export changes.
+- Synthetic tests/test_v2_heading.py (7 cases) and Windows 3.11/3.12 v2-inline.yml gate; local Linux/offscreen PySide6 111 V2 tests passed with compileall/diff check. Hosted exact-head Windows CI and installed-Windows DPI/keyboard/screen reader acceptance pending. See docs/v2/M3_1_HEADING_EDITING.md.
+- Next: draft PR for independent review, check exact-head Windows CI, fix any findings. Do not merge without user authorization.
