@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Mapping
 from uuid import uuid4
 
-from ..model import LocalizedText, Module, ParagraphBlock
+from ..model import HeadingBlock, LocalizedText, Module, ParagraphBlock
 from ..rich_text import RichFormatting, validate_rich
 from .projections import NodeAddress, find_node
 from .session import ReportSession, StaleIntentError
@@ -39,9 +39,11 @@ _KINDS = {
     "add_module": ({"title"}, {"index"}),
     "add_nested_module": ({"title"}, {"index"}),
     "add_paragraph": ({"text"}, {"index"}),
+    "add_heading": ({"text", "level"}, {"index"}),
     "rename_module": ({"title"}, set()),
     "set_paragraph": ({"text"}, set()),
     "set_paragraph_rich": ({"text", "rich"}, set()),
+    "set_heading_rich": ({"text", "rich"}, set()),
     "move_node": ({"anchor", "position"}, set()),
     "duplicate_node": (set(), set()),
     "delete_node": (set(), set()),
@@ -74,10 +76,13 @@ class CommandGateway:
         if intent.kind in ("duplicate_node", "delete_node"):
             structural_node(self._session.report_snapshot(), intent.target)
             return
-        value_key = "text" if intent.kind in ("add_paragraph", "set_paragraph", "set_paragraph_rich") else "title"
+        value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich") else "title"
         if not isinstance(intent.args[value_key], str):
             raise ValueError("Title and text must be strings")
-        if intent.kind == "set_paragraph_rich":
+        if intent.kind == "add_heading" and (type(intent.args["level"]) is not int
+                                             or not 1 <= intent.args["level"] <= 6):
+            raise ValueError("Heading level must be 1..6")
+        if intent.kind in ("set_paragraph_rich", "set_heading_rich"):
             if not isinstance(intent.args["rich"], RichFormatting):
                 raise ValueError("An explicit rich formatting value is required")
             validate_rich(intent.args["rich"], intent.args["text"])
@@ -92,12 +97,13 @@ class CommandGateway:
             addr = intent.target
             if not isinstance(addr, NodeAddress) or addr.report_id != report.id:
                 raise ValueError("Action must address the active report")
-            if intent.kind in ("set_paragraph", "set_paragraph_rich"):
+            if intent.kind in ("set_paragraph", "set_paragraph_rich", "set_heading_rich"):
                 if addr.field != "text" or addr.block_id is None:
-                    raise ValueError("Paragraph command requires a text block address")
+                    raise ValueError("Text edit requires a block text address")
                 block = find_node(report, addr)
-                if not isinstance(block, ParagraphBlock):
-                    raise ValueError("Target is not a paragraph")
+                expected = HeadingBlock if intent.kind == "set_heading_rich" else ParagraphBlock
+                if not isinstance(block, expected):
+                    raise ValueError("Wrong block kind for text edit")
             else:
                 if addr.block_id is not None or addr.field != "title":
                     raise ValueError("Command requires a module address")
@@ -107,7 +113,7 @@ class CommandGateway:
                 if intent.kind == "add_nested_module" and module.id == report.conclusion.id:
                     raise ValueError("Conclusions cannot have intervention submodules")
                 size = len(module.blocks)
-        if intent.kind in ("add_module", "add_nested_module", "add_paragraph"):
+        if intent.kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading"):
             if "index" in intent.args and intent.args["index"] > size:
                 raise ValueError("Mixed insertion index exceeds parent length")
 
@@ -175,13 +181,13 @@ class CommandGateway:
             # Inline editors must use the atomic set_paragraph_rich command.
             if current.rich.runs or current.rich.paragraphs:
                 raise ValueError("Formatted paragraphs require set_paragraph_rich")
-        if kind == "set_paragraph_rich":
+        if kind in ("set_paragraph_rich", "set_heading_rich"):
             current = find_node(editor.report, address)
             if current.text.original == args["text"] and current.rich == args["rich"]:
                 return None
         language = editor.report.primary_language
         changed_id: str
-        structure = kind in ("add_module", "add_nested_module", "add_paragraph")
+        structure = kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading")
         if kind in ("add_module", "add_nested_module"):
             module = Module(LocalizedText(language, args["title"]))
             if kind == "add_module":
@@ -193,18 +199,22 @@ class CommandGateway:
             paragraph = ParagraphBlock(LocalizedText(language, args["text"]))
             editor.add_block(address.module_id, paragraph, index=args.get("index"))
             changed_id = paragraph.id
+        elif kind == "add_heading":
+            heading = HeadingBlock(LocalizedText(language, args["text"]), level=args["level"])
+            editor.add_block(address.module_id, heading, index=args.get("index"))
+            changed_id = heading.id
         elif kind == "rename_module":
             editor.rename_module(address.module_id, args["title"])
             changed_id = address.module_id
-        elif kind == "set_paragraph_rich":
-            # The widget supplies a detached, validated rich value. Freeze it
-            # before transaction so later UI mutations cannot alias core state.
+        elif kind in ("set_paragraph_rich", "set_heading_rich"):
+            # Native text widgets supply a detached rich record; one transaction
+            # updates wording, provenance, and offsets without a shadow model.
             rich = deepcopy(args["rich"])
             def edit(report):
-                paragraph = find_node(report, address)
-                paragraph.text.update_original(args["text"])
-                paragraph.rich = rich
-                validate_rich(paragraph.rich, paragraph.text.original)
+                block = find_node(report, address)
+                block.text.update_original(args["text"])
+                block.rich = rich
+                validate_rich(block.rich, block.text.original)
             editor.apply(edit)
             changed_id = address.block_id
         elif kind == "set_paragraph":
