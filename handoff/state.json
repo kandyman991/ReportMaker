@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T16:02:39.335Z",
+  "generatedAt": "2026-10-28T16:37:28.883Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "a932e2e08179869adc944e828747e03a427b5702",
-    "message": "feat(v2): M1.2 canonical session, safe gateway and persistence (#68)\n\nIntroduce V2 pure canonical session, typed revision-safe commands, model-driven branch projection and legacy-preserving project persistence.\n\nReview fixes: explicit unsaved-discard consent, stale Undo/Redo guards, no-op redo preservation, pending draft mutation protection, plus regression tests and handoff documentation.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/a932e2e08179869adc944e828747e03a427b5702"
+    "sha": "36a66e889a9542a401dbd84d819219f37bf2af7c",
+    "message": "feat(v2): M1.3 direct inline branch editing with guarded drafts (#69)\n\nImplement canonical inline module title and paragraph editing, rich-format-aware text transactions, safe drafts, undo/redo and Windows regressions.\n\nReview fixes: preserve UTF-16 title selection across redraw and prevent legacy paragraph edits from silently corrupting existing formatting.\n\nAll six PR-head workflows passed. Native installed-Windows acceptance remains M1.4.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/36a66e889a9542a401dbd84d819219f37bf2af7c"
   },
   "openPullRequests": [
     {
@@ -109,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40722014683,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "a932e2e08179869adc944e828747e03a427b5702",
-      "event": "push",
-      "updatedAt": "2026-10-28T16:02:36Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40722014683"
-    },
-    {
-      "id": 40722014670,
-      "name": "ReportMaker continuity contract",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "a932e2e08179869adc944e828747e03a427b5702",
-      "event": "push",
-      "updatedAt": "2026-10-28T16:02:35Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40722014670"
-    },
-    {
-      "id": 40722014626,
+      "id": 40727772814,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "a932e2e08179869adc944e828747e03a427b5702",
+      "headSha": "36a66e889a9542a401dbd84d819219f37bf2af7c",
       "event": "push",
-      "updatedAt": "2026-10-28T16:02:36Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40722014626"
+      "updatedAt": "2026-10-28T16:37:25Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40727772814"
     },
     {
-      "id": 40721340065,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m1-2-session-gateway",
-      "headSha": "abc9f09fdaec47b355726b0d18308b6b7fd6de02",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T16:00:59Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40721340065"
+      "id": 40727772603,
+      "name": "ReportMaker continuity contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "36a66e889a9542a401dbd84d819219f37bf2af7c",
+      "event": "push",
+      "updatedAt": "2026-10-28T16:37:26Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40727772603"
     },
     {
-      "id": 40721339939,
-      "name": "V2 M1.2 session, commands and persistence",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m1-2-session-gateway",
-      "headSha": "abc9f09fdaec47b355726b0d18308b6b7fd6de02",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T15:59:04Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40721339939"
-    },
-    {
-      "id": 40721339936,
+      "id": 40727772508,
       "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m1-2-session-gateway",
-      "headSha": "abc9f09fdaec47b355726b0d18308b6b7fd6de02",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T16:01:36Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40721339936"
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "36a66e889a9542a401dbd84d819219f37bf2af7c",
+      "event": "push",
+      "updatedAt": "2026-10-28T16:37:26Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40727772508"
     },
     {
-      "id": 40721339929,
+      "id": 40726617436,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m1-2-session-gateway",
-      "headSha": "abc9f09fdaec47b355726b0d18308b6b7fd6de02",
+      "branch": "feature/v2-m1-3-inline-branch-editing",
+      "headSha": "a1bfe410bfe9d538f0bdcaa8eb6c630e93d36cd4",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T15:58:42Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40721339929"
+      "updatedAt": "2026-10-28T16:30:34Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40726617436"
     },
     {
-      "id": 40721339923,
+      "id": 40726616975,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m1-3-inline-branch-editing",
+      "headSha": "a1bfe410bfe9d538f0bdcaa8eb6c630e93d36cd4",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T16:33:17Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40726616975"
+    },
+    {
+      "id": 40726616853,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m1-3-inline-branch-editing",
+      "headSha": "a1bfe410bfe9d538f0bdcaa8eb6c630e93d36cd4",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T16:36:52Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40726616853"
+    },
+    {
+      "id": 40726616824,
       "name": "V2 M1.1 Branch Editor shell",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m1-2-session-gateway",
-      "headSha": "abc9f09fdaec47b355726b0d18308b6b7fd6de02",
+      "branch": "feature/v2-m1-3-inline-branch-editing",
+      "headSha": "a1bfe410bfe9d538f0bdcaa8eb6c630e93d36cd4",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T15:59:40Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40721339923"
+      "updatedAt": "2026-10-28T16:32:13Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40726616824"
     },
     {
-      "id": 40721336218,
-      "name": "M0 architecture and model gates",
+      "id": 40726616683,
+      "name": "V2 M1.2 session, commands and persistence",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m1-2-session-gateway",
-      "headSha": "abc9f09fdaec47b355726b0d18308b6b7fd6de02",
-      "event": "push",
-      "updatedAt": "2026-10-28T16:00:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40721336218"
+      "branch": "feature/v2-m1-3-inline-branch-editing",
+      "headSha": "a1bfe410bfe9d538f0bdcaa8eb6c630e93d36cd4",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T16:30:58Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40726616683"
     },
     {
-      "id": 40721327256,
-      "name": "M0 architecture and model gates",
+      "id": 40726616639,
+      "name": "V2 M1.3 inline branch editing",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m1-3-inline-branch-editing",
+      "headSha": "a1bfe410bfe9d538f0bdcaa8eb6c630e93d36cd4",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T16:31:17Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40726616639"
+    },
+    {
+      "id": 40726608214,
+      "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "cancelled",
-      "branch": "feature/v2-m1-2-session-gateway",
-      "headSha": "cb2dec6e87180bb946d21fbee7e14ae64da19bbf",
-      "event": "push",
-      "updatedAt": "2026-10-28T15:58:30Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40721327256"
+      "branch": "feature/v2-m1-3-inline-branch-editing",
+      "headSha": "f78166aa0ba9d1804998bd1aeda1d272816122c3",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T16:30:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40726608214"
     }
   ]
 }
