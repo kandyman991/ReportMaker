@@ -93,12 +93,19 @@ class CommandGateway:
             if "index" in intent.args and intent.args["index"] > size:
                 raise ValueError("Mixed insertion index exceeds parent length")
 
-    def execute(self, intent: CommandIntent) -> ChangeSet:
+    def execute(self, intent: CommandIntent) -> ChangeSet | None:
         self.validate(intent)
+        self._session.require_clean_drafts()
         # Freeze inputs before mutating the canonical data; arbitrary UI-provided
         # callables/fields never enter the transaction.
         kind, args, address = intent.kind, dict(intent.args), intent.target
         editor = self._session._editor
+        # An unchanged inline commit must not add a history step, invalidate
+        # queued edits, or erase the redo stack after an Undo.
+        if kind == "rename_module" and find_node(editor.report, address).title.original == args["title"]:
+            return None
+        if kind == "set_paragraph" and find_node(editor.report, address).text.original == args["text"]:
+            return None
         language = editor.report.primary_language
         changed_id: str
         structure = kind in ("add_module", "add_nested_module", "add_paragraph")
@@ -134,8 +141,10 @@ class CommandGateway:
         self._session._publish(change)
         return change
 
-    def undo(self, expected_generation: str) -> ChangeSet | None:
+    def undo(self, expected_generation: str, expected_revision: int) -> ChangeSet | None:
         self._check_generation(expected_generation)
+        if type(expected_revision) is not int or expected_revision != self._session.revision:
+            raise StaleIntentError("Undo was based on an outdated report revision")
         self._session.require_clean_drafts()
         if not self._session._editor.undo():
             return None
@@ -145,8 +154,10 @@ class CommandGateway:
         self._session._publish(change)
         return change
 
-    def redo(self, expected_generation: str) -> ChangeSet | None:
+    def redo(self, expected_generation: str, expected_revision: int) -> ChangeSet | None:
         self._check_generation(expected_generation)
+        if type(expected_revision) is not int or expected_revision != self._session.revision:
+            raise StaleIntentError("Redo was based on an outdated report revision")
         self._session.require_clean_drafts()
         if not self._session._editor.redo():
             return None
