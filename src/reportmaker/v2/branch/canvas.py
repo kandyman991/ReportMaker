@@ -187,13 +187,20 @@ class BranchCanvas(QScrollArea):
 
     def _refresh(self) -> None:
         if self._session is not None:
-            self._render(self._session.report_snapshot())
+            report = self._session.report_snapshot()
+            module_ids = {row.stable_id for row in project_branch(report)
+                          if row.kind in ("module", "conclusion")}
+            if self._selected_module_id not in module_ids:
+                self._selected_module_id = report.modules[0].id if report.modules else None
+            self._render(report)
 
     def set_report(self, report: Report) -> None:
         """Legacy inspection API; cannot discard a pending inline draft."""
         validate_report_tree(report)
         if self.drafts is not None and self.drafts.pending:
             raise PendingDraftError("Resolve inline draft first")
+        if self._session is not None and report != self._session.report_snapshot():
+            raise ValueError("A bound Branch Editor can display only its canonical session")
         self._render(deepcopy(report))
 
     def eventFilter(self, watched, event):
