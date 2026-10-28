@@ -84,63 +84,91 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
             data = stream.read(MAX_SOURCE_BYTES + 1)
         if len(data) != size:
             raise PictureImportError("Source image changed during import")
-        with Image.open(BytesIO(data)) as input_image:
-            width, height = input_image.size
-            if (width < 1 or height < 1
-                or width * height > MAX_DECODE_PIXELS):
-                raise PictureImportError("Image dimensions exceed safe import limits")
-            icc = input_image.info.get("icc_profile")
-            if icc and (not isinstance(icc, bytes) or len(icc) > MAX_ICC_BYTES):
-                raise PictureImportError("Unsupported or oversized image color profile")
-            oriented = ImageOps.exif_transpose(input_image)
-            oriented.load()
-            # Convert non-sRGB tagged pictures before stripping camera metadata.
-            has_alpha = ("A" in oriented.getbands()
-                         or "transparency" in input_image.info)
-            mode = "RGBA" if has_alpha else "RGB"
-            if icc:
-                try:
-                    src_profile = ImageCms.ImageCmsProfile(BytesIO(icc))
-                    dest_profile = ImageCms.createProfile("sRGB")
-                    if has_alpha:
-                        alpha = oriented.convert("RGBA").getchannel("A")
-                        rgb = ImageCms.profileToProfile(
-                            oriented.convert("RGB"), src_profile, dest_profile,
-                            outputMode="RGB")
-                        converted = rgb.convert("RGBA")
-                        converted.putalpha(alpha)
-                    else:
-                        converted = ImageCms.profileToProfile(
-                            oriented.convert("RGB"), src_profile, dest_profile,
-                            outputMode="RGB")
-                except (OSError, ValueError, TypeError, ImageCms.PyCMSError) as exc:
-                    raise PictureImportError("Unsupported source color profile") from exc
-            else:
-                converted = oriented.convert(mode)
-            preview = converted.copy()
-            preview.thumbnail((440, 320), Image.Resampling.LANCZOS)
-            preview_buffer = BytesIO()
-            preview.save(preview_buffer, format="PNG")
-            converted.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
-            chosen = ("png" if has_alpha else "jpeg") if output_format == "auto" else output_format
-            if chosen == "jpeg" and has_alpha:
-                raise PictureImportError("JPEG cannot preserve transparency; choose PNG or WebP")
-            # No EXIF, XMP, IPTC or GPS metadata is copied to project media.
-            output = BytesIO()
-            settings = {"quality": quality, "method": 5} if chosen == "webp" else (
-                {"quality": quality, "optimize": True, "subsampling": 0}
-                if chosen == "jpeg" else {"optimize": True})
-            converted.save(output, format=chosen.upper(), **settings)
-            result = output.getvalue()
-            if not result or len(result) > MAX_ASSET:
-                raise PictureImportError("Converted picture exceeds the 32 MiB project limit")
-            return ImportedPicture(result, chosen, converted.width, converted.height,
-                                   width, height, size, preview_buffer.getvalue())
+        return _convert_picture_data(data, preset=preset, output_format=output_format)
     except PictureImportError:
         raise
     except (OSError, ValueError, UnidentifiedImageError,
             Image.DecompressionBombError) as exc:
         raise PictureImportError("Cannot decode or convert this local picture") from exc
+
+
+def _convert_picture_data(data: bytes, *, preset: str, output_format: str) -> ImportedPicture:
+    """Shared content-validated conversion for source files and clipboard pixels."""
+    max_edge, quality = PRESETS[preset]
+    with Image.open(BytesIO(data)) as input_image:
+        if input_image.format not in {"JPEG", "PNG", "BMP", "WEBP", "HEIF"}:
+            raise PictureImportError("Unsupported image content format")
+        width, height = input_image.size
+        if (width < 1 or height < 1
+            or width * height > MAX_DECODE_PIXELS):
+            raise PictureImportError("Image dimensions exceed safe import limits")
+        icc = input_image.info.get("icc_profile")
+        if icc and (not isinstance(icc, bytes) or len(icc) > MAX_ICC_BYTES):
+            raise PictureImportError("Unsupported or oversized image color profile")
+        oriented = ImageOps.exif_transpose(input_image)
+        oriented.load()
+        # Convert non-sRGB tagged pictures before stripping camera metadata.
+        has_alpha = ("A" in oriented.getbands()
+                     or "transparency" in input_image.info)
+        mode = "RGBA" if has_alpha else "RGB"
+        if icc:
+            try:
+                src_profile = ImageCms.ImageCmsProfile(BytesIO(icc))
+                dest_profile = ImageCms.createProfile("sRGB")
+                if has_alpha:
+                    alpha = oriented.convert("RGBA").getchannel("A")
+                    rgb = ImageCms.profileToProfile(
+                        oriented.convert("RGB"), src_profile, dest_profile,
+                        outputMode="RGB")
+                    converted = rgb.convert("RGBA")
+                    converted.putalpha(alpha)
+                else:
+                    converted = ImageCms.profileToProfile(
+                        oriented.convert("RGB"), src_profile, dest_profile,
+                        outputMode="RGB")
+            except (OSError, ValueError, TypeError, ImageCms.PyCMSError) as exc:
+                raise PictureImportError("Unsupported source color profile") from exc
+        else:
+            converted = oriented.convert(mode)
+        preview = converted.copy()
+        preview.thumbnail((440, 320), Image.Resampling.LANCZOS)
+        preview_buffer = BytesIO()
+        preview.save(preview_buffer, format="PNG")
+        converted.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+        chosen = ("png" if has_alpha else "jpeg") if output_format == "auto" else output_format
+        if chosen == "jpeg" and has_alpha:
+            raise PictureImportError("JPEG cannot preserve transparency; choose PNG or WebP")
+        # No EXIF, XMP, IPTC or GPS metadata is copied to project media.
+        output = BytesIO()
+        settings = {"quality": quality, "method": 5} if chosen == "webp" else (
+            {"quality": quality, "optimize": True, "subsampling": 0}
+            if chosen == "jpeg" else {"optimize": True})
+        converted.save(output, format=chosen.upper(), **settings)
+        result = output.getvalue()
+        if not result or len(result) > MAX_ASSET:
+            raise PictureImportError("Converted picture exceeds the 32 MiB project limit")
+        return ImportedPicture(result, chosen, converted.width, converted.height,
+                               width, height, size, preview_buffer.getvalue())
+
+
+def convert_picture_bytes(data: bytes, *, preset: str = "balanced",
+                          output_format: str = "auto") -> ImportedPicture:
+    """Import detached clipboard image bytes with the exact source-image limits.
+
+    Callers must only supply encoded pixel data, never arbitrary clipboard HTML
+    or text. The decoded source format is independently verified by Pillow.
+    """
+    if preset not in PRESETS or output_format not in {"auto", "jpeg", "png", "webp"}:
+        raise PictureImportError("Unsupported picture conversion options")
+    if not isinstance(data, bytes) or not data or len(data) > MAX_SOURCE_BYTES:
+        raise PictureImportError("Clipboard picture exceeds the 64 MiB import limit")
+    try:
+        return _convert_picture_data(data, preset=preset, output_format=output_format)
+    except PictureImportError:
+        raise
+    except (OSError, ValueError, UnidentifiedImageError,
+            Image.DecompressionBombError) as exc:
+        raise PictureImportError("Cannot decode clipboard picture") from exc
 
 
 def add_imported_picture(project: ReportProject, photo: ImportedPicture,
