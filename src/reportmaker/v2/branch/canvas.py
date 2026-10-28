@@ -420,7 +420,10 @@ class BranchCanvas(QScrollArea):
             self._native_drag_active = False
             # Keep the QDrag source alive until exec returns; queue any
             # deferred canonical redraw for after this mouse callback.
-            handle.setCursor(Qt.CursorShape.OpenHandCursor)
+            try:
+                handle.setCursor(Qt.CursorShape.OpenHandCursor)
+            except RuntimeError:
+                pass  # Window shutdown can still destroy the source explicitly.
             self._drag_context = None
             self._clear_drop_preview()
             if self._drag_refresh_pending:
