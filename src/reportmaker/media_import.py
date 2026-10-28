@@ -74,7 +74,6 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
     source = Path(path)
     if source.suffix.lower() not in INPUT_SUFFIXES or source.is_symlink():
         raise PictureImportError("Unsupported image name or symlink")
-    max_edge, quality = PRESETS[preset]
     try:
         _prepare_heif(source)
         with source.open("rb") as stream:
@@ -148,7 +147,7 @@ def _convert_picture_data(data: bytes, *, preset: str, output_format: str) -> Im
         if not result or len(result) > MAX_ASSET:
             raise PictureImportError("Converted picture exceeds the 32 MiB project limit")
         return ImportedPicture(result, chosen, converted.width, converted.height,
-                               width, height, size, preview_buffer.getvalue())
+                               width, height, len(data), preview_buffer.getvalue())
 
 
 def convert_picture_bytes(data: bytes, *, preset: str = "balanced",
