@@ -217,6 +217,22 @@ class OutlineQtTests(unittest.TestCase):
         for previous, current in zip(rows, rows[1:]):
             self.assertLess(previous.geometry().bottom(), current.geometry().top())
 
+    def test_move_into_collapsed_parent_rehomes_hidden_selection(self):
+        before = self.win.session.report_snapshot()
+        a, b = before.modules
+        self.assertTrue(self.win.branch.toggle_branch(a.id))
+        self.win.branch._selected_module_id = b.id
+        self.win.branch._refresh()
+        self.assertTrue(self.win.branch.indent_selected())
+        self.pump()
+        self.assertNotIn(b.id, [row[0] for row in self.win.branch.visible_nodes])
+        self.assertEqual(self.win.branch._selected_module_id, a.id,
+                         "Toolbar must not operate on an invisible selected row")
+        self.assertEqual(self.win.branch.collapsed_module_ids, frozenset({a.id}))
+        self.assertTrue(self.win.branch.toggle_branch(a.id))
+        self.pump()
+        self.assertIn(b.id, [row[0] for row in self.win.branch.visible_nodes])
+
     def test_toc_reveals_collapsed_ancestors_and_tracks_structure_changes(self):
         before = self.win.session.report_snapshot()
         a, b = before.modules

@@ -545,11 +545,28 @@ class BranchCanvas(QScrollArea):
             return
         if self._session is not None:
             report = self._session.report_snapshot()
-            module_ids = {row.stable_id for row in project_branch(report)
+            all_rows = project_branch(report)
+            module_ids = {row.stable_id for row in all_rows
                           if row.kind in ("module", "conclusion")}
             self._collapsed.intersection_update(module_ids)
             if self._selected_module_id not in module_ids:
                 self._selected_module_id = report.modules[0].id if report.modules else None
+            # Reparenting can move the selected module under a *collapsed*
+            # destination. Never leave toolbar actions targeting an invisible row.
+            if self._selected_module_id is not None and self._collapsed:
+                expanded = module_ids - self._collapsed
+                visible_ids = {row.stable_id for row in project_branch(
+                    report, expanded=frozenset(expanded))}
+                if self._selected_module_id not in visible_ids:
+                    by_id = {row.stable_id: row for row in all_rows}
+                    current = by_id.get(self._selected_module_id)
+                    while current is not None and current.stable_id not in visible_ids:
+                        current = by_id.get(current.parent_module_id)
+                    self._selected_module_id = (
+                        current.stable_id if current is not None
+                        and current.kind in ("module", "conclusion") else
+                        (report.modules[0].id if report.modules else None)
+                    )
             self._render(report)
             self.selectionChanged.emit()
 
