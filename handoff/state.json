@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T21:11:01.570Z",
+  "generatedAt": "2026-10-28T22:10:30.635Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "83f24e55d5d66cc1162a4e50d49e41351ead8897",
-    "message": "Merge pull request #77 from kandyman991/feature/v2-m3-1-heading-editing\n\nV2 M3.1 — Inline Heading Editing and Precise Mixed-Order Insertion",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/83f24e55d5d66cc1162a4e50d49e41351ead8897"
+    "sha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
+    "message": "Merge pull request #78 from kandyman991/feature/v2-m3-2-contextual-rich-ribbon\n\nV2 M3.2 — Contextual Rich-Text Ribbon and Safe Formatting Drafts",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/b979c572e6c5e64f0e2979585f8bcbb91fe90fe2"
   },
   "openPullRequests": [
     {
@@ -109,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40769768643,
+      "id": 40777883847,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "83f24e55d5d66cc1162a4e50d49e41351ead8897",
+      "headSha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
       "event": "push",
-      "updatedAt": "2026-10-28T21:10:58Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769768643"
+      "updatedAt": "2026-10-28T22:10:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777883847"
     },
     {
-      "id": 40769768579,
-      "name": "ReportMaker continuity contract",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "83f24e55d5d66cc1162a4e50d49e41351ead8897",
-      "event": "push",
-      "updatedAt": "2026-10-28T21:10:57Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769768579"
-    },
-    {
-      "id": 40769768542,
+      "id": 40777883767,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "83f24e55d5d66cc1162a4e50d49e41351ead8897",
+      "headSha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
       "event": "push",
-      "updatedAt": "2026-10-28T21:10:58Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769768542"
+      "updatedAt": "2026-10-28T22:10:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777883767"
     },
     {
-      "id": 40769320876,
+      "id": 40777883737,
       "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-1-heading-editing",
-      "headSha": "d7de48177d8838c4381ed0d3789032e45e007ec1",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T21:07:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769320876"
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
+      "event": "push",
+      "updatedAt": "2026-10-28T22:10:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777883737"
     },
     {
-      "id": 40769320363,
-      "name": "V2 M1.3 inline branch editing",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-1-heading-editing",
-      "headSha": "d7de48177d8838c4381ed0d3789032e45e007ec1",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T21:08:42Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769320363"
-    },
-    {
-      "id": 40769320357,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-1-heading-editing",
-      "headSha": "d7de48177d8838c4381ed0d3789032e45e007ec1",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T21:09:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769320357"
-    },
-    {
-      "id": 40769320346,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-1-heading-editing",
-      "headSha": "d7de48177d8838c4381ed0d3789032e45e007ec1",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T21:10:16Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769320346"
-    },
-    {
-      "id": 40769320207,
-      "name": "V2 M1.4 project lifecycle and Checkpoint A",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-1-heading-editing",
-      "headSha": "d7de48177d8838c4381ed0d3789032e45e007ec1",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T21:09:11Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769320207"
-    },
-    {
-      "id": 40769320198,
-      "name": "V2 M1.2 session, commands and persistence",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-1-heading-editing",
-      "headSha": "d7de48177d8838c4381ed0d3789032e45e007ec1",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T21:08:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769320198"
-    },
-    {
-      "id": 40769320095,
+      "id": 40777646673,
       "name": "V2 M2 structural placement",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m3-1-heading-editing",
-      "headSha": "d7de48177d8838c4381ed0d3789032e45e007ec1",
+      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
+      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T21:09:14Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40769320095"
+      "updatedAt": "2026-10-28T22:09:46Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646673"
+    },
+    {
+      "id": 40777646671,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
+      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T22:08:48Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646671"
+    },
+    {
+      "id": 40777646572,
+      "name": "V2 M1.2 session, commands and persistence",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
+      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T22:09:11Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646572"
+    },
+    {
+      "id": 40777646568,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
+      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T22:10:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646568"
+    },
+    {
+      "id": 40777646565,
+      "name": "V2 M1.1 Branch Editor shell",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
+      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T22:09:37Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646565"
+    },
+    {
+      "id": 40777646556,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
+      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T22:09:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646556"
+    },
+    {
+      "id": 40777646554,
+      "name": "V2 M1.3 inline branch editing",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
+      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T22:09:42Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646554"
     }
   ]
 }
