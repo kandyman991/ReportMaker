@@ -128,6 +128,22 @@ class DraftModelTests(unittest.TestCase):
         self.assertEqual(len(self.session.report_snapshot().modules), 1)
         self.assertTrue(self.drafts.pending)
 
+    def test_legacy_text_command_rejects_same_length_rich_style_corruption(self):
+        report, _, address = sample()
+        paragraph = find_node(report, address)
+        paragraph.rich.runs = [TextRun(0, 1, bold=True)]
+        self.session.replace_project(ReportProject(report), discard_unsaved=True)
+        before = self.session.report_snapshot()
+        # Same character count means validating the old run offsets alone
+        # cannot detect that bold moved from the original I to a new X.
+        with self.assertRaisesRegex(ValueError, "set_paragraph_rich"):
+            self.gateway.execute(CommandIntent(
+                "set_paragraph", address, {"text": "Xnspection note"},
+                self.session.revision, self.session.generation))
+        self.assertEqual(self.session.report_snapshot(), before)
+        self.assertEqual(self.session.revision, 0)
+        self.assertIsNone(self.gateway.undo(self.session.generation, self.session.revision))
+
     def test_stale_source_cannot_overwrite_pending_draft(self):
         self.drafts.update(self.title, "From branch")
         self.drafts._committing = True  # Simulate an external adapter violation.
@@ -255,6 +271,21 @@ class BranchQtTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.win.branch.set_report(different)
         self.assertEqual(self.win.branch.visible_nodes, before)
+
+    def test_title_selection_survives_refresh_with_unicode_offsets(self):
+        # Native line-edit offsets are UTF-16 rather than Python codepoints.
+        self.win.branch.drafts.update(self.title, "I👷 check")
+        self.win.branch._refresh()
+        field = self.win.branch.editor_for(self.title)
+        field.setFocus()
+        field.setSelection(1, 2)  # the emoji occupies two UTF-16 units
+        self.assertEqual(field.selectedText(), "👷")
+        self.win.branch._capture(self.title)
+        self.win.branch._refresh()
+        self.app.processEvents()
+        restored = self.win.branch.editor_for(self.title)
+        self.assertEqual(restored.selectedText(), "👷")
+        self.assertTrue(self.win.branch.drafts.is_dirty(self.title))
 
     def test_escape_on_inline_title_reverts_local_draft(self):
         from PySide6.QtCore import Qt
