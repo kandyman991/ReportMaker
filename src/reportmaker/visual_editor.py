@@ -464,6 +464,7 @@ class VisualReportEditor:
         self.text_edit.textChanged.connect(self._set_pending)
         self.rich_ribbon = RichTextRibbon(self.text_edit)
         self.rich_ribbon.setObjectName("reportFontParagraphRibbon")
+        self.rich_ribbon.formatApplied.connect(self._set_pending)
         for button in self.rich_ribbon.findChildren(QPushButton):
             if button.objectName() != "richShowMarks":
                 button.clicked.connect(self._set_pending)
@@ -852,6 +853,9 @@ class VisualReportEditor:
                                     "Add or select a content block.")
             if is_text:
                 apply_rich(self.text_edit, block.text.original, block.rich)
+                # apply_rich blocks Qt signals while restoring the canonical
+                # block. Explicitly refresh pressed states on block switches.
+                self.rich_ribbon.sync()
             else:
                 self.text_edit.blockSignals(True)
                 self.text_edit.clear()

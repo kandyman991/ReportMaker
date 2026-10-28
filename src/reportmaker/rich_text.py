@@ -62,7 +62,7 @@ def validate_rich(value: RichFormatting, text: str):
         if (not isinstance(item, TextRun) or type(item.start) is not int
             or type(item.end) is not int or not 0 <= item.start < item.end <= len(text)
             or item.start < prev or not isinstance(item.family, str)
-            or len(item.family) > 96 or (item.family and not fullmatch(r"[\w .-]{1,96}", item.family))
+            or len(item.family) > 96 or (item.family and not fullmatch(r"[\w .\[\]-]{1,96}", item.family))
             or type(item.size) not in (float, int)
             or not isfinite(item.size) or (item.size != 0 and not 6 <= item.size <= 96)
             or any(type(getattr(item, k)) is not bool

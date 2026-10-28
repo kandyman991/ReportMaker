@@ -9,8 +9,8 @@ from __future__ import annotations
 from copy import deepcopy
 from bisect import bisect_right
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextBlockFormat, QTextCursor, QTextListFormat, QTextFormat
+from PySide6.QtCore import Qt, QEvent, Signal
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QTextCharFormat, QTextBlockFormat, QTextCursor, QTextListFormat, QTextFormat
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QFontComboBox,
     QPushButton, QToolButton, QColorDialog, QLabel, QInputDialog, QTextEdit,
@@ -194,10 +194,26 @@ class SafeRichTextEdit(QTextEdit):
 
 class RichTextRibbon(QWidget):
     """Microsoft-Word-inspired functional Font and Paragraph ribbon."""
+
+    formatApplied = Signal()  # Valid edits only; never signal while typing a font name.
     def __init__(self, editor: SafeRichTextEdit, parent=None):
         super().__init__(parent)
         self.editor = editor
         self.setObjectName("richTextRibbon")
+        self._buttons = {}
+        self._tips = {}
+        # A pressed button has a solid outline as well as a contrasting fill.
+        # Mixed selections use a dashed outline, never a false checked state.
+        self.setStyleSheet("""
+            QPushButton[richToggle="true"] { min-width: 27px; min-height: 25px; padding: 2px 5px; }
+            QPushButton[richToggle="true"]:checked {
+                background-color: palette(highlight); color: palette(highlighted-text);
+                border: 2px solid palette(highlight); font-weight: 800;
+            }
+            QPushButton[richMixed="true"] {
+                border: 2px dashed palette(highlight); font-weight: 800;
+            }
+        """)
         container = QVBoxLayout(self)
         container.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
@@ -243,46 +259,59 @@ class RichTextRibbon(QWidget):
         self.family = QFontComboBox()
         self.family.setObjectName("richFontFamily")
         self.family.setCurrentFont(QFont(DEFAULT_FONT))
-        self.family.currentFontChanged.connect(
-            lambda font: self.apply_char(lambda f: f.setFontFamily(font.family())))
+        # QFontComboBox changes its currentFont *during each keystroke*.
+        # Never apply a partially typed name (or restore editor focus) until commit.
+        self.family.setAccessibleName("Font family")
+        self.family.setToolTip("Font family — type a name, then press Enter or select a font")
+        self.family.activated.connect(lambda *_: self.choose_family())
+        self.family.lineEdit().editingFinished.connect(self.choose_family)
+        self.family.lineEdit().installEventFilter(self)
         first.addWidget(self.family, 2)
         self.size = QComboBox()
         self.size.setObjectName("richFontSize")
         self.size.setEditable(True)
         self.size.addItems([str(x) for x in (8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72)])
         self.size.setCurrentText(str(DEFAULT_SIZE))
+        self.size.setAccessibleName("Font size")
+        self.size.setToolTip("Font size in points (6–96)")
+        self.size.lineEdit().installEventFilter(self)
         self.size.activated.connect(lambda *_: self.choose_size())
         self.size.lineEdit().editingFinished.connect(self.choose_size)
         first.addWidget(self.size)
         self.button(first, "A+", lambda: self.scale_size(1), "richGrowFont")
         self.button(first, "A−", lambda: self.scale_size(-1), "richShrinkFont")
         self.button(first, "Aa", self.change_case, "richChangeCase")
-        self.button(first, "Clear", self.clear_format, "richClearFormat")
+        self.button(first, "⌫", self.clear_format, "richClearFormat", "Clear formatting")
         first.addStretch(1)
-        self.button(first, "• List", lambda: self.listify("bullet"), "richBullets")
-        self.button(first, "1. List", lambda: self.listify("decimal"), "richNumbering")
-        self.button(first, "Sort", self.sort_lines, "richSortParagraphs")
-        self.button(first, "Outdent", lambda: self.indent(-1), "richOutdent")
-        self.button(first, "Indent", lambda: self.indent(1), "richIndent")
-        self.button(first, "¶", self.show_paragraph_marks, "richShowMarks")
+        self.button(first, "• ≡", lambda: self.listify("bullet"), "richBullets", "Bulleted list", checkable=True)
+        self.button(first, "1. ≡", lambda: self.listify("decimal"), "richNumbering", "Numbered list", checkable=True)
+        self.button(first, "A↧Z", self.sort_lines, "richSortParagraphs", "Sort selected paragraphs")
+        self.button(first, "⇤", lambda: self.indent(-1), "richOutdent", "Decrease indent")
+        self.button(first, "⇥", lambda: self.indent(1), "richIndent", "Increase indent")
+        self.button(first, "¶", self.show_paragraph_marks, "richShowMarks", "Show paragraph marks", checkable=True)
         for label, prop, ident in (
             ("B", "bold", "richBold"), ("I", "italic", "richItalic"),
             ("U", "underline", "richUnderline"), ("S̶", "strike", "richStrike"),
             ("x₂", "sub", "richSubscript"), ("x²", "super", "richSuperscript")
         ):
-            self.button(second, label, lambda _checked=False, key=prop: self.toggle(key), ident)
-        self.button(second, "A Color", lambda: self.pick_color(False), "richTextColor")
-        self.button(second, "Highlight", lambda: self.pick_color(True), "richHighlight")
-        for label, align, ident in (
-            ("Left", Qt.AlignmentFlag.AlignLeft, "richAlignLeft"),
-            ("Center", Qt.AlignmentFlag.AlignHCenter, "richAlignCenter"),
-            ("Right", Qt.AlignmentFlag.AlignRight, "richAlignRight"),
-            ("Justify", Qt.AlignmentFlag.AlignJustify, "richJustify")
+            names = {"bold": "Bold (Ctrl+B)", "italic": "Italic (Ctrl+I)",
+                     "underline": "Underline (Ctrl+U)", "strike": "Strikethrough",
+                     "sub": "Subscript", "super": "Superscript"}
+            self.button(second, label, lambda _checked=False, key=prop: self.toggle(key),
+                        ident, names[prop], checkable=True)
+        self.button(second, "A▾", lambda: self.pick_color(False), "richTextColor", "Text color")
+        self.button(second, "▰", lambda: self.pick_color(True), "richHighlight", "Text highlight color")
+        for label, align, ident, name in (
+            ("≡↤", Qt.AlignmentFlag.AlignLeft, "richAlignLeft", "Align left"),
+            ("≡", Qt.AlignmentFlag.AlignHCenter, "richAlignCenter", "Align center"),
+            ("↦≡", Qt.AlignmentFlag.AlignRight, "richAlignRight", "Align right"),
+            ("☰", Qt.AlignmentFlag.AlignJustify, "richJustify", "Justify text")
         ):
-            self.button(second, label, lambda _checked=False, value=align: self.align(value), ident)
-        self.button(second, "Line", self.line_spacing, "richLineSpacing")
-        self.button(second, "Shade", self.shade, "richShading")
-        self.button(second, "Border", self.border, "richBorder")
+            self.button(second, label, lambda _checked=False, value=align: self.align(value),
+                        ident, name, checkable=True)
+        self.button(second, "↕", self.line_spacing, "richLineSpacing", "Line spacing")
+        self.button(second, "▧", self.shade, "richShading", "Paragraph shading")
+        self.button(second, "▣", self.border, "richBorder", "Paragraph border", checkable=True)
         second.addStretch(1)
         # Qt requires the child layout to be completely populated BEFORE
         # setWidget(). In RC2 it was attached while both tool rows were empty,
@@ -297,33 +326,183 @@ class RichTextRibbon(QWidget):
                               2 * scroll.frameWidth() + 4)
         self.setMinimumHeight(container.sizeHint().height())
         self.editor.currentCharFormatChanged.connect(self.sync)
+        self.editor.cursorPositionChanged.connect(self.sync)
+        self.editor.selectionChanged.connect(self.sync)
+        self.editor.textChanged.connect(self.sync)
+        self.sync()
 
-    def button(self, layout, label, callback, ident):
+    def button(self, layout, label, callback, ident, tooltip=None, *, checkable=False):
         button = QPushButton(label)
         button.setObjectName(ident)
-        button.setToolTip(label)
+        name = tooltip or label
+        button.setToolTip(name)
+        button.setAccessibleName(name)
+        button.setCheckable(checkable)
+        if checkable:
+            button.setProperty("richToggle", True)
+            button.setProperty("richMixed", False)
         button.clicked.connect(callback)
         layout.addWidget(button)
+        self._buttons[ident] = button
+        self._tips[ident] = name
         return button
 
-    def apply_char(self, setter):
+    def eventFilter(self, watched, event):
+        # Escape abandons an incomplete/invalid font or size without changing
+        # selection, content, or the current editor insertion format.
+        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
+            if watched is self.family.lineEdit():
+                self._sync_selectors(force=True)
+                return True
+            if watched is self.size.lineEdit():
+                self._sync_selectors(force=True)
+                return True
+        return super().eventFilter(watched, event)
+
+    def apply_char(self, setter, *, restore_focus=True):
         fmt = QTextCharFormat()
         setter(fmt)
         cur = self.editor.textCursor()
         cur.mergeCharFormat(fmt)
         self.editor.mergeCurrentCharFormat(fmt)
-        self.editor.setFocus()
+        self.sync()
+        self.formatApplied.emit()
+        if restore_focus:
+            self.editor.setFocus()
 
-    def sync(self, fmt):
-        self.family.blockSignals(True)
+    def _selected_formats(self):
+        cursor = self.editor.textCursor()
+        if not cursor.hasSelection():
+            return [self.editor.currentCharFormat()]
+        start, end = cursor.selectionStart(), cursor.selectionEnd()
+        formats = []
+        block = self.editor.document().findBlock(start)
+        while block.isValid() and block.position() < end:
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                if (fragment.isValid() and fragment.position() < end
+                        and fragment.position() + fragment.length() > start):
+                    formats.append(fragment.charFormat())
+                iterator += 1
+            block = block.next()
+        return formats or [cursor.charFormat()]
+
+    @staticmethod
+    def _char_flag(fmt, name):
+        if name == "bold":
+            return fmt.fontWeight() >= QFont.Weight.Bold
+        if name == "italic":
+            return fmt.fontItalic()
+        if name == "underline":
+            return fmt.fontUnderline()
+        if name == "strike":
+            return fmt.fontStrikeOut()
+        if name == "sub":
+            return fmt.verticalAlignment() == QTextCharFormat.VerticalAlignment.AlignSubScript
+        return fmt.verticalAlignment() == QTextCharFormat.VerticalAlignment.AlignSuperScript
+
+    @staticmethod
+    def _uniform(values):
+        """Return True, False, or None for mixed selections."""
+        return values[0] if all(x == values[0] for x in values) else None
+
+    def _style_state(self, name):
+        return self._uniform([self._char_flag(fmt, name)
+                              for fmt in self._selected_formats()])
+
+    def _selected_blocks(self):
+        cursor = self.editor.textCursor()
+        start = cursor.selectionStart()
+        # An end exactly at the next paragraph's start excludes that paragraph.
+        end = max(start, cursor.selectionEnd() - 1) if cursor.hasSelection() else start
+        block = self.editor.document().findBlock(start)
+        blocks = []
+        while block.isValid() and block.position() <= end:
+            blocks.append(block)
+            block = block.next()
+        return blocks
+
+    @staticmethod
+    def _alignment(fmt):
+        align = fmt.alignment()
+        if align & Qt.AlignmentFlag.AlignHCenter:
+            return "richAlignCenter"
+        if align & Qt.AlignmentFlag.AlignRight:
+            return "richAlignRight"
+        if align & Qt.AlignmentFlag.AlignJustify:
+            return "richJustify"
+        return "richAlignLeft"
+
+    def _set_button_state(self, ident, state):
+        button = self._buttons[ident]
+        mixed = state is None
+        if button.property("richMixed") != mixed or button.isChecked() != (state is True):
+            button.setProperty("richMixed", mixed)
+            button.setChecked(state is True)
+            button.style().unpolish(button)
+            button.style().polish(button)
+            button.update()
+        button.setToolTip(self._tips[ident] + (" (mixed selection)" if mixed else ""))
+        button.setAccessibleDescription("Mixed selection" if mixed else
+                                        "Active" if state else "Inactive")
+
+    def _sync_selectors(self, *, force=False):
+        fmt = self.editor.currentCharFormat()
         families = fmt.fontFamilies() if fmt.hasProperty(QTextFormat.Property.FontFamilies) else []
-        selected_family = families[0] if families else DEFAULT_FONT
-        if self.family.currentFont().family() != selected_family:
-            self.family.setCurrentFont(QFont(selected_family))
-        self.family.blockSignals(False)
-        self.size.blockSignals(True)
-        self.size.setCurrentText(str(round(fmt.fontPointSize() or DEFAULT_SIZE)))
-        self.size.blockSignals(False)
+        family = families[0] if families else DEFAULT_FONT
+        if force or not self.family.lineEdit().hasFocus():
+            self.family.blockSignals(True)
+            try:
+                self.family.setCurrentFont(QFont(family))
+                self.family.setCurrentText(family)
+            finally:
+                self.family.blockSignals(False)
+        if force or not self.size.lineEdit().hasFocus():
+            self.size.blockSignals(True)
+            try:
+                self.size.setCurrentText(f"{fmt.fontPointSize() or DEFAULT_SIZE:g}")
+            finally:
+                self.size.blockSignals(False)
+
+    def sync(self, *_args):
+        # Only observe document formatting; never apply commands from sync().
+        self._sync_selectors()
+        for name, ident in (
+            ("bold", "richBold"), ("italic", "richItalic"),
+            ("underline", "richUnderline"), ("strike", "richStrike"),
+            ("sub", "richSubscript"), ("super", "richSuperscript")
+        ):
+            self._set_button_state(ident, self._style_state(name))
+        blocks = self._selected_blocks()
+        alignments = [self._alignment(block.blockFormat()) for block in blocks]
+        for ident in ("richAlignLeft", "richAlignCenter", "richAlignRight", "richJustify"):
+            self._set_button_state(ident, self._uniform([item == ident for item in alignments]))
+        kinds = [("none" if block.textList() is None else
+                  "bullet" if block.textList().format().style() == QTextListFormat.Style.ListDisc
+                  else "decimal")
+                 for block in blocks]
+        for ident, kind in (("richBullets", "bullet"), ("richNumbering", "decimal")):
+            self._set_button_state(ident, self._uniform([item == kind for item in kinds]))
+        self._set_button_state("richBorder", self._uniform(
+            [bool(block.blockFormat().property(_BORDER_PROPERTY)) for block in blocks]))
+        from PySide6.QtGui import QTextOption
+        self._set_button_state("richShowMarks", bool(
+            self.editor.document().defaultTextOption().flags()
+            & QTextOption.Flag.ShowLineAndParagraphSeparators))
+
+    def choose_family(self):
+        # Only accept an installed exact family, not QFontComboBox's transient
+        # nearest-match value while the user edits the text.
+        typed = self.family.currentText().strip()
+        match = next((family for family in QFontDatabase.families()
+                      if family.casefold() == typed.casefold()), None)
+        if match is not None:
+            formats = self._selected_formats()
+            if any((fmt.fontFamilies()[0] if fmt.fontFamilies() else DEFAULT_FONT) != match
+                   for fmt in formats):
+                self.apply_char(lambda fmt: fmt.setFontFamily(match), restore_focus=False)
+        self._sync_selectors(force=True)
 
     def choose_size(self):
         try:
@@ -331,34 +510,35 @@ class RichTextRibbon(QWidget):
             if not 6 <= value <= 96:
                 raise ValueError()
         except ValueError:
+            self._sync_selectors(force=True)
             return
-        self.apply_char(lambda fmt: fmt.setFontPointSize(value))
+        if any(fmt.fontPointSize() != value for fmt in self._selected_formats()):
+            self.apply_char(lambda fmt: fmt.setFontPointSize(value), restore_focus=False)
+        self._sync_selectors(force=True)
 
     def scale_size(self, direction):
         size = self.editor.currentCharFormat().fontPointSize() or DEFAULT_SIZE
         self.apply_char(lambda f: f.setFontPointSize(max(6, min(96, size + direction))))
 
     def toggle(self, value):
-        # QTextEdit.currentCharFormat can describe an insertion override rather
-        # than the existing characters when a selection is active. Inspect the
-        # selected text itself before toggling a span-level command.
-        cursor = self.editor.textCursor()
-        fmt = cursor.charFormat() if cursor.hasSelection() else self.editor.currentCharFormat()
+        # A mixed selection becomes fully enabled; a fully enabled selection
+        # becomes disabled. Never use a stale insertion-format proxy for a span.
+        enabled = self._style_state(value) is not True
         if value == "bold":
-            self.apply_char(lambda f: f.setFontWeight(
-                QFont.Weight.Normal if fmt.fontWeight() >= QFont.Weight.Bold else QFont.Weight.Bold))
+            self.apply_char(lambda fmt: fmt.setFontWeight(
+                QFont.Weight.Bold if enabled else QFont.Weight.Normal))
         elif value in ("italic", "underline", "strike"):
-            getter, setter = {
-                "italic": (fmt.fontItalic, QTextCharFormat.setFontItalic),
-                "underline": (fmt.fontUnderline, QTextCharFormat.setFontUnderline),
-                "strike": (fmt.fontStrikeOut, QTextCharFormat.setFontStrikeOut),
+            setter = {
+                "italic": QTextCharFormat.setFontItalic,
+                "underline": QTextCharFormat.setFontUnderline,
+                "strike": QTextCharFormat.setFontStrikeOut,
             }[value]
-            self.apply_char(lambda f: setter(f, not getter()))
+            self.apply_char(lambda fmt: setter(fmt, enabled))
         else:
-            wanted = (QTextCharFormat.VerticalAlignment.AlignSubScript if value == "sub"
-                      else QTextCharFormat.VerticalAlignment.AlignSuperScript)
-            current = QTextCharFormat.VerticalAlignment.AlignNormal if fmt.verticalAlignment() == wanted else wanted
-            self.apply_char(lambda f: f.setVerticalAlignment(current))
+            align = (QTextCharFormat.VerticalAlignment.AlignSubScript if value == "sub"
+                     else QTextCharFormat.VerticalAlignment.AlignSuperScript)
+            self.apply_char(lambda fmt: fmt.setVerticalAlignment(
+                align if enabled else QTextCharFormat.VerticalAlignment.AlignNormal))
 
     def pick_color(self, background):
         choice = QColorDialog.getColor(QColor("#ffff00" if background else "#202124"), self)
@@ -456,4 +636,5 @@ class RichTextRibbon(QWidget):
         options.setFlags(options.flags() ^ flag)
         self.editor.document().setDefaultTextOption(options)
         self.editor.viewport().update()
+        self.sync()
         self.editor.setFocus()
