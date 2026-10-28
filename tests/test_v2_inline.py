@@ -198,7 +198,12 @@ class BranchQtTests(unittest.TestCase):
         self.assertTrue(self.win.branch.add_module())
         self.app.processEvents()
         top = self.win.session.report_snapshot().modules[-1]
-        self.assertTrue(self.win.branch.add_nested_module())
+        self.assertTrue(
+            self.win.branch.add_nested_module(),
+            "insert rejected: " + self.win.statusBar().currentMessage()
+            + "; selected=" + str(self.win.branch._selected_module_id)
+            + "; expected=" + top.id,
+        )
         self.app.processEvents()
         child = self.win.session.report_snapshot().modules[-1].blocks[-1].module
         self.assertTrue(self.win.branch.add_paragraph())
