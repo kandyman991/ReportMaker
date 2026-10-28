@@ -40,7 +40,17 @@ class DraftCoordinator:
         self.gateway = gateway
         self._drafts: dict[NodeAddress, TextDraft] = {}
         self._committing = False
-        session.set_draft_guard(lambda: not self._drafts or self._committing)
+        session.set_draft_guard(self._draft_guard)
+
+    def _draft_guard(self) -> bool:
+        if not self._drafts:
+            return True
+        if self._committing:
+            # Single-use permit: no reentrant command from a publish listener
+            # can accidentally piggyback on this inline commit.
+            self._committing = False
+            return True
+        return False
 
     @property
     def pending(self) -> bool:
