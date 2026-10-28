@@ -139,6 +139,7 @@ class InlineParagraph(QPlainTextEdit):
 class BranchCanvas(QScrollArea):
     """Read-only geometry, editable source text; commands own all mutations."""
     feedback = Signal(str)
+    selectionChanged = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -196,6 +197,7 @@ class BranchCanvas(QScrollArea):
             if self._selected_module_id not in module_ids:
                 self._selected_module_id = report.modules[0].id if report.modules else None
             self._render(report)
+            self.selectionChanged.emit()
 
     def set_report(self, report: Report) -> None:
         """Legacy inspection API; cannot discard a pending inline draft."""
@@ -212,7 +214,9 @@ class BranchCanvas(QScrollArea):
         if event.type() == QEvent.Type.MouseButtonPress:
             module_id = watched.property("moduleId")
             if module_id and watched in self._editors.values():
-                self._selected_module_id = module_id
+                if module_id != self._selected_module_id:
+                    self._selected_module_id = module_id
+                    self.selectionChanged.emit()
         return super().eventFilter(watched, event)
 
     def _changed(self, address, text, buttons):
@@ -314,6 +318,53 @@ class BranchCanvas(QScrollArea):
         return self._run("add_paragraph",
                          NodeAddress(self._session.report_snapshot().id, self._selected_module_id),
                          text="")
+
+    def _sibling_move_target(self, offset: int):
+        """Find an adjacent *mixed* sibling without modifying the report."""
+        if self._session is None or self._selected_module_id is None:
+            return None
+        report = self._session.report_snapshot()
+        rows = project_branch(report)
+        selected = next((row for row in rows
+                         if row.stable_id == self._selected_module_id
+                         and row.kind == "module"), None)
+        if selected is None:
+            return None
+        siblings = sorted(
+            (row for row in rows if row.parent_module_id == selected.parent_module_id
+             and row.kind not in ("root", "conclusion")),
+            key=lambda row: row.mixed_sibling_index,
+        )
+        current = next(i for i, row in enumerate(siblings)
+                       if row.stable_id == selected.stable_id)
+        other = current + offset
+        if other < 0 or other >= len(siblings):
+            return None
+        return report, selected, siblings[other]
+
+    def can_move_selected(self, offset: int) -> bool:
+        """Same boundary policy for toolbar/shortcuts as for the command."""
+        return self._sibling_move_target(offset) is not None
+
+    def _move_selected_sibling(self, offset: int) -> bool:
+        """Move selected module by one *mixed* sibling slot via the gateway."""
+        move = self._sibling_move_target(offset)
+        if move is None:
+            self.feedback.emit("Select a module with an adjacent sibling to move")
+            return False
+        report, selected, neighbor = move
+        anchor = (NodeAddress(report.id, neighbor.stable_id)
+                  if neighbor.kind == "module"
+                  else NodeAddress(report.id, neighbor.parent_module_id,
+                                   neighbor.stable_id, "text"))
+        return self._run("move_node", NodeAddress(report.id, selected.stable_id),
+                         anchor=anchor, position="before" if offset < 0 else "after")
+
+    def move_selected_up(self) -> bool:
+        return self._move_selected_sibling(-1)
+
+    def move_selected_down(self) -> bool:
+        return self._move_selected_sibling(1)
 
     def _history(self, operation):
         if self._session is None:
