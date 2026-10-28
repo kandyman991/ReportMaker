@@ -39,6 +39,21 @@ The **transitive import firewall** is the important result: importing `visual_ed
 
 **External runtime/build dependencies:** Python >=3.11,<3.16; `python-docx>=1.2,<2`, `reportlab>=4.2,<5`, `Pillow>=10.4,<13`, `pypdf>=5,<7`; `[desktop]` adds pinned `PySide6==6.12.0` and `pillow-heif>=1.8.1,<2`. Win64 PySide6/Qt WebEngine is mandatory. Validate third-party licenses and installer redistribution of Qt WebEngine/heif codecs independently before V2 distribution; no legal clearance is asserted here.
 
+## Third-party license inventory and packaging gate
+
+This inventory records **declared direct dependencies**, not a redistribution clearance or a full transitive Software Bill of Materials (SBOM). License indications are from upstream package metadata as checked on 2026-10-28; the actual installed/packaged versions and bundled native binaries must be verified separately.
+
+| Dependency (`pyproject.toml`) | Published license indication | Packaging concern / proof still required |
+| --- | --- | --- |
+| [python-docx](https://pypi.org/project/python-docx/) | MIT | Include required notices for the selected wheel and any dependencies. |
+| [reportlab](https://pypi.org/project/reportlab/) | BSD-family | Inspect the exact version's license file and packaged font/native dependencies. |
+| [Pillow](https://pypi.org/project/pillow/) | MIT-CMU | Verify binary codecs and their accompanying notices in the selected Windows wheel. |
+| [pypdf](https://pypi.org/project/pypdf/) | BSD-3-Clause | Preserve notices for the resolved version. |
+| [PySide6 6.12.0](https://pypi.org/project/PySide6/6.12.0/) | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only; separate commercial options | **Release-critical:** choose a lawful distribution route and review Qt, Qt WebEngine/Chromium, Shiboken, required notices, applicable relinking/source obligations and packaged plugins. |
+| [pillow-heif](https://pypi.org/project/pillow-heif/) | BSD-3-Clause for Python package | **Release-critical:** inventory the actual Windows wheel's bundled libheif/codecs/encoders, native component licenses and any patent/redistribution obligations; the Python package license alone does not clear them. |
+
+**M0 outcome:** no V2 license change introduced, but redistribution is **not yet cleared**. Before any V2 installer/release, generate an exact-version/Windows-wheel transitive SBOM (including PySide6 WebEngine and HEIF native DLLs), archive license/notice evidence, resolve Qt licensing obligations and document a reviewed package-distribution decision. A dependency listing alone is insufficient acceptance; do not claim legal approval from this audit.
+
 ## Per-component inventory, classification and evidence
 
 | Component | Direct internal dependencies; coupling / transitive notes | V2 decision | Boundary and rationale |
