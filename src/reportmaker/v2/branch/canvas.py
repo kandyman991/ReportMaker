@@ -804,7 +804,13 @@ class BranchCanvas(QScrollArea):
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit(str(exc))
             return False
+        reveal_insert_parent = False
         if change is not None:
+            # Inserting through the toolbar into a collapsed container must
+            # reveal the new block, not silently create invisible content.
+            if kind in ("add_nested_module", "add_paragraph") and target is not None:
+                reveal_insert_parent = target.module_id in self._collapsed
+                self._collapsed.discard(target.module_id)
             new_id = next(iter(change.changed_ids))
             report_id = self._session.report_snapshot().id
             if kind in ("add_module", "add_nested_module"):
@@ -831,6 +837,8 @@ class BranchCanvas(QScrollArea):
                 self._restore = None
                 self.feedback.emit("Deleted — Undo is available")
         self._refresh()
+        if reveal_insert_parent:
+            self.visibilityChanged.emit()
         return True
 
     def add_module(self):
