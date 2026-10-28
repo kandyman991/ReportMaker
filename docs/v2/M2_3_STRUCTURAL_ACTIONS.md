@@ -1,8 +1,8 @@
 # M2.3 — Indent / Outdent, Duplicate and Delete
 
 **Status:** Isolated implementation pending PR review, hosted Windows checks and installed-PC acceptance.
-**Base:** live \`main\` 8229321276a7207c5faa455942b38d3a23404b8 (post-M2.2 PR #72).
-**Branch:** \`feature/v2-m2-3-structural-actions\`.
+**Base:** live `main` 8229321276a7207c5faa455942b38d3a23404b8 (post-M2.2 PR #72).
+**Branch:** `feature/v2-m2-3-structural-actions`.
 **Requirements:** BE-S05, BE-U04; M2 structural editing exit criteria.
 
 ## Interaction contract
@@ -14,12 +14,12 @@
 - Duplicate inserts a copy immediately after the selected object. Every duplicated module, nested wrapper and descendant block gets a new persistent ID. Duplicated leaf blocks get a new block ID and retain rich formatting, translations, photo placement geometry, captions and the same existing logical asset reference. No additional image bytes or second gallery are created.
 - Delete asks for explicit confirmation (default No), removes the selected module/subtree or leaf report placement, and supports one-step Undo/Redo. Original external files and immutable project-owned image bytes are not edited. Removing the last *placement* of a project asset affects subsequent archive reachability, not the source file.
 - Root and mandatory final Conclusions cannot be duplicated or deleted. Conclusion content blocks remain individually editable/removable. The planner rejects invalid owners, stale report generation/revision, pending drafts, malformed addresses, and out-of-range requests *without history mutation*. A modal confirmation captures the original generation/revision, preventing a queued project switch or intervening edit from deleting a different node.
-- Both indentation controls use M2.1's existing \`plan_drop\` and \`move_node\`; duplicate/delete use the existing pure transactional \`ProjectEditor\`. The Branch Editor never persists or owns an independent tree.
+- Both indentation controls use M2.1's existing `plan_drop` and `move_node`; duplicate/delete use the existing pure transactional `ProjectEditor`. The Branch Editor never persists or owns an independent tree.
 
 ## Automated verification
 
-- \`tests/test_v2_actions.py\`: synthetic deep duplicates with fresh IDs; source translations/media/placement retention and Save/Open; mixed typed leaf clones; undo/redo of subtree deletion and promotion; wrapper preservation; strict indent positioning, invalid and stale intents, draft guards; Qt toolbar/menu and confirmation, including a session switch during a modal confirmation.
-- \`.github/workflows/v2-structure.yml\`: hosted Windows, Python 3.11 + 3.12, with the new suite and existing M2.1/M2.2 and M1.2–M1.4 checks. Exact final PR head must pass before merge.
+- `tests/test_v2_actions.py`: synthetic deep duplicates with fresh IDs; source translations/media/placement retention and Save/Open; mixed typed leaf clones; undo/redo of subtree deletion and promotion; wrapper preservation; strict indent positioning, invalid and stale intents, draft guards; Qt toolbar/menu and confirmation, including a session switch during a modal confirmation.
+- `.github/workflows/v2-structure.yml`: hosted Windows, Python 3.11 + 3.12, with the new suite and existing M2.1/M2.2 and M1.2–M1.4 checks. Exact final PR head must pass before merge.
 - Existing v4 project format and export derivation remain unchanged; V1 UI, browser-only ChatGPT integration, installer and main release are untouched.
 
 ## Manual installed-Windows acceptance (not yet done)

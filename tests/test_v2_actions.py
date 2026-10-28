@@ -78,11 +78,8 @@ class StructuralActionTests(TestCase):
 
     def test_nested_indent_keeps_wrapper_identity(self):
         # Add a second nested sibling immediately following the first.
-        child2 = deepcopy(self.child)
-        child2.id = "child2_unique"
-        for block in child2.blocks:
-            block.id += "_clone"
-        self.session._editor.add_module(child2, parent_id=self.a.id, index=2)
+        self.run_command("add_nested_module", addr(self.before, self.a.id),
+                         title="Second child", index=2)
         source_report = self.session.report_snapshot()
         nested2 = source_report.modules[0].blocks[2]
         source = addr(source_report, nested2.module.id)
@@ -149,6 +146,24 @@ class StructuralActionTests(TestCase):
                 self.assertEqual(self.session.report_snapshot(), latest)
                 self.gateway.redo(self.session.generation, self.session.revision)
                 self.assertEqual(self.session.report_snapshot(), old)
+
+    def test_duplicate_paragraph_preserves_translations(self):
+        project = fixture()
+        project.report.modules[1].blocks[0].text.set_translation("de", "Synthetischer Text")
+        session = ReportSession(project)
+        gateway = CommandGateway(session)
+        before = session.report_snapshot()
+        paragraph = before.modules[1].blocks[0]
+        result = gateway.execute(CommandIntent(
+            "duplicate_node", addr(before, before.modules[1].id, paragraph.id),
+            {}, session.revision, session.generation))
+        copied = session.report_snapshot().modules[1].blocks[1]
+        self.assertEqual(copied.id, next(iter(result.changed_ids)))
+        self.assertNotEqual(copied.id, paragraph.id)
+        self.assertEqual(copied.text, paragraph.text)
+        self.assertEqual(copied.rich, paragraph.rich)
+        gateway.undo(session.generation, session.revision)
+        self.assertEqual(session.report_snapshot(), before)
 
     def test_delete_subtree_preserves_undo_and_conclusions(self):
         self.run_command("delete_node", addr(self.before, self.a.id))

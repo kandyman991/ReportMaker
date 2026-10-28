@@ -579,9 +579,9 @@ class BranchCanvas(QScrollArea):
              expected_generation=None, **args):
         if self._session is None:
             return False
-        before = self._session.report_snapshot()
         deleted_parent = None
         if kind == "delete_node" and target is not None and target.block_id is None:
+            before = self._session.report_snapshot()
             row = next((r for r in project_branch(before) if r.stable_id == target.module_id), None)
             deleted_parent = row.parent_module_id if row else None
         try:
@@ -775,10 +775,7 @@ class BranchCanvas(QScrollArea):
     def _context_menu(self, address, global_position) -> None:
         if not self._can_act_on(address):
             return
-        if address.block_id is None:
-            self._selected_module_id = address.module_id
-        else:
-            self._selected_module_id = address.module_id
+        self._selected_module_id = address.module_id
         self.selectionChanged.emit()
         menu = QMenu(self)
         if address.block_id is None:
@@ -898,7 +895,10 @@ class BranchCanvas(QScrollArea):
                 options = QToolButton(card)
                 options.setObjectName("v2NodeActions")
                 options.setText("⋯")
-                options.setToolTip("Branch actions: indent, outdent, duplicate, delete")
+                options.setToolTip(
+                    "Indent, outdent, duplicate or delete" if kind == "module"
+                    else "Duplicate or delete this content block"
+                )
                 options.clicked.connect(
                     lambda checked=False, a=address, b=options:
                     self._context_menu(a, b.mapToGlobal(b.rect().bottomLeft()))
