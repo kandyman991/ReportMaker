@@ -27,7 +27,7 @@ from reportmaker.rich_text import TextRun
 from reportmaker.v2.adapters.persistence import ProjectPersistence
 from reportmaker.v2.commands import CommandGateway, CommandIntent
 from reportmaker.v2.projections import NodeAddress, find_node, project_branch
-from reportmaker.v2.session import PendingDraftError, ReportSession, StaleIntentError
+from reportmaker.v2.session import PendingDraftError, ReportSession, StaleIntentError, UnsavedChangesError
 
 
 def sample() -> ReportProject:
@@ -130,11 +130,11 @@ class SessionGatewayTests(unittest.TestCase):
         self.assertEqual(modified.text.original, new_value)
         self.assertEqual(modified.text.translations["de"], "Anfang")
         self.assertEqual(modified.text.stale_languages, {"de"})
-        self.assertIsNotNone(self.g.undo(self.s.generation))
+        self.assertIsNotNone(self.g.undo(self.s.generation, self.s.revision))
         reverted = find_node(self.s.report_snapshot(), address)
         self.assertEqual(reverted.text.original, "Testo iniziale")
         self.assertEqual(reverted.text.stale_languages, set())
-        self.assertIsNotNone(self.g.redo(self.s.generation))
+        self.assertIsNotNone(self.g.redo(self.s.generation, self.s.revision))
         self.assertEqual(find_node(self.s.report_snapshot(), address).text.original, new_value)
         self.assertEqual(self.s.revision, 3)
 
@@ -161,14 +161,14 @@ class SessionGatewayTests(unittest.TestCase):
             self.g.execute(intent(self.s, "set_paragraph", address, text="bad"))
         self.assertEqual(self.s.report_snapshot(), original)
         self.assertEqual(self.s.revision, 0)
-        self.assertIsNone(self.g.undo(self.s.generation))
-        self.assertIsNone(self.g.redo(self.s.generation))
+        self.assertIsNone(self.g.undo(self.s.generation, self.s.revision))
+        self.assertIsNone(self.g.redo(self.s.generation, self.s.revision))
 
     def test_existing_rich_ranges_are_never_silently_deleted(self):
         report = self.s.report_snapshot()
         paragraph = report.modules[0].blocks[1].module.blocks[0]
         paragraph.rich.runs = [TextRun(0, len(paragraph.text.original), bold=True)]
-        self.s.replace_project(ReportProject(report))
+        self.s.replace_project(ReportProject(report), discard_unsaved=True)
         p = self.s.report_snapshot().modules[0].blocks[1].module.blocks[0]
         addr = paragraph_address(report, report.modules[0].blocks[1].module.id, p.id)
         with self.assertRaises(ValueError):
@@ -196,15 +196,63 @@ class SessionGatewayTests(unittest.TestCase):
     def test_generation_change_invalidates_late_callbacks(self):
         old = self.s.report_snapshot()
         old_token = self.s.generation
-        self.s.replace_project(sample())
+        self.s.replace_project(sample(), discard_unsaved=True)
         self.assertNotEqual(old_token, self.s.generation)
         with self.assertRaises(StaleIntentError):
             self.g.execute(CommandIntent("rename_module",
                                          module_address(old, old.modules[0].id),
                                          {"title": "Late"}, 0, old_token))
         with self.assertRaises(StaleIntentError):
-            self.g.undo(old_token)
+            self.g.undo(old_token, self.s.revision)
         self.assertEqual(self.s.revision, 0)
+
+    def test_noop_edits_preserve_redo_history_and_do_not_notify(self):
+        report = self.s.report_snapshot()
+        module = report.modules[0]
+        address = module_address(report, module.id)
+        notifications = []
+        self.s.subscribe(notifications.append)
+        self.g.execute(intent(self.s, "rename_module", address, title="Changed"))
+        self.g.undo(self.s.generation, self.s.revision)
+        after_undo = self.s.revision
+        self.assertIsNone(self.g.execute(
+            intent(self.s, "rename_module", address, title="Modulo")))
+        child = report.modules[0].blocks[1].module
+        paragraph = child.blocks[0]
+        self.assertIsNone(self.g.execute(intent(
+            self.s, "set_paragraph",
+            paragraph_address(report, child.id, paragraph.id),
+            text=paragraph.text.original)))
+        self.assertEqual(self.s.revision, after_undo)
+        self.assertEqual(len(notifications), 2)
+        self.assertIsNotNone(self.g.redo(self.s.generation, self.s.revision))
+        self.assertEqual(self.s.report_snapshot().modules[0].title.original, "Changed")
+
+    def test_stale_undo_and_redo_reject_queued_callbacks(self):
+        report = self.s.report_snapshot()
+        address = module_address(report, report.modules[0].id)
+        self.g.execute(intent(self.s, "rename_module", address, title="Changed"))
+        with self.assertRaises(StaleIntentError):
+            self.g.undo(self.s.generation, 0)
+        self.assertEqual(self.s.revision, 1)
+        self.g.undo(self.s.generation, self.s.revision)
+        with self.assertRaises(StaleIntentError):
+            self.g.redo(self.s.generation, 1)
+        self.assertEqual(self.s.revision, 2)
+        self.g.redo(self.s.generation, self.s.revision)
+        self.assertEqual(self.s.report_snapshot().modules[0].title.original, "Changed")
+
+    def test_pending_draft_blocks_other_gateway_mutations(self):
+        report = self.s.report_snapshot()
+        address = module_address(report, report.modules[0].id)
+        self.s.set_draft_guard(lambda: False)
+        with self.assertRaises(PendingDraftError):
+            self.g.execute(intent(self.s, "rename_module", address, title="Unsafe"))
+        self.assertEqual(self.s.revision, 0)
+        self.assertEqual(self.s.report_snapshot(), report)
+        self.s.set_draft_guard(lambda: True)
+        self.assertIsNotNone(self.g.execute(
+            intent(self.s, "rename_module", address, title="Safe")))
 
     def test_pure_gateway_does_not_import_legacy_ui_or_qt(self):
         code = ("import reportmaker.v2.session, reportmaker.v2.commands, "
@@ -277,10 +325,10 @@ class PersistenceTests(unittest.TestCase):
         old_generation = self.s.generation
         self.g.execute(intent(self.s, "rename_module", address, title="Temporarily edited"))
         self.assertTrue(self.s.dirty)
-        self.assertIsNotNone(self.g.undo(old_generation))
+        self.assertIsNotNone(self.g.undo(old_generation, self.s.revision))
         self.assertFalse(self.s.dirty)
         self.assertEqual(self.s.revision, 2)
-        self.assertIsNotNone(self.g.redo(old_generation))
+        self.assertIsNotNone(self.g.redo(old_generation, self.s.revision))
         self.assertTrue(self.s.dirty)
         self.assertEqual(self.s.revision, 3)
 
@@ -298,13 +346,35 @@ class PersistenceTests(unittest.TestCase):
         with self.assertRaises(PendingDraftError):
             self.p.open_into(self.s, self.a)
         with self.assertRaises(PendingDraftError):
-            self.g.undo(self.s.generation)
+            self.g.undo(self.s.generation, self.s.revision)
         self.assertEqual(self.s.revision, dirty_revision)
         self.assertTrue(self.s.dirty)
         self.assertEqual(self.a.read_bytes(), before)
         self.s.set_draft_guard(lambda: True)
         self.assertEqual(self.p.save(self.s), self.a)
         self.assertFalse(self.s.dirty)
+
+    def test_switch_rejects_unsaved_report_without_explicit_consent(self):
+        self.p.save(self.s, self.a)
+        save_project(sample(), self.b)
+        report = self.s.report_snapshot()
+        self.g.execute(intent(self.s, "rename_module",
+                              module_address(report, report.modules[0].id),
+                              title="Unsaved work"))
+        original = self.s.report_snapshot()
+        previous_generation = self.s.generation
+        with self.assertRaises(UnsavedChangesError):
+            self.p.open_into(self.s, self.b)
+        with self.assertRaises(UnsavedChangesError):
+            self.s.replace_project(sample())
+        self.assertEqual(self.s.report_snapshot(), original)
+        self.assertEqual(self.s.path, self.a)
+        self.assertEqual(self.s.generation, previous_generation)
+        self.assertTrue(self.s.dirty)
+        self.p.open_into(self.s, self.b, discard_unsaved=True)
+        self.assertEqual(self.s.path, self.b)
+        self.assertFalse(self.s.dirty)
+        self.assertNotEqual(self.s.generation, previous_generation)
 
     def test_invalid_open_never_changes_session_or_saved_data(self):
         self.p.save(self.s, self.a)
