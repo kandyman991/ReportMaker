@@ -27,6 +27,10 @@ async function timed(command) {
 }
 try {
  const init=(await timed({action:"hello"})).response;
+ // Invalid JSONL must report an error without killing the canonical service.
+ child.stdin.write("{malformed-json\n");
+ const stillAlive=(await timed({action:"hello"})).response;
+ if(stillAlive.reportId!==init.reportId)throw Error("Malformed input killed the bridge");
  let rev=init.revision;
  const ping=[],rename=[];
  for(let i=0;i<50;i++)ping.push((await timed({action:"hello"})).ms);
@@ -35,6 +39,9 @@ try {
      expectedRevision:rev,generation:init.generation});
    rev=result.response.revision;rename.push(result.ms);
  }
+ const paragraph=await timed({action:"set_text",target:init.firstParagraph,
+   text:"Edited synthetic paragraph",expectedRevision:rev,generation:init.generation});
+ rev=paragraph.response.revision;
  const change=await timed({action:"move",source:init.firstModule,target:init.secondModule,
    position:"after",expectedRevision:rev,generation:init.generation});
  rev=change.response.revision;
@@ -47,7 +54,7 @@ try {
  const output={n:init.nodes,read_median_ms:+med(ping).toFixed(3),read_p95_ms:+p95(ping).toFixed(3),
    command_median_ms:+med(rename).toFixed(3),command_p95_ms:+p95(rename).toFixed(3),
    move_ms:+change.ms.toFixed(3),undo_ms:+undone.ms.toFixed(3),
-   stale_rejected:true,undo_verified:true,commands:30};
+   stale_rejected:true,undo_verified:true,paragraph_verified:true,commands:31};
  console.log(JSON.stringify(output,null,2));
  fs.mkdirSync("data",{recursive:true});
  fs.writeFileSync("data/bridge-results.json",JSON.stringify(output,null,2));

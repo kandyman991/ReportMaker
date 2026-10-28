@@ -42,6 +42,7 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --name reportmaker-bench-bridge --paths ../../src bridge.py
           $dest = "src-tauri/binaries/reportmaker-bench-bridge-x86_64-pc-windows-msvc.exe"
+          New-Item -ItemType Directory -Force -Path "src-tauri/binaries" | Out-Null
           Copy-Item "dist/reportmaker-bench-bridge.exe" $dest
           if (-not (Test-Path $dest)) { throw "Missing sidecar" }
       - name: Compile native Tauri Windows shell without installer/release

@@ -84,7 +84,7 @@ const BranchRow = memo(function BranchRow({ row, onApply, onDrop, onPreview, dro
            {row.kind === "paragraph" ?
              <textarea value={draft} onChange={e=>{setDraft(e.target.value);setDirty(true)}}/> :
              <input value={draft} onChange={e=>{setDraft(e.target.value);setDirty(true)}}/>}
-           {dirty && <button className="apply" onClick={()=>{onApply(row.id,draft);setDirty(false)}}>Apply</button>}
+           {dirty && <button className="apply" onClick={()=>{onApply(row.id,draft,row.kind);setDirty(false)}}>Apply</button>}
          </div> : <div className="value">{row.text || "(Empty)"}</div>}
          {marker && <strong className={"indicator "+marker}>{marker.toUpperCase()}</strong>}
        </section>
@@ -110,14 +110,14 @@ function App() {
   },[]);
   api.set = setNodes;
   api.size = nodes.length;
-  const apply = useCallback((id, text) => {
+  const apply = useCallback((id, text, kind) => {
     const bridge = activeBridge.current;
     if (!bridge) {
       setNodes(old => old.map(row => row.id === id ? {...row, text} : row));
       setNotice("Browser-only prototype edit; native Python gateway not connected.");
       return;
     }
-    bridge.transport.request({action:"rename", target:id, text,
+    bridge.transport.request({action:kind === "paragraph" ? "set_text" : "rename", target:id, text,
       expectedRevision:bridge.revision, generation:bridge.generation}).then(async result => {
       bridge.revision = result.revision;
       const snapshot = await bridge.transport.request({action:"snapshot"});

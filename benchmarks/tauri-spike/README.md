@@ -6,7 +6,7 @@
 
 - Real React 19 Branch Editor rendering canonical V2 project projections (root, ordered modules, nested modules, paragraphs, photos, headings, tables, final Conclusions); HTML input/text area editing; HTML5 drag zone preview. In **browser** mode edits are prototype-only (not canonical) and drops do not mutate structure.
 - A Tauri 2 desktop shell scaffold configured with Windows `dragDropEnabled:false` for HTML5 drag/drop; dedicated least-scope synthetic Python sidecar permissions.
-- **When launched as a packaged Tauri shell**, `web/native-bridge.js` sends JSONL through a single native sidecar process, receives detached canonical projections, and applies only `rename_module` / `move_node` through `ReportSession` + `CommandGateway`, with revision/generation guards and native command rejection. This integration is *not yet execution-validated in a native Tauri shell*.
+- **When launched as a packaged Tauri shell**, `web/native-bridge.js` sends JSONL through a single native sidecar process, receives detached canonical projections, and applies only `rename_module`, plain `set_paragraph` and `move_node` through `ReportSession` + `CommandGateway`, with revision/generation guards and native command rejection. This integration is *not yet execution-validated in a native Tauri shell*.
 - Repeatable Chromium Playwright measurements, local subprocess command bridge measurements, and offscreen PySide6 M2.2 measurements, using the same size-graded synthetic hierarchy.
 
 ## Reproduce Linux/browser tests

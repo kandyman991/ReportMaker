@@ -42,6 +42,8 @@ class Bridge:
                 "revision":self.session.revision,"generation":self.session.generation,
                 "reportId":report.id,"firstModule":report.modules[0].id,
                 "secondModule":report.modules[1].id,
+                "firstParagraph":next(r.stable_id for r in project_branch(report)
+                                      if r.kind == "paragraph"),
                 "nodes":len(project_branch(report)), "rows":self.present()
             }
         if action == "snapshot":
@@ -51,6 +53,11 @@ class Bridge:
             target = self.address(request["target"])
             change = self.gateway.execute(CommandIntent(
                 "rename_module", target, {"title": request["text"]},
+                request["expectedRevision"], request["generation"]))
+        elif action == "set_text":
+            target = self.address(request["target"])
+            change = self.gateway.execute(CommandIntent(
+                "set_paragraph", target, {"text": request["text"]},
                 request["expectedRevision"], request["generation"]))
         elif action == "move":
             target = self.address(request["source"])
@@ -70,6 +77,7 @@ class Bridge:
 def main():
     bridge = Bridge()
     for raw in sys.stdin:
+        request = None
         try:
             request = json.loads(raw)
             if not isinstance(request,dict):
