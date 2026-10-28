@@ -115,6 +115,7 @@ class ExternalPhotoImportTests(unittest.TestCase):
             details = warning.call_args.args[-1]
             self.assertIn("bad.png", details)
             self.assertIn("notes.txt", details)
+            self.assertEqual(details.count("\n"), 1)  # independent failure lines
         self.assertEqual(valid.read_bytes(), original)
         self.assertEqual(len(self.editor.report.modules[0].blocks), 1)
         self.assertTrue(self.pictures.currentItem())
@@ -181,6 +182,20 @@ class ExternalPhotoImportTests(unittest.TestCase):
         self.app.processEvents()
         self.assertFalse(self.paste.isEnabled())
         self.assertEqual(self.pictures.count(), 0)
+
+    def test_symlinked_directory_cannot_bypass_local_file_guard(self):
+        real = self.root / "actual-photos"
+        real.mkdir()
+        Image.new("RGB", (12, 8)).save(real / "picture.png")
+        alias = self.root / "linked-photos"
+        try:
+            alias.symlink_to(real, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Directory symlinks require special privileges here")
+        paths, errors = local_picture_paths(self.url_mime(alias / "picture.png"))
+        self.assertEqual(paths, [])
+        self.assertTrue(errors)
+        self.assertIn("links and junctions", errors[0])
 
     def test_pending_edits_survive_import_and_stale_queued_drop_is_ignored(self):
         file = self.image_file()
