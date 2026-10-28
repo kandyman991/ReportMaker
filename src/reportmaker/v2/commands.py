@@ -13,6 +13,7 @@ from ..model import LocalizedText, Module, ParagraphBlock
 from ..rich_text import RichFormatting, validate_rich
 from .projections import NodeAddress, find_node
 from .session import ReportSession, StaleIntentError
+from .structure import plan_drop
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ _KINDS = {
     "rename_module": ({"title"}, set()),
     "set_paragraph": ({"text"}, set()),
     "set_paragraph_rich": ({"text", "rich"}, set()),
+    "move_node": ({"anchor", "position"}, set()),
 }
 
 
@@ -62,6 +64,10 @@ class CommandGateway:
         required, optional = _KINDS[intent.kind]
         if set(intent.args) - required - optional or not required <= set(intent.args):
             raise ValueError("Unsupported command arguments")
+        if intent.kind == "move_node":
+            plan_drop(self._session.report_snapshot(), intent.target,
+                      intent.args["anchor"], intent.args["position"])
+            return
         value_key = "text" if intent.kind in ("add_paragraph", "set_paragraph", "set_paragraph_rich") else "title"
         if not isinstance(intent.args[value_key], str):
             raise ValueError("Title and text must be strings")
@@ -106,6 +112,23 @@ class CommandGateway:
         # callables/fields never enter the transaction.
         kind, args, address = intent.kind, dict(intent.args), intent.target
         editor = self._session._editor
+        if kind == "move_node":
+            plan = plan_drop(editor.report, address, args["anchor"], args["position"])
+            if plan.noop:
+                return None  # Preserve redo, revision and listeners on a no-op.
+            if plan.source_kind == "module":
+                editor.move_module(plan.source_id, parent_id=plan.destination_parent_id,
+                                   index=plan.destination_index)
+            else:
+                if plan.source_parent_id is None or plan.destination_parent_id is None:
+                    raise ValueError("Content needs an owning module")
+                editor.move_block(plan.source_parent_id, plan.source_id,
+                                  plan.destination_parent_id,
+                                  index=plan.destination_index)
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({plan.source_id}), True, False, True)
+            self._session._publish(change)
+            return change
         # An unchanged inline commit must not add a history step, invalidate
         # queued edits, or erase the redo stack after an Undo.
         if kind == "rename_module" and find_node(editor.report, address).title.original == args["title"]:
