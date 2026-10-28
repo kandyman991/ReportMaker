@@ -81,9 +81,12 @@ def plan_drop(report: Report, source: NodeAddress, anchor: NodeAddress,
             parent = destination.parent_module_id
             at = destination.mixed_sibling_index + (position == "after")
 
+    # Conclusions is a dedicated final section, not a drop destination.
+    # Allow the special "before Conclusions" root position above, but reject
+    # dropping blocks (as well as modules) inside or among its content.
+    if parent == report.conclusion.id:
+        raise ValueError("Cannot drop nodes into Conclusions")
     if is_module:
-        if parent == report.conclusion.id:
-            raise ValueError("Conclusions cannot contain intervention modules")
         # Walk canonical ancestors, rather than reconstructing a separate tree.
         current = parent
         while current is not None:
