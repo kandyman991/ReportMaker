@@ -315,6 +315,44 @@ class BranchCanvas(QScrollArea):
                          NodeAddress(self._session.report_snapshot().id, self._selected_module_id),
                          text="")
 
+    def _move_selected_sibling(self, offset: int) -> bool:
+        """Move selected module by one *mixed* sibling slot via the gateway."""
+        if self._session is None or self._selected_module_id is None:
+            self.feedback.emit("Select a module title to move")
+            return False
+        report = self._session.report_snapshot()
+        rows = project_branch(report)
+        selected = next((row for row in rows
+                         if row.stable_id == self._selected_module_id
+                         and row.kind == "module"), None)
+        if selected is None:
+            self.feedback.emit("Conclusions and report root cannot be moved")
+            return False
+        siblings = sorted(
+            (row for row in rows if row.parent_module_id == selected.parent_module_id
+             and row.kind not in ("root", "conclusion")),
+            key=lambda row: row.mixed_sibling_index,
+        )
+        current = next(i for i, row in enumerate(siblings)
+                       if row.stable_id == selected.stable_id)
+        other = current + offset
+        if other < 0 or other >= len(siblings):
+            self.feedback.emit("Selected module is already at this boundary")
+            return False
+        neighbor = siblings[other]
+        anchor = (NodeAddress(report.id, neighbor.stable_id)
+                  if neighbor.kind == "module"
+                  else NodeAddress(report.id, neighbor.parent_module_id,
+                                   neighbor.stable_id, "text"))
+        return self._run("move_node", NodeAddress(report.id, selected.stable_id),
+                         anchor=anchor, position="before" if offset < 0 else "after")
+
+    def move_selected_up(self) -> bool:
+        return self._move_selected_sibling(-1)
+
+    def move_selected_down(self) -> bool:
+        return self._move_selected_sibling(1)
+
     def _history(self, operation):
         if self._session is None:
             return False
