@@ -52,8 +52,7 @@ class ChangeSet:
     outline_invalidated: bool
 
 class ReportSession:
-    @property
-    def report(self) -> Report: ...           # read-only use; mutating reference prohibited
+    def report_snapshot(self) -> Report: ...   # detached read-only-by-convention copy, not live mutable model
     @property
     def revision(self) -> int: ...
     @property
@@ -70,7 +69,7 @@ class CommandGateway:
     def redo(self, expected_generation: str) -> ChangeSet | None: ...
 ```
 
-M1 can implement a narrow set of kinds: `add_module`, `add_nested_module`, `add_paragraph`, `rename_module`, `set_paragraph`, `undo`, `redo`. Internally delegate to `ProjectEditor.add_module/add_block/rename_module/apply`; a logical edit must use **one** `apply`. No direct mutation from widgets; UI never calls `report.modules.append()`. Invalid/stale intent fails without changing report, revision, undo/redo history, draft or assets. Successful commit increments revision once and publishes one `ChangeSet` on the UI thread; queued callbacks with prior project generation are rejected.
+M1 can implement a narrow set of kinds: `add_module`, `add_nested_module`, `add_paragraph`, `rename_module`, `set_paragraph`, `undo`, `redo`. Internally delegate to `ProjectEditor.add_module/add_block/rename_module/apply`; a logical edit must use **one** `apply`. No direct mutation from widgets; UI never calls `report.modules.append()`. Invalid/stale intent fails without changing report, revision, undo/redo history, draft or assets. Successful commit increments revision once and publishes one `ChangeSet` on the UI thread; queued callbacks with prior project generation are rejected. **Never expose `ProjectEditor.report` or another live mutable `Report` reference to UI widgets**: Qt reads detached snapshots/read projections. Create or memoize such snapshots at a validated session revision/refresh boundary, not per keystroke or per card, and invalidate on every successful change/undo/redo. The gateway alone owns canonical mutations.
 
 `ProjectEditor` owns report Undo/Redo and deep-copy validation. **Not yet implemented:** a comprehensive transaction including media maps. Before M4 asset-changing commands, introduce a coordinated session transaction that validates candidate report+asset library, publishes them together and restores both on Undo/Redo. Do not claim that V1 `ProjectEditor` undoes asset bytes.
 
@@ -188,10 +187,10 @@ class PresentationStore:
     def save(self, project_identity: str, state: object) -> None: ...
 ```
 
-Persist under a versioned Qt `QSettings` namespace, keyed by stable report ID plus normalized local project identity (or session-scoped unsaved ID). Prune stale module IDs when loading; store expansion sets, zoom, pan, focus, selection and temporary display dimensions; never store report text, customer data, original photo paths, private media, passwords or cookies in this store. Keep it local: another PC may open the same v4 report with default canvas settings. Print layout changes require a separate canonical/export contract and ADR if persistence is needed.
+Persist under a versioned Qt `QSettings` namespace, keyed by stable report ID plus normalized local project identity (or session-scoped unsaved ID). Prune stale module IDs when loading; store expansion sets, zoom, pan, focus, selection and temporary display dimensions; never store report text, customer data, original photo paths, private media, passwords or cookies in this store. **First Save / Save As identity rule:** only after a successful archive write, copy or rekey the active presentation state to the new project identity and retain the old identity's saved state if the old file still exists. On cancelled/failed Save As, neither active identity nor settings may change. Reopening the new path must restore expansion state by stable module ID, while opening a different report starts from that report's own settings/defaults. Keep it local: another PC may open the same v4 report with default canvas settings. Print layout changes require a separate canonical/export contract and ADR if persistence is needed.
 
 Browser tab contract is **unchanged V1 UX**: ordinary `QWebEngineView`, user-controlled login, local `QWebEngineProfile`, native website controls and default-browser fallback. No access to `ReportSession`/metadata, no OpenAI SDK/API, scripting/DOM, cookies export, prompts or automatic insertion. User-initiated copied **text** goes into normal plain-text editor clipboard; native/browser **images** must be separately imported through `MediaAdapter`, only on user action.
 
 ## 9. Contract tests and change-control
 
-Every M1 adapter API gets a synthetic test for success, invalid intent, stale revision/generation, undo/redo, saved/reopened data and intact draft on failure. Import-smoke must reject `reportmaker.visual_editor` in V2 import graph; dependency tests can check `sys.modules` as a supplement (not the sole static guard). Use exact typed field semantics and no Qt in pure model/commands/storage. Changes to these contracts require an updated M0 document or reviewed ADR; contract evolution must not silently alter the 33 approved features.
+Every M1 adapter API gets a synthetic test for success, invalid intent, stale revision/generation, undo/redo, saved/reopened data and intact draft on failure. Import-smoke must reject `reportmaker.visual_editor` in V2 import graph; dependency tests can check `sys.modules` as a supplement (not the sole static guard). Use exact typed field semantics and no Qt in pure model/commands/storage. Assert that V2 import transitively loads **neither** `reportmaker.ui` **nor** `reportmaker.visual_editor`; check both via static imports and an isolated-process runtime import smoke test. Add a first-Save/Save-As settings-identity regression and a test proving view-side changes to a read snapshot cannot mutate the canonical report. Changes to these contracts require an updated M0 document or reviewed ADR; contract evolution must not silently alter the 33 approved features.
