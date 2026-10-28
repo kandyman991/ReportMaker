@@ -19,6 +19,11 @@ def rebase_rich(before: str, after: str, rich: RichFormatting) -> RichFormatting
     validate_rich(rich, before)
     if before == after:
         return deepcopy(rich)
+    if not rich.runs and not rich.paragraphs:
+        # Plain paragraphs need no quadratic diff work even for large pastes.
+        return RichFormatting()
+    if len(before) + len(after) > 16000:
+        raise ValueError("Formatted paragraph is too large for safe inline remapping")
     matching = SequenceMatcher(a=before, b=after, autojunk=False).get_matching_blocks()
     spans = []
     for match in matching:
