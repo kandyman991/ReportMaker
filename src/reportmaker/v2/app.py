@@ -104,6 +104,10 @@ class V2MainWindow(QMainWindow):
             ("v2AddParagraph", "+ Paragraph", self.branch.add_paragraph, ""),
             ("v2MoveUp", "↑ Move", self.branch.move_selected_up, "Alt+Up"),
             ("v2MoveDown", "↓ Move", self.branch.move_selected_down, "Alt+Down"),
+            ("v2Indent", "→ Indent", self.branch.indent_selected, "Alt+Shift+Right"),
+            ("v2Outdent", "← Outdent", self.branch.outdent_selected, "Alt+Shift+Left"),
+            ("v2Duplicate", "Duplicate", self.branch.duplicate_selected, "Alt+Shift+D"),
+            ("v2Delete", "Delete…", self.branch.delete_selected, "Ctrl+Shift+Delete"),
             ("v2UndoChange", "Undo change", self.branch.undo, "Ctrl+Alt+Z"),
             ("v2RedoChange", "Redo change", self.branch.redo, "Ctrl+Alt+Shift+Z"),
         ):
@@ -130,6 +134,15 @@ class V2MainWindow(QMainWindow):
             up.setEnabled(self.branch.can_move_selected(-1))
         if down is not None:
             down.setEnabled(self.branch.can_move_selected(1))
+        for name, enabled in (
+            ("v2Indent", self.branch.can_indent_selected()),
+            ("v2Outdent", self.branch.can_outdent_selected()),
+            ("v2Duplicate", self.branch.can_duplicate_selected()),
+            ("v2Delete", self.branch.can_delete_selected()),
+        ):
+            action = self.findChild(QAction, name)
+            if action is not None:
+                action.setEnabled(enabled)
 
     def _update_caption(self) -> None:
         name = self.session.path.name if self.session.path else "Untitled"

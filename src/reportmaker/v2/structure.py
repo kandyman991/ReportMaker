@@ -105,3 +105,55 @@ def plan_drop(report: Report, source: NodeAddress, anchor: NodeAddress,
     noop = old_parent == parent and effective == origin.mixed_sibling_index
     return DropPlan(origin.stable_id, "module" if is_module else "block",
                     old_parent, parent, at, noop)
+
+
+@dataclass(frozen=True)
+class StructuralNode:
+    """A canonical, address-checked module or leaf (never a wrapper ID)."""
+    stable_id: str
+    kind: str
+    parent_module_id: str | None
+
+
+def structural_node(report: Report, address: NodeAddress) -> StructuralNode:
+    """Validate exact owner and field before duplicate or delete."""
+    rows = {row.stable_id: row for row in project_branch(report)}
+    row = _resolve(rows, report, address)
+    if row.kind in ("root", "conclusion"):
+        raise ValueError("Report root and Conclusions are protected")
+    expected_field = "title" if row.kind == "module" else "text"
+    if (address.field != expected_field or address.row is not None
+            or address.column is not None):
+        raise ValueError("Structural action requires a complete node address")
+    return StructuralNode(row.stable_id, row.kind, row.parent_module_id)
+
+
+def plan_indent(report: Report, source: NodeAddress) -> tuple[NodeAddress, str]:
+    """Indent *only* into the immediately preceding mixed sibling module.
+
+    Never silently jump over paragraph/photo/table blocks to another parent.
+    """
+    node = structural_node(report, source)
+    if node.kind != "module":
+        raise ValueError("Only a module can be indented")
+    rows = project_branch(report)
+    current = next(row for row in rows if row.stable_id == node.stable_id)
+    previous = next((row for row in rows
+                     if row.parent_module_id == current.parent_module_id
+                     and row.mixed_sibling_index == current.mixed_sibling_index - 1
+                     and row.kind == "module"), None)
+    if previous is None:
+        raise ValueError("Indent requires an immediately preceding sibling module")
+    anchor = NodeAddress(report.id, previous.stable_id)
+    plan_drop(report, source, anchor, "inside")
+    return anchor, "inside"
+
+
+def plan_outdent(report: Report, source: NodeAddress) -> tuple[NodeAddress, str]:
+    """Promote one level immediately *after* the former parent module."""
+    node = structural_node(report, source)
+    if node.kind != "module" or node.parent_module_id is None:
+        raise ValueError("Outdent requires a nested module")
+    anchor = NodeAddress(report.id, node.parent_module_id)
+    plan_drop(report, source, anchor, "after")
+    return anchor, "after"

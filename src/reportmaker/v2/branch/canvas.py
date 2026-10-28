@@ -14,7 +14,8 @@ from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QDrag, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QLabel, QLayout, QLineEdit, QPlainTextEdit,
-    QPushButton, QScrollArea, QSizePolicy, QToolButton, QVBoxLayout, QWidget,
+    QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
+    QVBoxLayout, QWidget,
 )
 
 from ...engine import validate_report_tree
@@ -27,7 +28,7 @@ from ..commands import CommandGateway, CommandIntent
 from ..drafts import DraftCoordinator
 from ..projections import NodeAddress, project_branch
 from ..session import PendingDraftError, ReportSession
-from ..structure import plan_drop
+from ..structure import plan_drop, plan_indent, plan_outdent, structural_node
 
 _STEP = 25
 _INTERNAL_MOVE_MIME = "application/x-reportmaker-v2-internal-move"
@@ -679,12 +680,20 @@ class BranchCanvas(QScrollArea):
         self._refresh()
         self.feedback.emit("Draft reverted")
 
-    def _run(self, kind, target=None, **args):
+    def _run(self, kind, target=None, *, expected_revision=None,
+             expected_generation=None, **args):
         if self._session is None:
             return False
+        deleted_parent = None
+        if kind == "delete_node" and target is not None and target.block_id is None:
+            before = self._session.report_snapshot()
+            row = next((r for r in project_branch(before) if r.stable_id == target.module_id), None)
+            deleted_parent = row.parent_module_id if row else None
         try:
             change = self._gateway.execute(CommandIntent(
-                kind, target, args, self._session.revision, self._session.generation))
+                kind, target, args,
+                self._session.revision if expected_revision is None else expected_revision,
+                self._session.generation if expected_generation is None else expected_generation))
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit(str(exc))
             return False
@@ -696,6 +705,24 @@ class BranchCanvas(QScrollArea):
                 self._restore = (NodeAddress(report_id, new_id), 0, -1)
             elif kind == "add_paragraph":
                 self._restore = (NodeAddress(report_id, target.module_id, new_id, "text"), 0, 0)
+            elif kind == "duplicate_node":
+                if target.block_id is None:
+                    self._selected_module_id = new_id
+                    self._restore = (NodeAddress(report_id, new_id), 0, -1)
+                else:
+                    self._selected_module_id = target.module_id
+                    self._restore = (NodeAddress(report_id, target.module_id, new_id, "text"), 0, 0)
+                self.feedback.emit("Duplicated with fresh IDs — Undo is available")
+            elif kind == "delete_node":
+                if target.block_id is None:
+                    self._selected_module_id = deleted_parent
+                    if deleted_parent is None:
+                        remaining = self._session.report_snapshot().modules
+                        self._selected_module_id = remaining[0].id if remaining else None
+                else:
+                    self._selected_module_id = target.module_id
+                self._restore = None
+                self.feedback.emit("Deleted — Undo is available")
         self._refresh()
         return True
 
@@ -764,6 +791,111 @@ class BranchCanvas(QScrollArea):
 
     def move_selected_down(self) -> bool:
         return self._move_selected_sibling(1)
+
+    def _selected_address(self):
+        if self._session is None or self._selected_module_id is None:
+            return None
+        return NodeAddress(self._session.report_snapshot().id, self._selected_module_id)
+
+    def _planned_indent(self, address, *, outdent=False):
+        if self._session is None or address is None:
+            return None
+        try:
+            report = self._session.report_snapshot()
+            return (plan_outdent if outdent else plan_indent)(report, address)
+        except (ValueError, LookupError):
+            return None
+
+    def can_indent_selected(self) -> bool:
+        return self._planned_indent(self._selected_address()) is not None
+
+    def can_outdent_selected(self) -> bool:
+        return self._planned_indent(self._selected_address(), outdent=True) is not None
+
+    def _structural_move(self, address, *, outdent=False) -> bool:
+        planned = self._planned_indent(address, outdent=outdent)
+        if planned is None:
+            self.feedback.emit("Outdent requires a nested module" if outdent
+                               else "Indent requires an immediately preceding module")
+            return False
+        anchor, position = planned
+        return self._run("move_node", address, anchor=anchor, position=position)
+
+    def indent_selected(self) -> bool:
+        return self._structural_move(self._selected_address())
+
+    def outdent_selected(self) -> bool:
+        return self._structural_move(self._selected_address(), outdent=True)
+
+    def can_duplicate_selected(self) -> bool:
+        return self._can_act_on(self._selected_address())
+
+    def can_delete_selected(self) -> bool:
+        return self._can_act_on(self._selected_address())
+
+    def _can_act_on(self, address) -> bool:
+        if self._session is None or address is None:
+            return False
+        try:
+            structural_node(self._session.report_snapshot(), address)
+            return True
+        except (ValueError, LookupError):
+            return False
+
+    def duplicate_node(self, address) -> bool:
+        return self._run("duplicate_node", address)
+
+    def duplicate_selected(self) -> bool:
+        return self.duplicate_node(self._selected_address())
+
+    def delete_node(self, address) -> bool:
+        if self._session is None:
+            return False
+        try:
+            self._session.require_clean_drafts()
+            before = self._session.report_snapshot()
+            node = structural_node(before, address)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+        revision, generation = self._session.revision, self._session.generation
+        kind = "module and its contents" if node.kind == "module" else f"{node.kind} block"
+        answer = QMessageBox.question(
+            self, "Confirm delete", f"Delete this {kind}?\n\n"
+            "This removes the report placement, not the original media file. "
+            "You can undo this change.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        # A modal dialog enters a nested event loop. Validate the original
+        # generation/revision, not a newly loaded or edited report's revision.
+        return self._run("delete_node", address, expected_revision=revision,
+                         expected_generation=generation)
+
+    def delete_selected(self) -> bool:
+        return self.delete_node(self._selected_address())
+
+    def _context_menu(self, address, global_position) -> None:
+        if not self._can_act_on(address):
+            return
+        self._selected_module_id = address.module_id
+        self.selectionChanged.emit()
+        menu = QMenu(self)
+        if address.block_id is None:
+            indent = menu.addAction("Indent under previous module")
+            indent.setEnabled(self._planned_indent(address) is not None)
+            indent.triggered.connect(lambda: self._structural_move(address))
+            outdent = menu.addAction("Outdent after parent")
+            outdent.setEnabled(self._planned_indent(address, outdent=True) is not None)
+            outdent.triggered.connect(lambda: self._structural_move(address, outdent=True))
+            menu.addSeparator()
+        duplicate = menu.addAction("Duplicate")
+        duplicate.triggered.connect(lambda: self.duplicate_node(address))
+        delete = menu.addAction("Delete…")
+        delete.triggered.connect(lambda: self.delete_node(address))
+        menu.exec(global_position)
 
     def _history(self, operation):
         if self._session is None:
@@ -863,6 +995,23 @@ class BranchCanvas(QScrollArea):
             header.addStretch(1)
             if kind not in ("root", "conclusion"):
                 header.addWidget(DragHandle(self, address, card))
+                options = QToolButton(card)
+                options.setObjectName("v2NodeActions")
+                options.setText("⋯")
+                options.setToolTip(
+                    "Indent, outdent, duplicate or delete" if kind == "module"
+                    else "Duplicate or delete this content block"
+                )
+                options.clicked.connect(
+                    lambda checked=False, a=address, b=options:
+                    self._context_menu(a, b.mapToGlobal(b.rect().bottomLeft()))
+                )
+                header.addWidget(options)
+                card.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+                card.customContextMenuRequested.connect(
+                    lambda pt, a=address, c=card:
+                    self._context_menu(a, c.mapToGlobal(pt))
+                )
             card_layout.addLayout(header)
             if self.drafts is not None and kind in ("module", "conclusion", "paragraph"):
                 address = (NodeAddress(report.id, identifier) if kind != "paragraph"
