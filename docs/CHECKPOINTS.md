@@ -372,3 +372,9 @@ Next reproducible action:
 - Independently reviewed draft PR #77 and reproduced a heading emoji-caret regression: duplicate Qt redraw and code-point/UTF-16 mismatch in cursor restoration. Fixed in `95c445d8617dcc1fbef694977ebe6bc9b47ac744`; new heading Qt regression covers caret and selected emoji after Apply.
 - **112** local Linux/offscreen Python 3.14 V2 regressions pass following the correction, including structural toolbar sync gates; `compileall` and `git diff --check` clean. Windows hosted exact-final-branch-head CI still required before merge. No installed Windows DPI/keyboard/screen-reader claim.
 - After PR review/merge, proceed to M3.2 (contextual rich formatting/selection safety), not the remaining M3.3/M3.4 scope.
+
+## CP-V2-M3.2 — Contextual Rich Formatting initiated (2026-10-28)
+- Based on live main a5537872eaeb6bbe403034250ffa02d2c7222914 after PR #77 and continuity refresh. Isolated feature/v2-m3-2-contextual-rich-ribbon, explicitly preserving unrelated draft RC PR #21 and V1/browser-only ChatGPT.
+- Added a focus-only rich ribbon to paragraph/heading cards, font/emphasis/paragraph/list controls, checked selection state, Ctrl+B/I/U shortcuts, strict Unicode UTF-16 boundary adapter, pure canonical run/paragraph transformations and rich draft staging with Undo/Redo. No second report model, schema or export change.
+- Tests are in tests/test_v2_formatting.py and the hosted Windows 3.11/3.12 v2-inline workflow gate. Physical installed-Windows DPI/accessibility and full native keyboard acceptance remain pending.
+- Next: final local suite + exact-head Windows CI, independent PR review, explicit authorization before merge; then M3.3 inline tables. See docs/v2/M3_2_CONTEXTUAL_RICH_RIBBON.md.
