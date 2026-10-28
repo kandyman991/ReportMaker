@@ -6,3 +6,7 @@ playwright-report/
 public/data/
 src-tauri/binaries/*
 data/*.json
+
+# Synthetic UI-only icon resources; all other PNG uploads stay ignored.
+!src-tauri/icons/icon.png
+!src-tauri/icons/32x32.png
