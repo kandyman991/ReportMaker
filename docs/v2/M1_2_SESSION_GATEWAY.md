@@ -8,13 +8,13 @@
 ## Implemented in this PR
 
 - V2-only, Qt-free ReportSession wraps existing engine.ProjectEditor and project_io.ReportProject. The editor stays private; read access returns defensive report/project snapshots, immutable copied asset and media-library maps.
-- CommandGateway accepts a fixed set of CommandIntents with exact argument shapes and stable NodeAddress identifiers. Every command checks current revision and project generation, preserving one canonical model with validation/atomic undo and redo.
+- CommandGateway accepts a fixed set of CommandIntents with exact argument shapes and stable NodeAddress identifiers. Every command, including Undo and Redo, checks current revision and project generation, preserving one canonical model with validation/atomic changes. No-op text commits return `None` without changing revision or erasing the redo stack.
 - M1.2 commands: add root module, add nested module, add paragraph at any valid mixed index, rename module and edit paragraph source. Nested modules preserve canonical module/wrapper IDs and Conclusions stays a dedicated final section. Existing rich formatting is **not silently dropped** if a text-only change makes ranges invalid: the transaction rejects instead, pending the M1.3 text+rich adapter.
 - Changes deliver one typed ChangeSet per successful logical operation; failed commands, stale intents and failed undo do not bump the revision. Opening a different report rotates generation to invalidate callbacks from a previous project.
 - Pure iterative project_branch/read-only BranchRow and find_node resolutions derive canonical mixed order and original stable IDs. They are not a separately editable navigation tree. Numbering/TOC remains shared engine.module_outline.
 - ProjectPersistence delegates to the existing v4 atomic writer and v1-v4 loader. A legacy source requires Save As to a *different* path; no migration and no schema v5. Failed Open/Save/Save As leaves the active source identity, data and dirty state unchanged. Save As requires explicit overwrite permission for an existing destination.
-- A draft guard callback blocks unsafe Save, project switch and Undo when an editor has uncommitted work; actual draft editing coordination remains M1.3.
-- Synthetic regression suite tests mixed indices, detached read projection, stable ID/resolution, stale revisions/generations, invalid intents, Unicode and translation staleness through Undo/Redo, existing rich ranges, project snapshots, pending-draft protection, v1-v3 Save As and v4 round trips, absent Qt/UI imports. Targeted Windows Python 3.11 and 3.12 CI.
+- A draft guard callback blocks unsafe commands, Undo/Redo, Save and project switch when an editor has uncommitted work; actual draft editing coordination remains M1.3.
+- Synthetic regression suite tests mixed indices, detached read projection, stable ID/resolution, stale revisions/generations (including queued Undo/Redo), no-op redo preservation, invalid intents, Unicode and translation staleness through Undo/Redo, existing rich ranges, project snapshots, pending-draft protection, explicit unsaved-discard consent, v1-v3 Save As and v4 round trips, absent Qt/UI imports. Targeted Windows Python 3.11 and 3.12 CI.
 
 ## Scope boundaries
 
