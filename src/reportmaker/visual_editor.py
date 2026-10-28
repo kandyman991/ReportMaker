@@ -88,6 +88,23 @@ def module_insert_index(report: Report, target_id: str, after: bool) -> tuple[st
     raise LookupError("Drop target not found")
 
 
+def module_siblings(report: Report, module_id: str) -> tuple[str | None, list[str], int]:
+    """Locate a module's parent and same-level peers in canonical order."""
+    if module_id == report.conclusion.id:
+        raise LookupError("Conclusions cannot be moved")
+    stack = [(None, report.modules)]
+    while stack:
+        parent_id, modules = stack.pop()
+        ids = [module.id for module in modules]
+        if module_id in ids:
+            return parent_id, ids, ids.index(module_id)
+        for module in modules:
+            children = [block.module for block in module.blocks
+                        if isinstance(block, NestedModuleBlock)]
+            stack.append((module.id, children))
+    raise LookupError("Module does not exist")
+
+
 def revised_manual_snapshot(
     previous: CustomerSnapshot, customer: str, site: str, machine: str,
 ) -> CustomerSnapshot:
@@ -118,6 +135,8 @@ def revised_manual_snapshot(
 
 
 class ModuleTree(QTreeWidget):
+    """Drag between siblings; Ctrl+drop is the explicit nesting operation."""
+
     moveRequested = Signal(str, object, object)
 
     def __init__(self):
@@ -126,30 +145,110 @@ class ModuleTree(QTreeWidget):
         self.setObjectName("moduleTree")
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
-        self.setDropIndicatorShown(True)
+        # Qt's OnItem indicator used to silently nest modules. Draw only the
+        # line for reorder or a highlighted container for explicit Ctrl+nest.
+        self.setDropIndicatorShown(False)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self._drag_item = None
+        self._drop_visual = None
+
+    def startDrag(self, supported_actions):
+        self._drag_item = self.currentItem()
+        try:
+            super().startDrag(supported_actions)
+        finally:
+            self._drag_item = None
+            self._clear_drop_visual()
+
+    def _drop_plan(self, point, modifiers):
+        """Return (source ID, target ID, after/None, item, feedback mode).
+
+        The target must be a sibling for normal drops. Only an explicit Ctrl
+        modifier allows changing parent, and never under a descendant.
+        """
+        source = self._drag_item or self.currentItem()
+        target = self.itemAt(point)
+        if source is None or target is None or target is source:
+            return None
+        source_id = source.data(0, Qt.ItemDataRole.UserRole)
+        target_id = target.data(0, Qt.ItemDataRole.UserRole)
+        if not source_id or not target_id or not (source.flags() & Qt.ItemFlag.ItemIsDragEnabled):
+            return None
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            if not (target.flags() & Qt.ItemFlag.ItemIsDropEnabled):
+                return None
+            ancestor = target
+            while ancestor is not None:
+                if ancestor is source:
+                    return None
+                ancestor = ancestor.parent()
+            return source_id, target_id, None, target, "inside"
+        if source.parent() is not target.parent():
+            return None
+        rect = self.visualItemRect(target)
+        after = point.y() >= rect.center().y()
+        return source_id, target_id, after, target, "after" if after else "before"
+
+    def _clear_drop_visual(self):
+        self._drop_visual = None
+        self.viewport().update()
+
+    @staticmethod
+    def _accept_move(event):
+        # Ctrl is the explicit nest gesture, not a Qt copy operation.
+        event.setDropAction(Qt.DropAction.MoveAction)
+        event.accept()
+
+    def dragEnterEvent(self, event):
+        if event.source() is self and (self._drag_item or self.currentItem()):
+            self._accept_move(event)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        plan = (self._drop_plan(event.position().toPoint(), event.modifiers())
+                if event.source() is self else None)
+        self._drop_visual = (plan[3], plan[4]) if plan else None
+        self.viewport().update()
+        if plan:
+            self._accept_move(event)
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._clear_drop_visual()
+        super().dragLeaveEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._drop_visual is None:
+            return
+        item, mode = self._drop_visual
+        rect = self.visualItemRect(item)
+        if not rect.isValid():
+            return
+        painter = QPainter(self.viewport())
+        painter.setPen(QPen(QColor("#1474c9"), 3))
+        if mode == "inside":
+            painter.fillRect(rect, QColor(20, 116, 201, 55))
+            painter.drawRect(rect.adjusted(1, 1, -2, -2))
+        else:
+            y = rect.top() if mode == "before" else rect.bottom()
+            painter.drawLine(max(2, rect.left()), y, self.viewport().width() - 3, y)
+        painter.end()
 
     def dropEvent(self, event):
-        source = self.currentItem()
-        if source is None or not source.data(0, Qt.ItemDataRole.UserRole):
+        plan = (self._drop_plan(event.position().toPoint(), event.modifiers())
+                if event.source() is self else None)
+        self._clear_drop_visual()
+        if plan is None:
             event.ignore()
             return
-        target = self.itemAt(event.position().toPoint())
-        position = self.dropIndicatorPosition()
-        source_id = source.data(0, Qt.ItemDataRole.UserRole)
-        if target is None or position == QAbstractItemView.DropIndicatorPosition.OnViewport:
-            self.moveRequested.emit(source_id, None, None)
-        elif position == QAbstractItemView.DropIndicatorPosition.OnItem:
-            self.moveRequested.emit(source_id,
-                                    target.data(0, Qt.ItemDataRole.UserRole), None)
-        else:
-            self.moveRequested.emit(
-                source_id, target.data(0, Qt.ItemDataRole.UserRole),
-                position == QAbstractItemView.DropIndicatorPosition.BelowItem,
-            )
-        # Rebuild from the validated model instead of accepting Qt's local reorder.
-        event.acceptProposedAction()
+        source_id, target_id, after, _, _ = plan
+        # Do not let Qt manipulate the widget's hierarchy independently.
+        self._accept_move(event)
+        self.moveRequested.emit(source_id, target_id, after)
 
 
 class BlockList(QListWidget):
@@ -282,6 +381,7 @@ class VisualReportEditor:
         self._picture_list = None
         self._gallery_populate = None
         self._photo_drag_token = uuid4().hex
+        self._fresh_tree = True
         self._build(left, center)
         self.refresh()
 
@@ -302,6 +402,24 @@ class VisualReportEditor:
             btn.clicked.connect(handler)
             buttons.addWidget(btn)
         left.addLayout(buttons)
+        move_buttons = QHBoxLayout()
+        self.module_move_buttons = {}
+        for label, name, description, handler in (
+            ("↑", "moduleMoveUp", "Move up among sibling modules", self.move_module_up),
+            ("↓", "moduleMoveDown", "Move down among sibling modules", self.move_module_down),
+            ("← Unmerge", "moduleMoveOut", "Move out one level, after former parent", self.move_module_out),
+            ("→ Indent", "moduleMoveIn", "Move into preceding sibling as its last submodule", self.move_module_in),
+        ):
+            button = QPushButton(label)
+            button.setObjectName(name)
+            button.setAccessibleName(description)
+            button.setToolTip(description)
+            button.clicked.connect(handler)
+            move_buttons.addWidget(button)
+            self.module_move_buttons[name] = button
+        left.addLayout(move_buttons)
+        left.addWidget(QLabel(
+            "Drag to reorder siblings; hold Ctrl while dropping on a module to nest."))
         left.addWidget(QLabel("SUMMARY — generated from the same module hierarchy"))
         self.summary = QTextBrowser()
         self.summary.setObjectName("derivedSummary")
@@ -565,14 +683,41 @@ class VisualReportEditor:
                 return found
         return None
 
-    def refresh(self):
+    def _tree_expansion(self):
+        """Capture even hidden descendants, keyed to persistent module IDs."""
+        expanded = {}
+        stack = [self.tree.topLevelItem(i)
+                 for i in range(self.tree.topLevelItemCount())]
+        while stack:
+            item = stack.pop()
+            expanded[item.data(0, Qt.ItemDataRole.UserRole)] = item.isExpanded()
+            stack.extend(item.child(i) for i in range(item.childCount()))
+        return expanded
+
+    def _update_move_controls(self):
+        selected = self._module_id
+        try:
+            parent_id, siblings, index = module_siblings(self.report, selected)
+        except (LookupError, TypeError):
+            parent_id, siblings, index = None, [], -1
+        self.module_move_buttons["moduleMoveUp"].setEnabled(index > 0)
+        self.module_move_buttons["moduleMoveDown"].setEnabled(
+            index >= 0 and index < len(siblings) - 1)
+        self.module_move_buttons["moduleMoveOut"].setEnabled(
+            index >= 0 and parent_id is not None)
+        self.module_move_buttons["moduleMoveIn"].setEnabled(index > 0)
+
+    def refresh(self, *, reveal_selected=False):
         self._loading = True
         try:
             selected = self._module_id
+            expanded = None if self._fresh_tree else self._tree_expansion()
             self.tree.clear()
+            items = []
             def add(module, parent=None):
                 item = QTreeWidgetItem([module.title.original])
                 item.setData(0, Qt.ItemDataRole.UserRole, module.id)
+                items.append(item)
                 if parent is None:
                     self.tree.addTopLevelItem(item)
                 else:
@@ -585,10 +730,20 @@ class VisualReportEditor:
                         add(block.module, item)
             for module in self.report.ordered_sections():
                 add(module)
-            self.tree.expandAll()
             selected_item = self._item_for_id(selected) if selected else None
             self.tree.setCurrentItem(selected_item or self.tree.topLevelItem(0))
+            for item in items:
+                module_id = item.data(0, Qt.ItemDataRole.UserRole)
+                item.setExpanded(True if expanded is None else expanded.get(module_id, True))
+            if reveal_selected and selected_item is not None:
+                ancestor = selected_item.parent()
+                while ancestor is not None:
+                    ancestor.setExpanded(True)
+                    ancestor = ancestor.parent()
+                self.tree.scrollToItem(selected_item)
+            self._fresh_tree = False
             self._module_id = self.tree.currentItem().data(0, Qt.ItemDataRole.UserRole)
+            self._update_move_controls()
             self._refresh_blocks()
             rows = []
             for entry in module_outline(self.report):
@@ -658,6 +813,7 @@ class VisualReportEditor:
             self._loading = False
             return
         self._module_id = current.data(0, Qt.ItemDataRole.UserRole)
+        self._update_move_controls()
         self._loading = True
         self._edit_block_id = None
         self._refresh_blocks()
@@ -1291,7 +1447,7 @@ class VisualReportEditor:
             module = Module(LocalizedText(self.report.primary_language, title.strip()))
             if self._change(lambda: self.editor.add_module(module, parent_id=parent)):
                 self._module_id = module.id
-                self.refresh()
+                self.refresh(reveal_selected=True)
 
     def rename_module(self):
         module = self._selected_module()
@@ -1306,7 +1462,7 @@ class VisualReportEditor:
             result = [None]
             if self._change(lambda: result.__setitem__(0, self.editor.duplicate_module(self._module_id))):
                 self._module_id = result[0]
-                self.refresh()
+                self.refresh(reveal_selected=True)
 
     def delete_module(self):
         module = self._selected_module()
@@ -1317,23 +1473,80 @@ class VisualReportEditor:
                     self._module_id = None
                     self.refresh()
 
-    def _tree_move(self, source_id, target_id, after):
-        if source_id == self.report.conclusion.id:
-            self.refresh()
-            return
+    def _move_selected_relative(self, direction):
+        if not self._module_id:
+            return False
         try:
-            if after is None and target_id is not None:
-                parent, index = target_id, None
-            elif target_id is None:
-                parent, index = None, None
+            parent, siblings, index = module_siblings(self.report, self._module_id)
+            if direction == "up" and index > 0:
+                target_id, after = siblings[index - 1], False
+                new_parent, at = module_insert_index(self.report, target_id, after)
+            elif direction == "down" and index < len(siblings) - 1:
+                target_id, after = siblings[index + 1], True
+                new_parent, at = module_insert_index(self.report, target_id, after)
+            elif direction == "in" and index > 0:
+                new_parent, at = siblings[index - 1], None
+            elif direction == "out" and parent is not None:
+                new_parent, at = module_insert_index(self.report, parent, True)
             else:
-                parent, index = module_insert_index(self.report, target_id, after)
-        except LookupError as exc:
-            self._warn("Invalid move", exc)
-            return
-        self._change(lambda: self.editor.move_module(source_id, parent_id=parent, index=index))
+                return False
+            source_id = self._module_id
+        except (LookupError, TypeError, ValueError):
+            return False
+        if not self._change(lambda: self.editor.move_module(
+                source_id, parent_id=new_parent, index=at)):
+            return False
         self._module_id = source_id
-        self.refresh()
+        self.refresh(reveal_selected=True)
+        return True
+
+    def move_module_up(self):
+        return self._move_selected_relative("up")
+
+    def move_module_down(self):
+        return self._move_selected_relative("down")
+
+    def move_module_in(self):
+        return self._move_selected_relative("in")
+
+    def move_module_out(self):
+        return self._move_selected_relative("out")
+
+    def _tree_move(self, source_id, target_id, after):
+        """Only explicit OnItem/Ctrl drops may reparent a module."""
+        try:
+            source_parent, source_peers, source_index = module_siblings(
+                self.report, source_id)
+            if after is None:
+                if target_id is None or target_id == self.report.conclusion.id:
+                    return False
+                parent, index = target_id, None
+            else:
+                if target_id is None or target_id == source_id:
+                    return False
+                parent, index = module_insert_index(self.report, target_id, after)
+                if parent != source_parent:
+                    return False
+                # Conclusions stays last; dropping a root before it moves
+                # the source to the end without moving Conclusions itself.
+                if target_id == self.report.conclusion.id:
+                    if source_index == len(source_peers) - 1:
+                        return False
+                else:
+                    # Avoid creating empty undo entries for a no-op drop.
+                    target_index = source_peers.index(target_id)
+                    before_removal = target_index + int(after)
+                    resulting_index = before_removal - int(source_index < before_removal)
+                    if source_index == resulting_index:
+                        return False
+        except (LookupError, ValueError, TypeError):
+            return False
+        if not self._change(lambda: self.editor.move_module(
+                source_id, parent_id=parent, index=index)):
+            return False
+        self._module_id = source_id
+        self.refresh(reveal_selected=True)
+        return True
 
     def _load_info(self):
         report = self.report
@@ -1586,6 +1799,7 @@ class VisualReportEditor:
         self._picture_list = None
         self._gallery_populate = None
         self._photo_drag_token = uuid4().hex
+        self._fresh_tree = True
         self.editor = ProjectEditor(project.report)
         self.assets = dict(project.assets)
         self.media_library = dict(project.media_library)
