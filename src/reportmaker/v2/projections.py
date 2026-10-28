@@ -36,6 +36,56 @@ class BranchRow:
     wrapper_id: str | None = None
 
 
+
+@dataclass(frozen=True)
+class DescendantCounts:
+    """Counts from canonical descendants, independent of visibility."""
+    modules: int = 0
+    text: int = 0
+    photos: int = 0
+    tables: int = 0
+    page_breaks: int = 0
+
+    def __add__(self, other: "DescendantCounts") -> "DescendantCounts":
+        return DescendantCounts(
+            self.modules + other.modules, self.text + other.text,
+            self.photos + other.photos, self.tables + other.tables,
+            self.page_breaks + other.page_breaks,
+        )
+
+
+def descendant_counts(report: Report) -> dict[str, DescendantCounts]:
+    """One iterative postorder pass over mixed canonical blocks.
+
+    Counts all descendants, including content under collapsed/nested modules.
+    This read-only projection is never serialized or independently modified.
+    """
+    counts: dict[str, DescendantCounts] = {}
+    stack = [(module, False) for module in reversed(report.ordered_sections())]
+    while stack:
+        module, visited = stack.pop()
+        if not visited:
+            stack.append((module, True))
+            for block in reversed(module.blocks):
+                if isinstance(block, NestedModuleBlock):
+                    stack.append((block.module, False))
+            continue
+        total = DescendantCounts()
+        for block in module.blocks:
+            if isinstance(block, NestedModuleBlock):
+                total += DescendantCounts(modules=1) + counts[block.module.id]
+            elif isinstance(block, (ParagraphBlock, HeadingBlock)):
+                total += DescendantCounts(text=1)
+            elif isinstance(block, PhotoBlock):
+                total += DescendantCounts(photos=1)
+            elif isinstance(block, TableBlock):
+                total += DescendantCounts(tables=1)
+            elif isinstance(block, PageBreakBlock):
+                total += DescendantCounts(page_breaks=1)
+        counts[module.id] = total
+    return counts
+
+
 def _modules(report: Report):
     stack = list(reversed(report.ordered_sections()))
     while stack:

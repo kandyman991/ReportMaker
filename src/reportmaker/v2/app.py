@@ -11,9 +11,10 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QFileDialog, QInputDialog, QMainWindow, QMessageBox,
+    QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
 )
 
+from ..engine import module_outline
 from ..model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, Report
 from ..project_io import ReportProject, VERSION, default_projects_directory
 from ..reference import manual_snapshot
@@ -108,6 +109,7 @@ class V2MainWindow(QMainWindow):
             ("v2Outdent", "← Outdent", self.branch.outdent_selected, "Alt+Shift+Left"),
             ("v2Duplicate", "Duplicate", self.branch.duplicate_selected, "Alt+Shift+D"),
             ("v2Delete", "Delete…", self.branch.delete_selected, "Ctrl+Shift+Delete"),
+            ("v2Contents", "Contents", self.show_contents, "Ctrl+Shift+T"),
             ("v2UndoChange", "Undo change", self.branch.undo, "Ctrl+Alt+Z"),
             ("v2RedoChange", "Redo change", self.branch.redo, "Ctrl+Alt+Shift+Z"),
         ):
@@ -118,6 +120,7 @@ class V2MainWindow(QMainWindow):
             action.triggered.connect(lambda checked=False, callback=method: callback())
             toolbar.addAction(action)
         self.branch.selectionChanged.connect(self._update_move_actions)
+        self.branch.visibilityChanged.connect(self._persist_live_view)
         self._update_move_actions()
         self._restore_presentation()
         self._update_caption()
@@ -144,28 +147,55 @@ class V2MainWindow(QMainWindow):
             if action is not None:
                 action.setEnabled(enabled)
 
+    def build_contents_menu(self) -> QMenu:
+        """Ephemeral derived TOC; never a separately editable hierarchy."""
+        menu = QMenu("Report contents", self)
+        menu.setObjectName("v2ContentsMenu")
+        generation = self.session.generation
+        for entry in module_outline(self.session.report_snapshot()):
+            prefix = ("  " * entry.depth) + (entry.number + "  " if entry.number else "")
+            # Qt menus use ampersands as mnemonic markers; show user titles literally.
+            action = menu.addAction(prefix + entry.title.replace("&", "&&"))
+            action.setData(entry.module_id)
+            action.triggered.connect(
+                lambda checked=False, mid=entry.module_id, gen=generation:
+                self.branch.reveal_module(mid) if gen == self.session.generation else None
+            )
+        return menu
+
+    def show_contents(self) -> None:
+        # Menu is rebuilt from the live canonical outline on every opening.
+        self._contents_menu = self.build_contents_menu()
+        self._contents_menu.popup(self.mapToGlobal(self.rect().topRight()))
+
     def _update_caption(self) -> None:
         name = self.session.path.name if self.session.path else "Untitled"
         marker = " *" if self.session.dirty or self.branch.drafts.pending else ""
         self.setWindowTitle(f"ReportMaker V2 — {name}{marker}")
 
-    def _view(self) -> tuple[str, str | None, int]:
+    def _view(self) -> tuple[str, str | None, int, frozenset[str]]:
         return (self.presentation.key_for(self.session),
                 self.branch._selected_module_id,
-                self.branch.verticalScrollBar().value())
+                self.branch.verticalScrollBar().value(),
+                self.branch.collapsed_module_ids)
 
     def _restore_presentation(self) -> None:
-        selected, scroll = self.presentation.load(self.session)
+        selected, scroll, collapsed = self.presentation.load_view(self.session)
         # Changing project generation invalidates old cursor/selection targets.
         self.branch._selected_module_id = selected
         self.branch._restore = None
-        self.branch._refresh()
+        self.branch.restore_collapsed(collapsed)
         QTimer.singleShot(0, lambda value=scroll:
                           self.branch.verticalScrollBar().setValue(value))
 
-    def _persist_previous_view(self, view: tuple[str, str | None, int]) -> None:
-        key, selected, scroll = view
-        self.presentation.write(key, selected, scroll)
+    def _persist_live_view(self) -> None:
+        """A collapse/TOC reveal is device-local state, not a report edit."""
+        self._persist_previous_view(self._view())
+
+    def _persist_previous_view(
+            self, view: tuple[str, str | None, int, frozenset[str]]) -> None:
+        key, selected, scroll, collapsed = view
+        self.presentation.write(key, selected, scroll, collapsed=collapsed)
 
     def _drafts_clean(self) -> bool:
         if self.branch.drafts.pending:
@@ -317,7 +347,7 @@ class V2MainWindow(QMainWindow):
         # Persist both old and new identities *only* after archive success.
         self._persist_previous_view(view)
         self.presentation.write(self.presentation.key_for(self.session),
-                                view[1], view[2])
+                                view[1], view[2], collapsed=view[3])
         self._synthetic_preview = False
         self._update_caption()
         self.statusBar().showMessage(f"Saved {self.session.path.name}")

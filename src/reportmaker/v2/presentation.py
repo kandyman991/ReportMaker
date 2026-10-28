@@ -18,7 +18,7 @@ from .session import ReportSession
 
 
 class PresentationStore:
-    """M1.4 minimal selection/scroll state; M2 adds collapse and expansion."""
+    """Device-local selection, scroll and collapse state keyed to report/path."""
 
     _PREFIX = "presentation/v1/"
 
@@ -37,34 +37,49 @@ class PresentationStore:
     def key_for(self, session: ReportSession) -> str:
         return self.identity(session.report_snapshot().id, session.path)
 
-    def write(self, key: str, selected: str | None, scroll: int) -> None:
+    def write(self, key: str, selected: str | None, scroll: int,
+              *, collapsed: frozenset[str] = frozenset()) -> None:
         if not key.startswith(self._PREFIX):
             raise ValueError("Unrecognized presentation identity")
         if selected is not None and not isinstance(selected, str):
             raise ValueError("Selection must be a stable module ID")
         if type(scroll) is not int or scroll < 0:
             raise ValueError("Scroll position must be non-negative")
+        if not isinstance(collapsed, frozenset) or any(
+                not isinstance(item, str) or not item for item in collapsed):
+            raise ValueError("Collapsed state must contain stable module IDs")
         self.settings.setValue(key, json.dumps({
             "selected": selected, "scroll": min(scroll, 1_000_000),
+            "collapsed": sorted(collapsed),
         }, sort_keys=True))
 
-    def load(self, session: ReportSession) -> tuple[str | None, int]:
+    def load_view(self, session: ReportSession) -> tuple[str | None, int, frozenset[str]]:
+        """Read legacy M1.4 state and prune unknown/removed stable IDs."""
         raw = self.settings.value(self.key_for(session))
         if not isinstance(raw, str):
-            return None, 0
+            return None, 0, frozenset()
         try:
             record = json.loads(raw)
-            if not isinstance(record, dict) or set(record) != {"selected", "scroll"}:
-                return None, 0
-            selected = record["selected"]
-            scroll = record["scroll"]
+            if not isinstance(record, dict) or set(record) not in (
+                    {"selected", "scroll"}, {"selected", "scroll", "collapsed"}):
+                return None, 0, frozenset()
+            selected, scroll = record["selected"], record["scroll"]
+            collapsed = record.get("collapsed", [])
             if selected is not None and not isinstance(selected, str):
-                return None, 0
+                return None, 0, frozenset()
             if type(scroll) is not int or not 0 <= scroll <= 1_000_000:
-                return None, 0
-            # Never restore an ID from another report or a stale subtree.
+                return None, 0, frozenset()
+            if (not isinstance(collapsed, list) or
+                    any(not isinstance(x, str) or not x for x in collapsed)):
+                return None, 0, frozenset()
             valid = {row.stable_id for row in project_branch(session.report_snapshot())
                      if row.kind in ("module", "conclusion")}
-            return (selected if selected in valid else None), scroll
+            return ((selected if selected in valid else None), scroll,
+                    frozenset(collapsed) & valid)
         except (ValueError, TypeError):
-            return None, 0
+            return None, 0, frozenset()
+
+    def load(self, session: ReportSession) -> tuple[str | None, int]:
+        """Backward-compatible M1.4 selection/scroll access."""
+        selected, scroll, _ = self.load_view(session)
+        return selected, scroll
