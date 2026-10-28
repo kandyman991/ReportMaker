@@ -102,6 +102,8 @@ class V2MainWindow(QMainWindow):
             ("v2AddModule", "+ Module", self.branch.add_module, ""),
             ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
             ("v2AddParagraph", "+ Paragraph", self.branch.add_paragraph, ""),
+            ("v2MoveUp", "↑ Move", self.branch.move_selected_up, "Alt+Up"),
+            ("v2MoveDown", "↓ Move", self.branch.move_selected_down, "Alt+Down"),
             ("v2UndoChange", "Undo change", self.branch.undo, "Ctrl+Alt+Z"),
             ("v2RedoChange", "Redo change", self.branch.redo, "Ctrl+Alt+Shift+Z"),
         ):
