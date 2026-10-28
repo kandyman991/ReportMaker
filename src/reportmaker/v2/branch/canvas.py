@@ -6,11 +6,14 @@ only drafts; no V1 UI, parallel report model or browser is imported here.
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
+from uuid import uuid4
 
-from PySide6.QtCore import QEvent, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QTextCursor
+from PySide6.QtCore import QEvent, QMimeData, QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QDrag, QPainter, QPen, QTextCursor
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+    QPushButton, QScrollArea, QToolButton, QVBoxLayout, QWidget,
 )
 
 from ...engine import validate_report_tree
@@ -23,8 +26,10 @@ from ..commands import CommandGateway, CommandIntent
 from ..drafts import DraftCoordinator
 from ..projections import NodeAddress, project_branch
 from ..session import PendingDraftError, ReportSession
+from ..structure import plan_drop
 
 _STEP = 25
+_INTERNAL_MOVE_MIME = "application/x-reportmaker-v2-internal-move"
 
 
 def _display(node, *, conclusion: bool = False) -> tuple[str, str, str]:
@@ -136,6 +141,145 @@ class InlineParagraph(QPlainTextEdit):
             super().keyPressEvent(event)
 
 
+@dataclass(frozen=True)
+class _DragContext:
+    """An unforgeable in-process drag, with a frozen revision/generation."""
+
+    token: str
+    source: NodeAddress
+    revision: int
+    generation: str
+
+
+class DragHandle(QToolButton):
+    """Explicit drag gesture; mouse selection in text editors is unaffected."""
+
+    def __init__(self, canvas: "BranchCanvas", address: NodeAddress, parent=None):
+        super().__init__(parent)
+        self._canvas, self._address = canvas, address
+        self._press_position = None
+        self.setObjectName("v2DragHandle")
+        self.setText("≡ Drag")
+        self.setAccessibleName("Drag branch node")
+        self.setToolTip("Drag to a marked Before, After or Inside position")
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setStyleSheet(
+            "QToolButton#v2DragHandle { background: #e5edf6; color: #1e4568;"
+            " border: 1px solid #91abc4; border-radius: 5px; padding: 3px 8px; }"
+        )
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press_position = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._press_position = None
+        super().mouseReleaseEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if (self._press_position is not None
+                and event.buttons() & Qt.MouseButton.LeftButton
+                and (event.position().toPoint() - self._press_position).manhattanLength()
+                >= QApplication.startDragDistance()):
+            self._press_position = None
+            self._canvas._start_drag(self._address, self)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+
+class DropRow(QWidget):
+    """One visible native Qt target; never stores an editable hierarchy."""
+
+    def __init__(self, canvas: "BranchCanvas", address: NodeAddress, kind: str, parent=None):
+        super().__init__(parent)
+        self._canvas, self.address, self.kind = canvas, address, kind
+        self._position = None
+        self._valid = False
+        self._reason = ""
+        self.setObjectName("v2BranchRow")
+        self.setAcceptDrops(True)
+        self.setProperty("nodeId", address.block_id or address.module_id)
+        self.setProperty("nodeKind", kind)
+        self.marker = QLabel(self)
+        self.marker.setObjectName("v2DropIndicator")
+        self.marker.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.marker.hide()
+
+    def position_at(self, y: float) -> str:
+        fraction = min(1.0, max(0.0, y / max(1, self.height())))
+        if self.kind == "root":
+            return "inside"
+        if self.kind in ("module", "conclusion"):
+            return "before" if fraction < .25 else ("after" if fraction > .75 else "inside")
+        return "before" if fraction < .5 else "after"
+
+    def show_indicator(self, position: str, valid: bool, reason: str = "") -> None:
+        if (self._position == position and self._valid == valid
+                and self._reason == reason and not self.marker.isHidden()):
+            return
+        self._position, self._valid, self._reason = position, valid, reason
+        verb = {"before": "BEFORE", "after": "AFTER", "inside": "INSIDE"}[position]
+        self.marker.setText(verb if valid else "INVALID " + verb)
+        self.marker.setToolTip(reason)
+        accent = "#176eaa" if valid else "#ba4242"
+        self.marker.setStyleSheet(
+            f"QLabel#v2DropIndicator {{ background: {accent}; color: white;"
+            " border-radius: 4px; padding: 2px 6px; font-weight: bold; }"
+        )
+        self.marker.adjustSize()
+        self._place_indicator()
+        self.marker.show()
+        self.marker.raise_()
+        self.update()
+
+    def _place_indicator(self):
+        if self._position is None:
+            return
+        y = (0 if self._position == "before"
+             else self.height() - self.marker.height() if self._position == "after"
+             else (self.height() - self.marker.height()) // 2)
+        self.marker.move(max(0, self.width() - self.marker.width() - 6), max(0, y))
+
+    def clear_indicator(self):
+        if self._position is not None:
+            self._position = None
+            self.marker.hide()
+            self.update()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._place_indicator()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._position is None:
+            return
+        painter = QPainter(self)
+        painter.setPen(QPen(QColor("#176eaa" if self._valid else "#ba4242"), 3))
+        if self._position == "before":
+            painter.drawLine(0, 2, self.width(), 2)
+        elif self._position == "after":
+            painter.drawLine(0, self.height() - 2, self.width(), self.height() - 2)
+        else:
+            painter.drawRoundedRect(self.rect().adjusted(2, 2, -3, -3), 7, 7)
+        painter.end()
+
+    def dragEnterEvent(self, event):
+        self._canvas._preview_drop(self, event)
+
+    def dragMoveEvent(self, event):
+        self._canvas._preview_drop(self, event)
+
+    def dragLeaveEvent(self, event):
+        self._canvas._clear_drop_preview(self)
+        event.accept()
+
+    def dropEvent(self, event):
+        self._canvas._commit_drop(self, event)
+
+
 class BranchCanvas(QScrollArea):
     """Read-only geometry, editable source text; commands own all mutations."""
     feedback = Signal(str)
@@ -162,6 +306,9 @@ class BranchCanvas(QScrollArea):
         self._editors = {}
         self._selected_module_id = None
         self._restore = None
+        self._drag_context = None
+        self._preview_row = None
+        self._hover_key = None
 
     @property
     def visible_nodes(self) -> tuple[tuple[str, str, int, str], ...]:
@@ -186,6 +333,8 @@ class BranchCanvas(QScrollArea):
         if change is None:
             self._selected_module_id = None
             self._restore = None
+            self._drag_context = None
+            self._clear_drop_preview()
         # Do not delete the currently emitting widget inside its Qt callback.
         QTimer.singleShot(0, self._refresh)
 
@@ -218,6 +367,127 @@ class BranchCanvas(QScrollArea):
                     self._selected_module_id = module_id
                     self.selectionChanged.emit()
         return super().eventFilter(watched, event)
+
+    def _arm_drag(self, source: NodeAddress) -> QMimeData | None:
+        """Create an internal move token only for a live clean canonical node."""
+        if self._session is None:
+            return None
+        try:
+            self._session.require_clean_drafts()
+            report = self._session.report_snapshot()
+            rows = project_branch(report)
+            identifier = source.block_id or source.module_id
+            row = next((r for r in rows if r.stable_id == identifier), None)
+            if (source.report_id != report.id or row is None
+                    or row.kind in ("root", "conclusion")
+                    or (source.block_id is None and row.kind != "module")
+                    or (source.block_id is not None
+                        and (row.kind == "module" or row.parent_module_id != source.module_id))):
+                raise ValueError("Drag source is not a movable branch node")
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return None
+        context = _DragContext(uuid4().hex, source, self._session.revision,
+                               self._session.generation)
+        self._drag_context = context
+        mime = QMimeData()
+        # The opaque token proves the MIME object was issued by this canvas.
+        # No customer text, asset, or serialized report ever leaves the process.
+        mime.setData(_INTERNAL_MOVE_MIME, context.token.encode("ascii"))
+        return mime
+
+    def _start_drag(self, source: NodeAddress, handle: DragHandle) -> None:
+        mime = self._arm_drag(source)
+        if mime is None:
+            return
+        drag = QDrag(handle)
+        drag.setMimeData(mime)
+        handle.setCursor(Qt.CursorShape.ClosedHandCursor)
+        try:
+            drag.exec(Qt.DropAction.MoveAction)
+        finally:
+            handle.setCursor(Qt.CursorShape.OpenHandCursor)
+            self._drag_context = None
+            self._clear_drop_preview()
+
+    def _clear_drop_preview(self, row: DropRow | None = None) -> None:
+        if row is not None and row is not self._preview_row:
+            row.clear_indicator()
+            return
+        if self._preview_row is not None:
+            self._preview_row.clear_indicator()
+        self._preview_row = None
+        self._hover_key = None
+
+    def _candidate(self, row: DropRow, event):
+        context = self._drag_context
+        if (self._session is None or context is None
+                or not event.mimeData().hasFormat(_INTERNAL_MOVE_MIME)
+                or bytes(event.mimeData().data(_INTERNAL_MOVE_MIME))
+                != context.token.encode("ascii")):
+            return None, None, "Only internal Branch Editor moves are accepted"
+        position = row.position_at(event.position().y())
+        if (self._session.revision != context.revision
+                or self._session.generation != context.generation):
+            return position, None, "Report changed during drag; start again"
+        try:
+            self._session.require_clean_drafts()
+            report = self._session.report_snapshot()
+            plan = plan_drop(report, context.source, row.address, position)
+            if plan.noop:
+                return position, None, "Already at this position"
+            return position, plan, ""
+        except (ValueError, LookupError, RuntimeError) as exc:
+            return position, None, str(exc)
+
+    def _preview_drop(self, row: DropRow, event) -> None:
+        position, plan, reason = self._candidate(row, event)
+        if position is None:
+            event.ignore()
+            return
+        if self._preview_row is not row:
+            self._clear_drop_preview()
+        self._preview_row = row
+        row.show_indicator(position, plan is not None, reason)
+        key = (row.address, position, plan is not None, reason)
+        if self._hover_key != key:
+            self._hover_key = key
+            self.feedback.emit(
+                f"Drop {position.upper()} to move" if plan is not None
+                else f"Cannot drop {position.upper()}: {reason}"
+            )
+        if plan is not None:
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+        else:
+            event.ignore()
+
+    def _commit_drop(self, row: DropRow, event) -> None:
+        position, plan, reason = self._candidate(row, event)
+        context = self._drag_context
+        self._clear_drop_preview()
+        if plan is None or context is None:
+            self.feedback.emit(reason or "Drop cancelled")
+            event.ignore()
+            return
+        try:
+            # Revalidate the frozen drag revision at the command gateway. A
+            # queued edit or session switch cannot turn a stale drag into a move.
+            change = self._gateway.execute(CommandIntent(
+                "move_node", context.source, {"anchor": row.address, "position": position},
+                context.revision, context.generation,
+            ))
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Drop rejected: " + str(exc))
+            event.ignore()
+            return
+        if change is not None:
+            self._selected_module_id = (
+                plan.source_id if plan.source_kind == "module"
+                else plan.destination_parent_id)
+            self.feedback.emit(f"Moved {position.upper()} — Undo is available")
+        event.setDropAction(Qt.DropAction.MoveAction)
+        event.accept()
 
     def _changed(self, address, text, buttons):
         try:
@@ -443,10 +713,10 @@ class BranchCanvas(QScrollArea):
                 widget.setParent(None)
                 widget.deleteLater()
         for (identifier, kind, caption, text, depth, ancestors, has_next), meta in zip(rows, projection):
-            row = QWidget(self._host)
-            row.setObjectName("v2BranchRow")
-            row.setProperty("nodeId", identifier)
-            row.setProperty("nodeKind", kind)
+            address = (NodeAddress(report.id, identifier)
+                       if kind in ("root", "module", "conclusion")
+                       else NodeAddress(report.id, meta.parent_module_id, identifier, "text"))
+            row = DropRow(self, address, kind, self._host)
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
             line.setSpacing(0)
@@ -460,7 +730,13 @@ class BranchCanvas(QScrollArea):
             label = QLabel(caption, card)
             label.setTextFormat(Qt.TextFormat.PlainText)
             label.setStyleSheet("color: #526c83; font-size: 10px; font-weight: bold;")
-            card_layout.addWidget(label)
+            header = QHBoxLayout()
+            header.setContentsMargins(0, 0, 0, 0)
+            header.addWidget(label)
+            header.addStretch(1)
+            if kind not in ("root", "conclusion"):
+                header.addWidget(DragHandle(self, address, card))
+            card_layout.addLayout(header)
             if self.drafts is not None and kind in ("module", "conclusion", "paragraph"):
                 address = (NodeAddress(report.id, identifier) if kind != "paragraph"
                            else NodeAddress(report.id, meta.parent_module_id, identifier, "text"))

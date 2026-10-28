@@ -336,3 +336,10 @@ Next reproducible action:
 - Introduces a pure positional planner with explicit Before / After / Inside, one canonical `move_node` command via existing transactional `ProjectEditor`, revision/generation/draft guards, cycle and Conclusions protections, mixed-index calculations, no-op history preservation, and selected-module Move Up/Down Qt toolbar and shortcuts.
 - Synthetic tests: `tests/test_v2_structure.py` (nested and content reparent, photo assets, translations, undo/redo, stale/invalid rollback, Qt actions). New hosted Windows Python 3.11/3.12 `.github/workflows/v2-structure.yml` re-runs M1.2–M1.4 and V2 launcher. See `docs/v2/M2_1_STRUCTURAL_PLACEMENT.md`.
 - **Incomplete M2:** native drag/drop and visible placement feedback, indent/outdent, duplicate/delete, collapse persistence, descendant summaries and visible TOC still need separate reviewable work. No actual installed Windows/DPI visual acceptance; no V1/browser/schema/installer changes. Next: open PR, verify all exact-head CI, fix review findings and await explicit merge approval.
+
+## CP-V2-M2.2 — Native drag/drop and visible placement feedback (2026-10-28)
+- Isolated feature/v2-m2-2-native-drag-drop from verified live main dfbdecd7f327c1854f6f925c22999f774e944d07 after PR #71 and handoff refresh. Separate PR; main and unrelated draft PR #21 remain untouched.
+- Qt drag handles with opaque internal MIME token; visual Before/After/Inside target and rejected-drop feedback; canonical M2.1 plan_drop and move_node gateway; revision/generation/draft guards; one undoable move and no secondary report hierarchy.
+- Synthetic tests/test_v2_dragdrop.py covers native Qt event delivery, mixed/nested moves, Conclusions, forged MIME, asset/translations Save/Open, redo, stale drags and pending inline edits. Windows Python 3.11/3.12 v2-structure workflow expanded.
+- Not yet verified on an installed Windows PC at 100/125/150% DPI or real mouse drag/autoscroll; M2.3/M2.4 and M4 external media import remain deferred. See docs/v2/M2_2_NATIVE_DRAG_DROP.md.
+- Next: open draft PR, verify exact PR head and all CI, resolve independent-review findings, then request explicit user merge authorization.
