@@ -64,17 +64,12 @@ def _prepare_heif(path: Path) -> None:
 
 def convert_picture(path: str | Path, *, preset: str = "balanced",
                     output_format: str = "auto") -> ImportedPicture:
-    """Decode an external picture once, return detached optimized image bytes.
-
-    output_format: auto, jpeg, png or webp. Auto chooses PNG for transparency
-    and JPEG otherwise; lossy JPEG never silently flattens transparent pixels.
-    """
+    """Import a detached local original, never modifying its bytes or path."""
     if preset not in PRESETS or output_format not in {"auto", "jpeg", "png", "webp"}:
         raise PictureImportError("Unsupported picture conversion options")
     source = Path(path)
     if source.suffix.lower() not in INPUT_SUFFIXES or source.is_symlink():
         raise PictureImportError("Unsupported image name or symlink")
-    max_edge, quality = PRESETS[preset]
     try:
         _prepare_heif(source)
         with source.open("rb") as stream:
@@ -84,6 +79,26 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
             data = stream.read(MAX_SOURCE_BYTES + 1)
         if len(data) != size:
             raise PictureImportError("Source image changed during import")
+    except PictureImportError:
+        raise
+    except OSError as exc:
+        raise PictureImportError("Cannot read this local picture") from exc
+    return convert_picture_bytes(data, preset=preset, output_format=output_format)
+
+
+def convert_picture_bytes(data: bytes, *, preset: str = "balanced",
+                          output_format: str = "auto") -> ImportedPicture:
+    """Decode bounded clipboard PNG bytes with the same privacy/quality pipeline.
+
+    In-memory image data never gets written to a temporary source file. This
+    also validates the actual content via Pillow, independent of a filename.
+    """
+    if preset not in PRESETS or output_format not in {"auto", "jpeg", "png", "webp"}:
+        raise PictureImportError("Unsupported picture conversion options")
+    if not isinstance(data, bytes) or not 0 < len(data) <= MAX_SOURCE_BYTES:
+        raise PictureImportError("Source image exceeds the 64 MiB import limit")
+    max_edge, quality = PRESETS[preset]
+    try:
         with Image.open(BytesIO(data)) as input_image:
             width, height = input_image.size
             if (width < 1 or height < 1
@@ -135,7 +150,7 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
             if not result or len(result) > MAX_ASSET:
                 raise PictureImportError("Converted picture exceeds the 32 MiB project limit")
             return ImportedPicture(result, chosen, converted.width, converted.height,
-                                   width, height, size, preview_buffer.getvalue())
+                                   width, height, len(data), preview_buffer.getvalue())
     except PictureImportError:
         raise
     except (OSError, ValueError, UnidentifiedImageError,
