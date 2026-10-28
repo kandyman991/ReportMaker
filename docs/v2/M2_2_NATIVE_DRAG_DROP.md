@@ -15,7 +15,7 @@
 
 ## Automated evidence
 
-- tests/test_v2_dragdrop.py: synthetic PySide6 event dispatch for markers and valid/invalid drops, nested mixed-order movement, cross-parent photo, translations, Save/Open, undo/redo, stale changes, pending drafts, forged MIME and Conclusion protection.
+- tests/test_v2_dragdrop.py: synthetic PySide6 event dispatch (including invalid-to-valid zone transitions) for markers and valid/invalid drops, nested mixed-order movement, cross-parent photo, translations, Save/Open, undo/redo, stale changes, pending drafts, forged MIME and Conclusion protection.
 - .github/workflows/v2-structure.yml: native PySide6 offscreen validation on hosted Windows Python 3.11 and 3.12, including the new suite and M2.1/M1.2–M1.4 regression gates. Verify all exact PR-head workflows before merge.
 - Native installed Windows mouse gesture, OS drag cursor, accessibility, autoscroll, and 100/125/150% DPI physical behavior have NOT been signed off by the hosted tests.
 

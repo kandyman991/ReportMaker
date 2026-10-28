@@ -406,7 +406,12 @@ class BranchCanvas(QScrollArea):
         try:
             drag.exec(Qt.DropAction.MoveAction)
         finally:
-            handle.setCursor(Qt.CursorShape.OpenHandCursor)
+            # A successful drop can queue a canonical redraw while the native
+            # drag event loop is still active, deleting its original handle.
+            try:
+                handle.setCursor(Qt.CursorShape.OpenHandCursor)
+            except RuntimeError:
+                pass  # Qt has already destroyed the source widget.
             self._drag_context = None
             self._clear_drop_preview()
 
@@ -460,7 +465,12 @@ class BranchCanvas(QScrollArea):
             event.setDropAction(Qt.DropAction.MoveAction)
             event.accept()
         else:
-            event.ignore()
+            # Keep native drag-enter/move events routed to this row even if the
+            # current zone is invalid; crossing into a legal zone must update
+            # the preview without first leaving and reentering the widget.
+            # IgnoreAction keeps the OS no-drop cursor until a legal zone.
+            event.setDropAction(Qt.DropAction.IgnoreAction)
+            event.accept()
 
     def _commit_drop(self, row: DropRow, event) -> None:
         position, plan, reason = self._candidate(row, event)

@@ -112,6 +112,24 @@ class DragDropQtTests(unittest.TestCase):
                          "after")  # leaf content never exposes an implicit Inside target
         self.assertEqual(self.row(self.original.id).position_at(1), "inside")
 
+    def test_invalid_before_zone_can_become_valid_inside_without_reentry(self):
+        from PySide6.QtCore import Qt
+        mime = self.start(self.addr(self.photo.id, self.a.id))
+        row = self.row(self.b.id)
+        invalid = self.native_event(row, mime, "before", "enter")
+        self.assertEqual(invalid.dropAction(), Qt.DropAction.IgnoreAction)
+        self.assertEqual(row.marker.text(), "INVALID BEFORE")
+        valid = self.native_event(row, mime, "inside", "move")
+        self.assertTrue(valid.isAccepted())
+        self.assertEqual(valid.dropAction(), Qt.DropAction.MoveAction)
+        self.assertEqual(row.marker.text(), "INSIDE")
+        self.assertTrue(row._valid)
+        dropped = self.native_event(row, mime, "inside", "drop")
+        self.assertTrue(dropped.isAccepted())
+        self.app.processEvents()
+        self.assertEqual(self.window.session.report_snapshot().modules[1].blocks[-1],
+                         self.photo)
+
     def test_native_drop_reorders_roots_and_one_undo_reverts(self):
         self.drop(self.addr(self.a.id), self.b.id, "after")
         moved = self.window.session.report_snapshot()
@@ -148,7 +166,9 @@ class DragDropQtTests(unittest.TestCase):
         mime = self.start(self.addr(self.a.id))
         target = self.row(self.child.id)
         preview = self.native_event(target, mime, "inside", "enter")
-        self.assertFalse(preview.isAccepted())
+        from PySide6.QtCore import Qt
+        self.assertTrue(preview.isAccepted())  # track subsequent zone changes
+        self.assertEqual(preview.dropAction(), Qt.DropAction.IgnoreAction)
         self.assertEqual(target.marker.text(), "INVALID INSIDE")
         self.assertIn("subtree", target.marker.toolTip())
         blocked = self.native_event(target, mime, "inside", "drop")
@@ -160,7 +180,7 @@ class DragDropQtTests(unittest.TestCase):
         mime = self.start(self.addr(self.photo.id, self.a.id))
         conclusion = self.row(self.original.conclusion.id)
         preview = self.native_event(conclusion, mime, "inside", "enter")
-        self.assertFalse(preview.isAccepted())
+        self.assertEqual(preview.dropAction(), Qt.DropAction.IgnoreAction)
         self.assertIn("INVALID", conclusion.marker.text())
         self.assertEqual(self.window.session.report_snapshot(), self.original)
 
@@ -203,7 +223,8 @@ class DragDropQtTests(unittest.TestCase):
         mime = self.start(self.addr(self.b.id))
         target = self.row(self.a.id)
         ev = self.native_event(target, mime, "after", "enter")
-        self.assertFalse(ev.isAccepted())
+        from PySide6.QtCore import Qt
+        self.assertEqual(ev.dropAction(), Qt.DropAction.IgnoreAction)
         self.assertIn("Already", target.marker.toolTip())
         self.assertEqual(self.window.session.revision, revision)
         self.assertEqual(self.window.session._editor.can_redo, redo_exists)
@@ -214,7 +235,7 @@ class DragDropQtTests(unittest.TestCase):
         self.app.processEvents()
         target = self.row(self.b.id)
         ev = self.native_event(target, mime, "after", "enter")
-        self.assertFalse(ev.isAccepted())
+        self.assertEqual(ev.dropAction(), Qt.DropAction.IgnoreAction)
         self.assertIn("changed", target.marker.toolTip())
 
     def test_pending_draft_rejects_drag_and_preserves_text(self):
