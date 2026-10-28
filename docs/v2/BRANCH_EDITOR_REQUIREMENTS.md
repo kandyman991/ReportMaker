@@ -16,7 +16,7 @@ The **Modules** tab becomes ReportMaker V2's **main working workspace**. Users e
 - **Canvas state:** Expansion, zoom/pan/focus and similar presentation data independent of printable document content.
 - **Canonical hierarchy:** Sole authoritative report structure; all views, saved projects, numbering, summary and exports derive from it.
 
-**Reconciliation of feature 33:** The original selected checklist included AI editing of selected content, but the user's **later explicit decision supersedes automation**. The existing embedded ChatGPT website stays as-is with manual user-directed plain-text copy/paste only. No API, website automation, automatic synchronization, proposal insertion or background AI operations. BE-I06 below records that final scope.
+**Reconciliation of feature 33:** The original selected checklist included AI editing of selected content, but the user's **later explicit decision supersedes automation**. The existing embedded ChatGPT website stays as-is: AI writing text moves through manual user-directed plain-text copy/paste only. Ordinary user-initiated browser image copy/download remains allowed, but images enter reports separately through the validated Gallery/clipboard/local-file importer. No API, website automation, automatic synchronization, proposal insertion or background AI operations. BE-I06 below records that final scope.
 
 ## 2. Complete functional requirements and acceptance criteria
 
@@ -128,8 +128,8 @@ All entries below are **KEEP**. There are **no DISCARD items**.
 **BE-I05 — Live printable-page preview.** Preview reflects committed structure, formatting, photo edits and export settings; mark approximate pagination when relevant.  
 **Accept:** Refresh never discards pending drafts; supported content and annotations appear in produced DOCX/PDF, with native output checks.
 
-**BE-I06 — Manual ChatGPT-assisted copy/paste only, superseding automated AI editing.** User selects/copies a branch block, manually pastes into the ordinary ChatGPT site, manually copies a response, reviews and intentionally pastes it into the chosen branch.  
-**Accept:** No OpenAI API, browser script/DOM access, scraping, automated data synchronization, hidden proposals or unattended insertion. Text is pasted as user-directed plain text and normal editor undo applies; leaving response unused causes no report modification.
+**BE-I06 — Manual ChatGPT-assisted copy/paste only, superseding automated AI editing.** User selects/copies a branch block, manually pastes into the ordinary ChatGPT site, manually copies a response, reviews and intentionally pastes it into the chosen branch. Ordinary manual browser image copy/download remains available; images must be explicitly added through the separate validated Gallery/clipboard/file import workflow.  
+**Accept:** No OpenAI API, browser script/DOM access, scraping, automated data synchronization, hidden proposals or unattended insertion. Text is pasted as user-directed plain text and normal editor undo applies; leaving a response unused causes no report modification. Browser images are not inserted automatically; manual image imports follow BE-U06/BE-U07 and project-media safety rules.
 
 **Feature count:** 6 layout + 7 editing + 7 structure + 7 usability + 6 integration = **33 selected requirements**.
 
@@ -162,7 +162,7 @@ All entries below are **KEEP**. There are **no DISCARD items**.
 | Conflicting branch and page drafts | Explicit resolution, no silent loss |
 | Generated numbers/TOC after restructure | Correct derived outline, Conclusions last |
 | Preview and DOCX/PDF after image edit | No missing/flattened annotations or hidden errors |
-| Manual ChatGPT browser copy/paste | No automatic integration; edits only by user paste |
+| Manual ChatGPT browser copy/paste and image handling | No automatic integration; user-initiated text paste only, with any manually copied/downloaded browser image separately validated and imported |
 | Legacy and corrupt project inputs | Safe migration or rejection, source unchanged |
 | Native installed Windows validation | Real DPI, focus, drag/drop, paste and file workflows pass |
 
