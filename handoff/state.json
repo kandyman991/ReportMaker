@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-27T16:39:16.169Z",
+  "generatedAt": "2026-10-28T08:33:36.796Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,11 +11,51 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
-    "message": "build: add source-pinned Windows RC3 installer and prerelease (#43)\n\nCo-authored-by: ReportMaker Release Automation <release-automation@users.noreply.github.com>",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/9924d0a33486381a66c2e2a2f92e3f37305166b0"
+    "sha": "e9c9411d563071d5803b30c80f86c3de6ff9a3a3",
+    "message": "Merge PR #58: safe module management and expansion state\n\nFix #54 + #56: safe module drag/drop, move controls and stable expansion",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/e9c9411d563071d5803b30c80f86c3de6ff9a3a3"
   },
   "openPullRequests": [
+    {
+      "number": 61,
+      "title": "Fix #48: Explorer drag/drop and clipboard imports for Photo Gallery",
+      "draft": false,
+      "head": "fix/issue-48-gallery-import",
+      "headSha": "b36cef0a21171878c5da619ae780022e8cda25dd",
+      "base": "main",
+      "updatedAt": "2026-10-28T08:33:26Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/61"
+    },
+    {
+      "number": 60,
+      "title": "fix: import Explorer and clipboard images into project gallery (#48)",
+      "draft": false,
+      "head": "fix/issue-48-external-photo-import",
+      "headSha": "5836cc0038c1df229e907daeafad56b9c6b85734",
+      "base": "main",
+      "updatedAt": "2026-10-28T08:31:30Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/60"
+    },
+    {
+      "number": 57,
+      "title": "Fix font-selector focus and selected-format toolbar feedback (#49, #50)",
+      "draft": false,
+      "head": "fix/issues-49-50-rich-editor-toolbar",
+      "headSha": "cf92e8e370b573800050fdee22b93c14839f6a4b",
+      "base": "main",
+      "updatedAt": "2026-10-28T08:27:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/57"
+    },
+    {
+      "number": 59,
+      "title": "fix(pdf): handle oversized header logos without export failures (#44)",
+      "draft": false,
+      "head": "fix/issue44-pdf-header-logo",
+      "headSha": "8d1f27813f517f240ba92ce19385b113bb8e3cde",
+      "base": "main",
+      "updatedAt": "2026-10-28T08:26:18Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/59"
+    },
     {
       "number": 21,
       "title": "Windows v0.5.0 release candidate: installed acceptance and M0 historical fallback",
@@ -29,16 +69,70 @@
   ],
   "openIssues": [
     {
-      "number": 38,
-      "title": "RC2 Windows: Word-style font and paragraph formatting ribbon not visible in report editor",
-      "updatedAt": "2026-10-27T14:43:30Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/38"
+      "number": 55,
+      "title": "[UX][Unsaved work] Show title/status indicator for unapplied block, page, and report-info drafts",
+      "updatedAt": "2026-10-27T20:16:29Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/55"
     },
     {
-      "number": 37,
-      "title": "RC2 UX: resizable thumbnail gallery with drag-and-drop photo insertion into report",
-      "updatedAt": "2026-10-27T14:41:05Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/37"
+      "number": 53,
+      "title": "[UI][Editable document] A− / A+ controls zoom only the read-only preview",
+      "updatedAt": "2026-10-27T20:16:25Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/53"
+    },
+    {
+      "number": 52,
+      "title": "[UI][Editable page] Preserve scroll position and editing context after Apply page edits",
+      "updatedAt": "2026-10-27T20:16:23Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/52"
+    },
+    {
+      "number": 51,
+      "title": "Feature: inspect SOLIDWORKS SLDASM assemblies, capture views, and link components to report modules",
+      "updatedAt": "2026-10-27T19:18:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/51"
+    },
+    {
+      "number": 50,
+      "title": "[UX][Text editor] Use formatting icons and highlight active styles for selected text",
+      "updatedAt": "2026-10-27T17:27:58Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/50"
+    },
+    {
+      "number": 49,
+      "title": "[Windows][Editor] Deleting a character in font-family field moves focus to paragraph editor",
+      "updatedAt": "2026-10-27T17:23:28Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/49"
+    },
+    {
+      "number": 48,
+      "title": "[UX][Photo Gallery] Import external photos by drag-and-drop and paste images from clipboard",
+      "updatedAt": "2026-10-27T17:19:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/48"
+    },
+    {
+      "number": 47,
+      "title": "[UX] Add Photo Gallery as top-level workspace tab alongside Modules, Editor and ChatGPT",
+      "updatedAt": "2026-10-27T17:16:44Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/47"
+    },
+    {
+      "number": 46,
+      "title": "[UX][Picture editor] Replace annotation-tool dropdown with visible tool palette/toolbar",
+      "updatedAt": "2026-10-27T17:13:58Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/46"
+    },
+    {
+      "number": 45,
+      "title": "[Windows][DOCX template] Imported letterhead loses centered logo scale, footer layout and contact icons",
+      "updatedAt": "2026-10-27T17:09:21Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/45"
+    },
+    {
+      "number": 44,
+      "title": "[Windows][PDF] Export fails when header logo exceeds top-margin bounds (handle_pageBegin)",
+      "updatedAt": "2026-10-27T17:06:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/44"
     },
     {
       "number": 24,
@@ -61,114 +155,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40543005457,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:39:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005457"
+      "id": 40657652178,
+      "name": "M0 architecture and model gates",
+      "status": "pending",
+      "conclusion": null,
+      "branch": "fix/issue-48-gallery-import",
+      "headSha": "b36cef0a21171878c5da619ae780022e8cda25dd",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T08:33:32Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657652178"
     },
     {
-      "id": 40543005177,
+      "id": 40657652152,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "pending",
+      "conclusion": null,
+      "branch": "fix/issue-48-gallery-import",
+      "headSha": "b36cef0a21171878c5da619ae780022e8cda25dd",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T08:33:32Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657652152"
+    },
+    {
+      "id": 40657652086,
+      "name": "ReportMaker continuity contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "fix/issue-48-gallery-import",
+      "headSha": "b36cef0a21171878c5da619ae780022e8cda25dd",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T08:33:34Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657652086"
+    },
+    {
+      "id": 40657648625,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+      "headSha": "e9c9411d563071d5803b30c80f86c3de6ff9a3a3",
       "event": "push",
-      "updatedAt": "2026-10-27T16:39:12Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005177"
+      "updatedAt": "2026-10-28T08:33:33Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657648625"
     },
     {
-      "id": 40543005086,
-      "name": "ReportMaker Windows RC3 pinned installer",
+      "id": 40657648607,
+      "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+      "headSha": "e9c9411d563071d5803b30c80f86c3de6ff9a3a3",
       "event": "push",
-      "updatedAt": "2026-10-27T16:39:11Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005086"
+      "updatedAt": "2026-10-28T08:33:33Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657648607"
     },
     {
-      "id": 40543005083,
+      "id": 40657648605,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "9924d0a33486381a66c2e2a2f92e3f37305166b0",
+      "headSha": "e9c9411d563071d5803b30c80f86c3de6ff9a3a3",
       "event": "push",
-      "updatedAt": "2026-10-27T16:39:11Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40543005083"
+      "updatedAt": "2026-10-28T08:33:33Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657648605"
     },
     {
-      "id": 40542684828,
+      "id": 40657642299,
       "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "release/rc3-pinned-main-20261027",
-      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
-      "event": "pull_request",
-      "updatedAt": "2026-10-27T16:38:35Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542684828"
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "fix/issue-48-gallery-import",
+      "headSha": "b36cef0a21171878c5da619ae780022e8cda25dd",
+      "event": "push",
+      "updatedAt": "2026-10-28T08:33:30Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657642299"
     },
     {
-      "id": 40542684820,
+      "id": 40657556800,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "fix/issue-48-gallery-import",
+      "headSha": "1392c677c181457db75f3ee12ff5809c04b8e56c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T08:32:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657556800"
+    },
+    {
+      "id": 40657556786,
       "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "release/rc3-pinned-main-20261027",
-      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "fix/issue-48-gallery-import",
+      "headSha": "1392c677c181457db75f3ee12ff5809c04b8e56c",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T16:38:23Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542684820"
+      "updatedAt": "2026-10-28T08:32:48Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657556786"
     },
     {
-      "id": 40542684795,
+      "id": 40657556721,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "release/rc3-pinned-main-20261027",
-      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
+      "branch": "fix/issue-48-gallery-import",
+      "headSha": "1392c677c181457db75f3ee12ff5809c04b8e56c",
       "event": "pull_request",
-      "updatedAt": "2026-10-27T16:37:20Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542684795"
-    },
-    {
-      "id": 40542675840,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "release/rc3-pinned-main-20261027",
-      "headSha": "9fd4b30d4e9514b31b0637ddb7141989629f3210",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:38:22Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40542675840"
-    },
-    {
-      "id": 40540645305,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "600fc795b45a3337b29f1f9bc9ecaa051b9196ac",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:24:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540645305"
-    },
-    {
-      "id": 40540645266,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "600fc795b45a3337b29f1f9bc9ecaa051b9196ac",
-      "event": "push",
-      "updatedAt": "2026-10-27T16:25:56Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40540645266"
+      "updatedAt": "2026-10-28T08:32:55Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40657556721"
     }
   ]
 }
