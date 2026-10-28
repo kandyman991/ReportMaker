@@ -66,8 +66,9 @@ def local_picture_paths(mime: QMimeData | None) -> tuple[list[str], list[str]]:
         if not path.is_absolute() or not path.is_file():
             errors.append(f"{label}: not an existing local file")
             continue
-        if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
-            errors.append(f"{label}: links and junctions are not supported")
+        if any(part.is_symlink() or getattr(part, "is_junction", lambda: False)()
+               for part in (path, *path.parents)):
+            errors.append(f"{label}: links and junctions in image paths are not supported")
             continue
         if path.suffix.lower() not in INPUT_SUFFIXES:
             errors.append(f"{label}: unsupported image extension")
