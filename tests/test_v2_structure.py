@@ -216,7 +216,7 @@ class StructuralQtTests(unittest.TestCase):
     def test_toolbar_move_up_down_and_undo(self):
         from PySide6.QtGui import QAction
         from reportmaker.v2.app import V2MainWindow
-        win = V2MainWindow(fixture().report)
+        win = V2MainWindow(project=fixture())
         try:
             win.show()
             self.app.processEvents()
