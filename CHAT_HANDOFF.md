@@ -280,3 +280,9 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - Synthetic tests/test_v2_dragdrop.py covers native Qt event delivery, mixed/nested moves, Conclusions, forged MIME, asset/translations Save/Open, redo, stale drags and pending inline edits. Windows Python 3.11/3.12 v2-structure workflow expanded.
 - Not yet verified on an installed Windows PC at 100/125/150% DPI or real mouse drag/autoscroll; M2.3/M2.4 and M4 external media import remain deferred. See docs/v2/M2_2_NATIVE_DRAG_DROP.md.
 - Next: open draft PR, verify exact PR head and all CI, resolve independent-review findings, then request explicit user merge authorization.
+
+
+### CP-V2-M2.2 — PR #72 independent review correction (2026-10-28)
+- Reviewed PR #72 at initial head `257b625df45fb883bf4bdde10e770336355e13c8`. Found a native Qt lifecycle race: `QDrag.exec` runs a nested event loop while successful `move_node` schedules full canvas redraw, which can delete the active QToolButton and owned QDrag before the gesture exits.
+- Added a synthetic nested event-loop regression first (failed before fix), then deferred redraw until after `QDrag.exec` returns; source handle stays alive, model commits once, canonical canvas refreshes after the gesture. Existing internal MIME, draft, stale revision, Undo/Redo, Conclusion, and mixed hierarchy protections remain unchanged.
+- Local Linux/offscreen PySide6 regression validation: **75 passed** across M2.2/M2.1/M1.2/M1.3/M1.4/M1.1 (11+11+18+16+11+8), `compileall`, `git diff --check`. Run **all hosted Windows workflows on the exact final PR head** before merging; no installed-Windows mouse, autoscroll, accessibility or DPI signoff. M2.3/M2.4 remain deferred; do not modify unrelated PR #21.

@@ -309,6 +309,8 @@ class BranchCanvas(QScrollArea):
         self._selected_module_id = None
         self._restore = None
         self._drag_context = None
+        self._native_drag_active = False
+        self._drag_refresh_pending = False
         self._preview_row = None
         self._hover_key = None
 
@@ -341,6 +343,12 @@ class BranchCanvas(QScrollArea):
         QTimer.singleShot(0, self._refresh)
 
     def _refresh(self) -> None:
+        # QDrag.exec runs a nested Qt event loop. A successful drop publishes
+        # a change before that loop returns; rebuilding here would delete the
+        # source QToolButton (and its QDrag child) mid-gesture.
+        if self._native_drag_active:
+            self._drag_refresh_pending = True
+            return
         if self._session is not None:
             report = self._session.report_snapshot()
             module_ids = {row.stable_id for row in project_branch(report)
@@ -405,17 +413,19 @@ class BranchCanvas(QScrollArea):
         drag = QDrag(handle)
         drag.setMimeData(mime)
         handle.setCursor(Qt.CursorShape.ClosedHandCursor)
+        self._native_drag_active = True
         try:
             drag.exec(Qt.DropAction.MoveAction)
         finally:
-            # A successful drop can queue a canonical redraw while the native
-            # drag event loop is still active, deleting its original handle.
-            try:
-                handle.setCursor(Qt.CursorShape.OpenHandCursor)
-            except RuntimeError:
-                pass  # Qt has already destroyed the source widget.
+            self._native_drag_active = False
+            # Keep the QDrag source alive until exec returns; queue any
+            # deferred canonical redraw for after this mouse callback.
+            handle.setCursor(Qt.CursorShape.OpenHandCursor)
             self._drag_context = None
             self._clear_drop_preview()
+            if self._drag_refresh_pending:
+                self._drag_refresh_pending = False
+                QTimer.singleShot(0, self._refresh)
 
     def _clear_drop_preview(self, row: DropRow | None = None) -> None:
         if row is not None and row is not self._preview_row:

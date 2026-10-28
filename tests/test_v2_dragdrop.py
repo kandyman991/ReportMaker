@@ -252,5 +252,49 @@ class DragDropQtTests(unittest.TestCase):
         self.assertFalse(self.canvas.drafts.pending)
 
 
+    def test_native_drag_loop_retains_handle_until_exec_returns(self):
+        """Drop-triggered Qt redraw must not destroy the active QDrag source."""
+        from unittest.mock import patch
+        from PySide6.QtCore import QCoreApplication, QEvent, Qt
+        from reportmaker.v2.branch.canvas import DragHandle
+        import shiboken6
+
+        source = next(h for h in self.canvas.findChildren(DragHandle)
+                      if h._address.module_id == self.a.id and h._address.block_id is None)
+        target = self.row(self.b.id)
+        case = self
+
+        class SimulatedNativeDrag:
+            def __init__(self, handle):
+                self.handle = handle
+
+            def setMimeData(self, mime):
+                self.mime = mime
+
+            def exec(self, action):
+                enter = case.native_event(target, self.mime, "after", "enter")
+                case.assertTrue(enter.isAccepted())
+                drop = case.native_event(target, self.mime, "after", "drop")
+                case.assertTrue(drop.isAccepted())
+                # Like QDrag.exec, allow the application's nested event loop
+                # to deliver queued callbacks before the gesture returns.
+                case.app.processEvents()
+                QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+                case.assertTrue(shiboken6.isValid(self.handle),
+                                "Drag source was destroyed while QDrag.exec is active")
+                return Qt.DropAction.MoveAction
+
+        with patch("reportmaker.v2.branch.canvas.QDrag", SimulatedNativeDrag):
+            self.canvas._start_drag(self.addr(self.a.id), source)
+        self.app.processEvents()
+        self.assertEqual([m.id for m in self.window.session.report_snapshot().modules],
+                         [self.b.id, self.a.id])
+        self.assertEqual(self.window.session.revision, 1)
+        self.assertFalse(self.canvas._native_drag_active)
+        self.assertFalse(self.canvas._drag_refresh_pending)
+        self.assertEqual(next(node_id for node_id, kind, _, _ in self.canvas.visible_nodes
+                              if kind == "module"), self.b.id)
+
+
 if __name__ == "__main__":
     unittest.main()
