@@ -58,10 +58,13 @@ class FontAndFormattingRibbonTests(unittest.TestCase):
         edit.setFocus()
         self.app.processEvents()
         edit.setText("Cambr")
-        for _ in range(3):
+        for remaining in ("Camb", "Cam", "Ca"):
             QTest.keyClick(edit, Qt.Key.Key_Backspace)
             self.app.processEvents()
-            self.assertIs(QApplication.focusWidget(), edit)
+            # On Windows Qt can report QFontComboBox (its focus proxy)
+            # rather than the embedded QLineEdit as the active widget.
+            self.assertIn(QApplication.focusWidget(), (edit, self.ribbon.family))
+            self.assertEqual(edit.text(), remaining)
             self.assertTrue(self.editor.textCursor().hasSelection())
             self.assertEqual(self.editor.toPlainText(), before)
         self.assertEqual(self.editor.textCursor().charFormat().fontFamilies(),
@@ -114,7 +117,7 @@ class FontAndFormattingRibbonTests(unittest.TestCase):
         edit.setText("13")
         QTest.keyClick(edit, Qt.Key.Key_Backspace)
         self.app.processEvents()
-        self.assertIs(QApplication.focusWidget(), edit)
+        self.assertIn(QApplication.focusWidget(), (edit, self.ribbon.size))
         self.assertEqual(edit.text(), "1")
         self.assertEqual(self.editor.toPlainText(), "Valve inspection")
         edit.setText("15")
