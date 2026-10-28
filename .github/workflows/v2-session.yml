@@ -1,0 +1,44 @@
+name: V2 M1.2 session, commands and persistence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/reportmaker/v2/**"
+      - "src/reportmaker/model.py"
+      - "src/reportmaker/engine.py"
+      - "src/reportmaker/project_io.py"
+      - "src/reportmaker/reference.py"
+      - "src/reportmaker/rich_text.py"
+      - "tests/test_v2_session.py"
+      - ".github/workflows/v2-session.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-v2-session:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+      - name: Install pure-core application
+        run: python -m pip install -e .
+      - name: Compile V2 session, commands, persistence and regressions
+        run: python -m compileall -q src/reportmaker/v2 tests/test_v2_session.py
+      - name: Validate V2 pure core and legacy Save As gates
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "src"
+          python -m unittest discover -s tests -p test_v2_session.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 M1.2 regression gates failed" }

@@ -243,3 +243,13 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - No merge or installer/release/default-app changes without explicit user authorization. Next: review/fix PR #67, confirm exact-head CI, authorize merge separately, then begin M1.2 from latest main.
 
 - PR #67 independent review correction (2026-10-28): V2 connector gutters previously collapsed all levels after depth 32 despite the approved model limit of 256; M1.1 now preserves each validated depth and includes a >32-level Qt regression. Offline smoke assertions are no longer removable by `python -O`; the Windows V2 workflow also retriggers when shared model/engine/reference/rich_text dependencies or packaging change. Review-fix commit requires new exact-head hosted Windows CI before merge; real installed-Windows DPI/interaction acceptance remains pending.
+
+
+## V2 M1.2 — isolated canonical session, command gateway and persistence (2026-10-28)
+- Verified live `main d24777a24eaddcf480617ffaa4fcaf642fbdf556` (PR #67 merged; mechanical continuity refresh). Only unrelated draft Windows RC PR #21 remains open before M1.2.
+- Isolated branch `feature/v2-m1-2-session-gateway`, targeting `main`, adds Qt-free `v2/session.py`, `commands.py`, `projections.py`, `adapters/persistence.py`. The existing `ProjectEditor` and v4 `project_io` remain canonical; V1 UI, browser, installer, model and serializer unchanged.
+- Targeted synthetic tests `tests/test_v2_session.py` and Windows Python 3.11/3.12 CI `.github/workflows/v2-session.yml`. New exact-HEAD hosted results and independent review required before merge. No installed-Windows visual/DPI acceptance claimed.
+- M1.2 is pure session/command and safe Save/Open functionality, **not** inline editing; canvas remains read-only until M1.3, lifecycle UI and local presentation identity remain M1.4. No media-asset undo/redo or browser automation. See `docs/v2/M1_2_SESSION_GATEWAY.md`.
+- Next: inspect exact-head CI, fix findings on the branch, await explicit user merge authorization. Do not merge or publish installer automatically.
+
+- PR #68 independent review corrections (2026-10-28): unsaved canonical edits cannot be discarded by `replace_project`/`open_into` without explicit consent; outstanding drafts block gateway mutations; stale Undo/Redo revision callbacks fail closed; no-op text/title edits keep the redo stack. Four synthetic regression tests added. Await exact-final-head Windows workflows before merging as explicitly authorized by the user.
