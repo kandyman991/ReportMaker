@@ -1,16 +1,20 @@
-"""Fresh V2 native application shell; V1's three-panel UI is not imported.
+"""Fresh V2 native application shell with M1.3 inline branch editing.
 
-M1.1 displays an explicitly synthetic, read-only canonical hierarchy.
-The project session/commands arrive in M1.2 and direct branch editing in M1.3.
+V1\'s independent UI and browser remain untouched; the V2 workspace uses
+one M1.2 canonical session and typed command gateway for every edit.
 """
 from __future__ import annotations
 
 from datetime import date
 
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 
 from ..model import LocalizedText, Module, NestedModuleBlock, ParagraphBlock, Report
+from ..project_io import ReportProject
 from ..reference import manual_snapshot
+from .commands import CommandGateway
+from .session import ReportSession
 from .branch.canvas import BranchCanvas
 
 
@@ -21,7 +25,7 @@ def example_report() -> Report:
         LocalizedText(lang, "Mechanical checks"),
         blocks=[
             ParagraphBlock(LocalizedText(
-                lang, "Example inspection note. Inline editing follows in M1.3."
+                lang, "Example inspection note. Edit me directly in the branch."
             )),
         ],
     )
@@ -43,18 +47,38 @@ def example_report() -> Report:
 
 
 class V2MainWindow(QMainWindow):
-    """Single primary Branch Editor workspace; no detached V1 editor/tree."""
+    """One primary branch; all inserts and edits use the V2 command gateway."""
 
     def __init__(self, report: Report | None = None) -> None:
         super().__init__()
         self.setObjectName("reportmakerV2Window")
-        self.setWindowTitle("ReportMaker V2 — Branch Editor (M1.1)")
+        self.setWindowTitle("ReportMaker V2 — Branch Editor (M1.3)")
         self.resize(1280, 820)
         self.setMinimumSize(660, 460)
+        self.session = ReportSession(ReportProject(example_report() if report is None else report))
+        self.gateway = CommandGateway(self.session)
         self.branch = BranchCanvas(self)
         self.setCentralWidget(self.branch)
-        self.branch.set_report(example_report() if report is None else report)
+        self.branch.bind_session(self.session, self.gateway)
+        self.branch.feedback.connect(self.statusBar().showMessage)
+        snapshot = self.session.report_snapshot()
+        if snapshot.modules:
+            self.branch._selected_module_id = snapshot.modules[0].id
+        toolbar = self.addToolBar("Branch actions")
+        toolbar.setObjectName("v2BranchActions")
+        for label, method, shortcut in (
+            ("+ Module", self.branch.add_module, ""),
+            ("+ Submodule", self.branch.add_nested_module, ""),
+            ("+ Paragraph", self.branch.add_paragraph, ""),
+            ("Undo change", self.branch.undo, "Ctrl+Alt+Z"),
+            ("Redo change", self.branch.redo, "Ctrl+Alt+Shift+Z"),
+        ):
+            action = QAction(label, self)
+            if shortcut:
+                action.setShortcut(shortcut)
+            action.triggered.connect(lambda checked=False, callback=method: callback())
+            toolbar.addAction(action)
         self.statusBar().showMessage(
-            "M1.1 architecture preview — read-only canonical branch. "
-            "Inline editing and Save/Open follow in M1.2–M1.4."
+            "Edit titles and paragraphs in place. Enter/Ctrl+Enter applies, Escape reverts; "
+            "unapplied drafts block structural edits and Undo/Redo. Save/Open follows in M1.4."
         )
