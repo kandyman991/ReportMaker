@@ -1203,7 +1203,7 @@ class VisualReportEditor:
             if failures:
                 QMessageBox.warning(
                     dialog, "Some pictures could not be imported",
-                    "\\n".join(failures))
+                    "\n".join(failures))
 
         def import_dropped_files(paths, rejected):
             if generation != self._photo_drag_token or self._picture_gallery is not dialog:
