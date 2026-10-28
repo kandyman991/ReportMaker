@@ -180,6 +180,42 @@ class HeadingQtTests(unittest.TestCase):
         self.assertFalse(self.win.branch.insert_heading_after(
             NodeAddress(report.id, parent, "not-a-block", "text")))
 
+    def test_apply_restores_utf16_caret_and_selection_after_queued_redraw(self):
+        from PySide6.QtGui import QTextCursor
+        self.win.branch._selected_module_id = self.module
+        self.assertTrue(self.win.branch.add_heading())
+        for _ in range(5):
+            self.app.processEvents()
+        report = self.win.session.report_snapshot()
+        heading = report.modules[0].blocks[0].module.blocks[-1]
+        address = NodeAddress(report.id, self.module, heading.id, "text")
+        editor = self.win.branch.editor_for(address)
+        editor.setPlainText("👷abc")
+        cursor = editor.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        editor.setTextCursor(cursor)
+        self.assertEqual(cursor.position(), 5)  # UTF-16 code units
+        self.assertTrue(self.win.branch.apply_draft(address))
+        for _ in range(5):
+            self.app.processEvents()
+        refreshed = self.win.branch.editor_for(address)
+        self.assertEqual(refreshed.toPlainText(), "👷abc")
+        self.assertEqual(refreshed.textCursor().position(), 5)
+        self.assertEqual(refreshed.textCursor().anchor(), 5)
+        # Editing the next character must append, not overwrite/reposition.
+        refreshed.insertPlainText("!")
+        self.assertEqual(refreshed.toPlainText(), "👷abc!")
+        cursor = refreshed.textCursor()
+        cursor.setPosition(0)
+        cursor.setPosition(2, QTextCursor.MoveMode.KeepAnchor)
+        refreshed.setTextCursor(cursor)
+        self.assertEqual(refreshed.textCursor().selectedText(), "👷")
+        self.assertTrue(self.win.branch.apply_draft(address))
+        for _ in range(5):
+            self.app.processEvents()
+        preserved = self.win.branch.editor_for(address).textCursor()
+        self.assertEqual((preserved.anchor(), preserved.position()), (0, 2))
+
     def test_heading_save_reopen_retains_text(self):
         self.win.branch._selected_module_id = self.module
         self.assertTrue(self.win.branch.add_heading(level=5))

@@ -418,6 +418,9 @@ class BranchCanvas(QScrollArea):
         self._drag_context = None
         self._native_drag_active = False
         self._drag_refresh_pending = False
+        # Prevent an already-rendered commit from rebuilding native editors
+        # a second time when its deferred session notification arrives.
+        self._last_rendered_token = None
         self._preview_row = None
         self._hover_key = None
 
@@ -533,8 +536,17 @@ class BranchCanvas(QScrollArea):
             self._restore = None
             self._drag_context = None
             self._clear_drop_preview()
-        # Do not delete the currently emitting widget inside its Qt callback.
-        QTimer.singleShot(0, self._refresh)
+        # Native Qt handlers must finish before rebuilding. UI commands may
+        # already have performed a synchronous refresh; avoid a second rebuild
+        # of the same revision (which loses the restored caret and selection).
+        token = (self._session.generation, self._session.revision)
+        QTimer.singleShot(0, lambda t=token: self._refresh_for_change(t))
+
+    def _refresh_for_change(self, token) -> None:
+        if (self._session is not None
+                and token == (self._session.generation, self._session.revision)
+                and token != self._last_rendered_token):
+            self._refresh()
 
     def _refresh(self) -> None:
         # QDrag.exec runs a nested Qt event loop. A successful drop publishes
@@ -568,6 +580,7 @@ class BranchCanvas(QScrollArea):
                         (report.modules[0].id if report.modules else None)
                     )
             self._render(report)
+            self._last_rendered_token = (self._session.generation, self._session.revision)
             self.selectionChanged.emit()
 
     def set_report(self, report: Report) -> None:
@@ -761,8 +774,11 @@ class BranchCanvas(QScrollArea):
         elif isinstance(editor, QPlainTextEdit):
             editor.setFocus()
             c = editor.textCursor()
-            c.setPosition(min(anchor, len(editor.toPlainText())))
-            c.setPosition(min(position, len(editor.toPlainText())),
+            # QTextCursor offsets count UTF-16 code units, not Python code
+            # points. Astral Unicode (emoji) otherwise truncates the caret.
+            limit = len(editor.toPlainText().encode("utf-16-le")) // 2
+            c.setPosition(max(0, min(anchor, limit)))
+            c.setPosition(max(0, min(position, limit)),
                           QTextCursor.MoveMode.KeepAnchor)
             editor.setTextCursor(c)
 
@@ -771,7 +787,7 @@ class BranchCanvas(QScrollArea):
             return False
         self._capture(address)
         try:
-            self.drafts.commit(address)
+            change = self.drafts.commit(address)
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit("Draft retained: " + str(exc))
             return False
