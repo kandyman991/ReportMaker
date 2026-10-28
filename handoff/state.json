@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T14:21:29.895Z",
+  "generatedAt": "2026-10-28T14:52:32.536Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
-    "message": "Merge pull request #65 from kandyman991/docs/v2-roadmap-branch-editor\n\ndocs(v2): establish roadmap, architecture and 33 Branch Editor requirements",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/01f1e7b1d2558abe409b8f6a60a3f36ab296a678"
+    "sha": "794ec4c025de0bfcbedce52b4fad4a0564d7b690",
+    "message": "Merge pull request #66 from kandyman991/docs/v2-m0-architecture-audit-20261028\n\ndocs(v2): M0 source dependency audit and Branch Editor architecture foundation",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/794ec4c025de0bfcbedce52b4fad4a0564d7b690"
   },
   "openPullRequests": [
     {
@@ -109,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40705098327,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
-      "event": "push",
-      "updatedAt": "2026-10-28T14:21:24Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40705098327"
-    },
-    {
-      "id": 40705098176,
+      "id": 40710234137,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
+      "headSha": "794ec4c025de0bfcbedce52b4fad4a0564d7b690",
       "event": "push",
-      "updatedAt": "2026-10-28T14:21:24Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40705098176"
+      "updatedAt": "2026-10-28T14:52:29Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40710234137"
     },
     {
-      "id": 40705098078,
+      "id": 40710233967,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
+      "headSha": "794ec4c025de0bfcbedce52b4fad4a0564d7b690",
       "event": "push",
-      "updatedAt": "2026-10-28T14:21:24Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40705098078"
+      "updatedAt": "2026-10-28T14:52:28Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40710233967"
     },
     {
-      "id": 40701024891,
+      "id": 40710233929,
       "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "docs/v2-roadmap-branch-editor",
-      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T13:57:22Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701024891"
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "794ec4c025de0bfcbedce52b4fad4a0564d7b690",
+      "event": "push",
+      "updatedAt": "2026-10-28T14:52:28Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40710233929"
     },
     {
-      "id": 40701024845,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "docs/v2-roadmap-branch-editor",
-      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T13:57:34Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701024845"
-    },
-    {
-      "id": 40701024840,
+      "id": 40709734855,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "docs/v2-roadmap-branch-editor",
-      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
+      "branch": "docs/v2-m0-architecture-audit-20261028",
+      "headSha": "b2a14895b2a24ab410f3160ca109d6117b2bc8ab",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T13:56:12Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701024840"
+      "updatedAt": "2026-10-28T14:49:32Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40709734855"
     },
     {
-      "id": 40701019466,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "docs/v2-roadmap-branch-editor",
-      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
-      "event": "push",
-      "updatedAt": "2026-10-28T14:02:31Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701019466"
-    },
-    {
-      "id": 40701012803,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "docs/v2-roadmap-branch-editor",
-      "headSha": "e5d1219919bd2f5e07a29e28bc39ad74c2105542",
-      "event": "push",
-      "updatedAt": "2026-10-28T13:56:04Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701012803"
-    },
-    {
-      "id": 40701006362,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "docs/v2-roadmap-branch-editor",
-      "headSha": "241574bef17b0404b25750b51be691ffeea6466f",
-      "event": "push",
-      "updatedAt": "2026-10-28T14:01:02Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701006362"
-    },
-    {
-      "id": 40699033735,
+      "id": 40709734845,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "docs/v2-roadmap-branch-editor",
-      "headSha": "4058334eb754e7a11056c4a564995e7aa34ad8b4",
+      "branch": "docs/v2-m0-architecture-audit-20261028",
+      "headSha": "b2a14895b2a24ab410f3160ca109d6117b2bc8ab",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T13:44:41Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40699033735"
+      "updatedAt": "2026-10-28T14:51:38Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40709734845"
+    },
+    {
+      "id": 40709734841,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "docs/v2-m0-architecture-audit-20261028",
+      "headSha": "b2a14895b2a24ab410f3160ca109d6117b2bc8ab",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T14:52:01Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40709734841"
+    },
+    {
+      "id": 40709718207,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "docs/v2-m0-architecture-audit-20261028",
+      "headSha": "b2a14895b2a24ab410f3160ca109d6117b2bc8ab",
+      "event": "push",
+      "updatedAt": "2026-10-28T14:51:53Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40709718207"
+    },
+    {
+      "id": 40709703937,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "docs/v2-m0-architecture-audit-20261028",
+      "headSha": "6a4299bd1b846f0aa32095d766da61261c8f3350",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T14:49:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40709703937"
+    },
+    {
+      "id": 40709703912,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "docs/v2-m0-architecture-audit-20261028",
+      "headSha": "6a4299bd1b846f0aa32095d766da61261c8f3350",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T14:49:19Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40709703912"
+    },
+    {
+      "id": 40709703873,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "docs/v2-m0-architecture-audit-20261028",
+      "headSha": "6a4299bd1b846f0aa32095d766da61261c8f3350",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T14:49:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40709703873"
     }
   ]
 }
