@@ -113,12 +113,23 @@ class V2MainWindow(QMainWindow):
                 action.setShortcut(shortcut)
             action.triggered.connect(lambda checked=False, callback=method: callback())
             toolbar.addAction(action)
+        self.branch.selectionChanged.connect(self._update_move_actions)
+        self._update_move_actions()
         self._restore_presentation()
         self._update_caption()
         self.statusBar().showMessage(
             "Edit inline, Apply or Revert drafts before Save/Open; "
             "New/Open/Save/Save As use portable .rmproj files."
         )
+
+    def _update_move_actions(self) -> None:
+        """Disable unavailable moves, including their keyboard shortcuts."""
+        up = self.findChild(QAction, "v2MoveUp")
+        down = self.findChild(QAction, "v2MoveDown")
+        if up is not None:
+            up.setEnabled(self.branch.can_move_selected(-1))
+        if down is not None:
+            down.setEnabled(self.branch.can_move_selected(1))
 
     def _update_caption(self) -> None:
         name = self.session.path.name if self.session.path else "Untitled"
