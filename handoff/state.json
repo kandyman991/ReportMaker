@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T09:33:50.015Z",
+  "generatedAt": "2026-10-28T14:21:29.895Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "2ec59a689e96d45d1ba2ea4ab10e88d45b85373a",
-    "message": "Merge pull request #62 from kandyman991/fix/issue48-consolidated-safeguards\n\nFollow-up to #60: consolidate copy-only Explorer drops and clipboard safeguards (#48)",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/2ec59a689e96d45d1ba2ea4ab10e88d45b85373a"
+    "sha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
+    "message": "Merge pull request #65 from kandyman991/docs/v2-roadmap-branch-editor\n\ndocs(v2): establish roadmap, architecture and 33 Branch Editor requirements",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/01f1e7b1d2558abe409b8f6a60a3f36ab296a678"
   },
   "openPullRequests": [
     {
@@ -28,6 +28,18 @@
     }
   ],
   "openIssues": [
+    {
+      "number": 64,
+      "title": "[Bug][Windows][ChatGPT] Embedded browser Copy buttons and image download/copy do not work",
+      "updatedAt": "2026-10-28T10:10:41Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/64"
+    },
+    {
+      "number": 63,
+      "title": "[Bug][Rich editor] Numbered lists render every item as 1 instead of sequential numbering",
+      "updatedAt": "2026-10-28T09:57:39Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/63"
+    },
     {
       "number": 55,
       "title": "[UX][Unsaved work] Show title/status indicator for unapplied block, page, and report-info drafts",
@@ -97,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40665197653,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "2ec59a689e96d45d1ba2ea4ab10e88d45b85373a",
-      "event": "push",
-      "updatedAt": "2026-10-28T09:33:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40665197653"
-    },
-    {
-      "id": 40665197549,
-      "name": "ReportMaker continuity contract",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "2ec59a689e96d45d1ba2ea4ab10e88d45b85373a",
-      "event": "push",
-      "updatedAt": "2026-10-28T09:33:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40665197549"
-    },
-    {
-      "id": 40665197458,
+      "id": 40705098327,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "2ec59a689e96d45d1ba2ea4ab10e88d45b85373a",
+      "headSha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
       "event": "push",
-      "updatedAt": "2026-10-28T09:33:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40665197458"
+      "updatedAt": "2026-10-28T14:21:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40705098327"
     },
     {
-      "id": 40663187210,
+      "id": 40705098176,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
+      "event": "push",
+      "updatedAt": "2026-10-28T14:21:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40705098176"
+    },
+    {
+      "id": 40705098078,
+      "name": "ReportMaker continuity contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "01f1e7b1d2558abe409b8f6a60a3f36ab296a678",
+      "event": "push",
+      "updatedAt": "2026-10-28T14:21:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40705098078"
+    },
+    {
+      "id": 40701024891,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "fix/issue48-consolidated-safeguards",
-      "headSha": "d96b0245816ddfa1321f3461be60e815aab951e6",
+      "branch": "docs/v2-roadmap-branch-editor",
+      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T09:19:43Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40663187210"
+      "updatedAt": "2026-10-28T13:57:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701024891"
     },
     {
-      "id": 40663187098,
+      "id": 40701024845,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "docs/v2-roadmap-branch-editor",
+      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
+      "event": "pull_request",
+      "updatedAt": "2026-10-28T13:57:34Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701024845"
+    },
+    {
+      "id": 40701024840,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "fix/issue48-consolidated-safeguards",
-      "headSha": "d96b0245816ddfa1321f3461be60e815aab951e6",
+      "branch": "docs/v2-roadmap-branch-editor",
+      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T09:18:23Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40663187098"
+      "updatedAt": "2026-10-28T13:56:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701024840"
     },
     {
-      "id": 40663186877,
+      "id": 40701019466,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "fix/issue48-consolidated-safeguards",
-      "headSha": "d96b0245816ddfa1321f3461be60e815aab951e6",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T09:19:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40663186877"
-    },
-    {
-      "id": 40663179462,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/issue48-consolidated-safeguards",
-      "headSha": "d96b0245816ddfa1321f3461be60e815aab951e6",
+      "branch": "docs/v2-roadmap-branch-editor",
+      "headSha": "4dc93b66888f45016f994cb234482760bc77b41d",
       "event": "push",
-      "updatedAt": "2026-10-28T09:19:10Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40663179462"
+      "updatedAt": "2026-10-28T14:02:31Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701019466"
     },
     {
-      "id": 40659401622,
+      "id": 40701012803,
       "name": "M0 architecture and model gates",
       "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/issue48-consolidated-safeguards",
-      "headSha": "110d41107fbd3ec0588079a4b9b022df39709b60",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T08:50:41Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40659401622"
+      "conclusion": "cancelled",
+      "branch": "docs/v2-roadmap-branch-editor",
+      "headSha": "e5d1219919bd2f5e07a29e28bc39ad74c2105542",
+      "event": "push",
+      "updatedAt": "2026-10-28T13:56:04Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701012803"
     },
     {
-      "id": 40659401593,
+      "id": 40701006362,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "docs/v2-roadmap-branch-editor",
+      "headSha": "241574bef17b0404b25750b51be691ffeea6466f",
+      "event": "push",
+      "updatedAt": "2026-10-28T14:01:02Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40701006362"
+    },
+    {
+      "id": 40699033735,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "fix/issue48-consolidated-safeguards",
-      "headSha": "110d41107fbd3ec0588079a4b9b022df39709b60",
+      "branch": "docs/v2-roadmap-branch-editor",
+      "headSha": "4058334eb754e7a11056c4a564995e7aa34ad8b4",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T08:49:51Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40659401593"
-    },
-    {
-      "id": 40659401577,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/issue48-consolidated-safeguards",
-      "headSha": "110d41107fbd3ec0588079a4b9b022df39709b60",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T08:48:17Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40659401577"
+      "updatedAt": "2026-10-28T13:44:41Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40699033735"
     }
   ]
 }
