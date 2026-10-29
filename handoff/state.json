@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-29T15:26:13.418Z",
+  "generatedAt": "2026-10-29T15:48:09.859Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "83ef81ab798c100f521a84c745796e895d411206",
-    "message": "V2 M7.1 — Isolated Windows installer and installed-offline preflight (#92)\n\n* M7.1: add independent V2 frozen launcher\n\n* M7.1: isolate per-user V2 preview installer identity from V1\n\n* M7.1: verify frozen and installed V2 on Windows without publishing\n\n* M7.1: verify frozen and installed V2 on Windows without publishing\n\n* M7: register all 33 physical Windows acceptance scenarios as pending\n\n* M7: document bounded Checkpoint D submilestones and native evidence contract\n\n* M7: record M6.7 acceptance and start isolated Windows preflight\n\n* M7: record M6.7 acceptance and start isolated Windows preflight\n\n* M7: record M6.7 acceptance and start isolated Windows preflight\n\n* M7: record M6.7 acceptance and start isolated Windows preflight\n\n* M7: record M6.7 acceptance and start isolated Windows preflight\n\n* M7.1 review: fail if uninstall is absent or V2 binaries remain\n\n* M7.1 review: guard native-evidence transitions and uninstall cleanup\n\n* M7.1: correct completed M6 roadmap status and guard milestone handoff",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/83ef81ab798c100f521a84c745796e895d411206"
+    "sha": "1774cedb18ac53b60a04d298268f31c227655d19",
+    "message": "M7.2: accept five-version project migration and integrity gates (#95)\n\nReviewed architecture, archive security and data integrity; correct F01-F03 acceptance coverage; exact-head hosted M0, M1, continuity, M7.2 Windows 3.11/3.12 and M7.1 installer preflight green. Does not promote or publish V2.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/1774cedb18ac53b60a04d298268f31c227655d19"
   },
   "openPullRequests": [
     {
@@ -29,10 +29,10 @@
   ],
   "openIssues": [
     {
-      "number": 91,
-      "title": "M7.1 — Isolated V2 Windows installer and installed-offline smoke gates",
-      "updatedAt": "2026-10-29T15:09:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/91"
+      "number": 94,
+      "title": "M7.2 — Legacy v1–v5 project migration and data-integrity acceptance",
+      "updatedAt": "2026-10-29T15:27:48Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/94"
     },
     {
       "number": 90,
@@ -133,114 +133,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40901519434,
+      "id": 40905206209,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "83ef81ab798c100f521a84c745796e895d411206",
+      "headSha": "1774cedb18ac53b60a04d298268f31c227655d19",
       "event": "push",
-      "updatedAt": "2026-10-29T15:26:09Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40901519434"
+      "updatedAt": "2026-10-29T15:48:07Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40905206209"
     },
     {
-      "id": 40901519405,
+      "id": 40905206130,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "83ef81ab798c100f521a84c745796e895d411206",
+      "headSha": "1774cedb18ac53b60a04d298268f31c227655d19",
       "event": "push",
-      "updatedAt": "2026-10-29T15:26:10Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40901519405"
+      "updatedAt": "2026-10-29T15:48:06Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40905206130"
     },
     {
-      "id": 40901519072,
+      "id": 40905206114,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "83ef81ab798c100f521a84c745796e895d411206",
+      "headSha": "1774cedb18ac53b60a04d298268f31c227655d19",
       "event": "push",
-      "updatedAt": "2026-10-29T15:26:09Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40901519072"
+      "updatedAt": "2026-10-29T15:48:07Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40905206114"
     },
     {
-      "id": 40899326596,
-      "name": "M0 architecture and model gates",
+      "id": 40904187553,
+      "name": "V2 M7.2 legacy project migration integrity",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m7-1-windows-packaging-preflight",
-      "headSha": "cd8c1cb60899e0cce5f9c544950393e8aaee401a",
+      "branch": "feature/v2-m7-2-migration-acceptance",
+      "headSha": "bc5848cf967108e1b1f53123039f1aa7a380c3a0",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T15:15:03Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40899326596"
+      "updatedAt": "2026-10-29T15:42:55Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40904187553"
     },
     {
-      "id": 40899326370,
+      "id": 40904187523,
+      "name": "V2 M6.5 staged metadata localization contract",
+      "status": "completed",
+      "conclusion": "skipped",
+      "branch": "feature/v2-m7-2-migration-acceptance",
+      "headSha": "bc5848cf967108e1b1f53123039f1aa7a380c3a0",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T15:41:56Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40904187523"
+    },
+    {
+      "id": 40904187432,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m7-2-migration-acceptance",
+      "headSha": "bc5848cf967108e1b1f53123039f1aa7a380c3a0",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T15:42:07Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40904187432"
+    },
+    {
+      "id": 40904187422,
       "name": "V2 M7.1 isolated Windows installer preflight",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m7-1-windows-packaging-preflight",
-      "headSha": "cd8c1cb60899e0cce5f9c544950393e8aaee401a",
+      "branch": "feature/v2-m7-2-migration-acceptance",
+      "headSha": "bc5848cf967108e1b1f53123039f1aa7a380c3a0",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T15:18:20Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40899326370"
+      "updatedAt": "2026-10-29T15:47:33Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40904187422"
     },
     {
-      "id": 40899326080,
+      "id": 40904187410,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m7-1-windows-packaging-preflight",
-      "headSha": "cd8c1cb60899e0cce5f9c544950393e8aaee401a",
+      "branch": "feature/v2-m7-2-migration-acceptance",
+      "headSha": "bc5848cf967108e1b1f53123039f1aa7a380c3a0",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T15:14:48Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40899326080"
+      "updatedAt": "2026-10-29T15:43:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40904187410"
     },
     {
-      "id": 40899326034,
-      "name": "V2 M6.5 staged metadata localization contract",
+      "id": 40904187384,
+      "name": "V2 M6.6 precise page and Word fidelity",
       "status": "completed",
       "conclusion": "skipped",
-      "branch": "feature/v2-m7-1-windows-packaging-preflight",
-      "headSha": "cd8c1cb60899e0cce5f9c544950393e8aaee401a",
+      "branch": "feature/v2-m7-2-migration-acceptance",
+      "headSha": "bc5848cf967108e1b1f53123039f1aa7a380c3a0",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T15:13:19Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40899326034"
+      "updatedAt": "2026-10-29T15:42:04Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40904187384"
     },
     {
-      "id": 40899325885,
-      "name": "ReportMaker continuity contract",
+      "id": 40904187349,
+      "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m7-1-windows-packaging-preflight",
-      "headSha": "cd8c1cb60899e0cce5f9c544950393e8aaee401a",
+      "branch": "feature/v2-m7-2-migration-acceptance",
+      "headSha": "bc5848cf967108e1b1f53123039f1aa7a380c3a0",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T15:13:27Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40899325885"
-    },
-    {
-      "id": 40898728263,
-      "name": "V2 M6.5 staged metadata localization contract",
-      "status": "completed",
-      "conclusion": "skipped",
-      "branch": "feature/v2-m7-1-windows-packaging-preflight",
-      "headSha": "b037a696a83db0032582144a6f22fe7b12ce9e5b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T15:09:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40898728263"
-    },
-    {
-      "id": 40898728137,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m7-1-windows-packaging-preflight",
-      "headSha": "b037a696a83db0032582144a6f22fe7b12ce9e5b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T15:09:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40898728137"
+      "updatedAt": "2026-10-29T15:43:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40904187349"
     }
   ]
 }
