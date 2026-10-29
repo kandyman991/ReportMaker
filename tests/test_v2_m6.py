@@ -69,7 +69,7 @@ class IntegratedMediaTests(unittest.TestCase):
         from reportmaker.v2.visual_export import annotated_png
         plan = prepare_export(project, visual_renderer=annotated_png)
         photo_item = next(item for item in plan.items if item.kind == "photo")
-        self.assertTrue(photo_item.image.startswith(b"\\x89PNG"))
+        self.assertTrue(photo_item.image[:4] == bytes((137, 80, 78, 71)))
         self.assertNotEqual(photo_item.image, project.assets["synthetic_photo"])
         before = deepcopy(project.report)
         with TemporaryDirectory() as directory:
