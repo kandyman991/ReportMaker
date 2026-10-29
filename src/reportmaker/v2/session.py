@@ -53,6 +53,13 @@ class ReportSession:
         self._revision = 0
         self._saved_revision: int | None = 0 if path is not None else None
         self._saved_report = deepcopy(editor.report) if path is not None else None
+        # Asset dictionaries contain immutable bytes; snapshots share the bytes,
+        # not a mutable media library. Keep this ledger aligned with ProjectEditor
+        # history so import+placement is undone/redone as ONE transaction.
+        self._last_media = (dict(assets), dict(library))
+        self._media_undo: list[tuple[dict[str, bytes], dict[str, str]]] = []
+        self._media_redo: list[tuple[dict[str, bytes], dict[str, str]]] = []
+        self._saved_media = (dict(assets), dict(library)) if path is not None else None
 
     @property
     def generation(self) -> str:
@@ -76,7 +83,8 @@ class ReportSession:
             return False
         # Undo can return to the exact saved report while the revision token
         # must keep increasing to reject queued stale commands.
-        return self._saved_report is None or self._editor.report != self._saved_report
+        return (self._saved_report is None or self._editor.report != self._saved_report
+                or self._saved_media != (self._assets, self._library))
 
     @property
     def assets(self):
@@ -122,6 +130,10 @@ class ReportSession:
         self._revision = 0
         self._saved_revision = replacement._saved_revision
         self._saved_report = replacement._saved_report
+        self._saved_media = replacement._saved_media
+        self._last_media = replacement._last_media
+        self._media_undo.clear()
+        self._media_redo.clear()
         self._notify(None)  # generation changed; all prior addresses are stale
 
     def subscribe(self, callback: Callable[[object], None]):
@@ -143,7 +155,24 @@ class ReportSession:
             except Exception:
                 logging.getLogger(__name__).exception("V2 revision listener failed")
 
-    def _publish(self, change) -> None:
+    def _publish(self, change, *, history: str = "forward") -> None:
+        if history == "forward":
+            self._media_undo.append(self._last_media)
+            del self._media_undo[:-self._editor.history_limit]
+            self._media_redo.clear()
+        elif history == "undo":
+            if not self._media_undo:
+                raise RuntimeError("Media undo ledger is out of sync")
+            self._media_redo.append((self._assets, self._library))
+            self._assets, self._library = self._media_undo.pop()
+        elif history == "redo":
+            if not self._media_redo:
+                raise RuntimeError("Media redo ledger is out of sync")
+            self._media_undo.append((self._assets, self._library))
+            self._assets, self._library = self._media_redo.pop()
+        else:
+            raise ValueError("Unsupported history direction")
+        self._last_media = (dict(self._assets), dict(self._library))
         self._revision += 1
         self._notify(change)
 
@@ -155,3 +184,4 @@ class ReportSession:
         self._loaded_version = VERSION
         self._saved_revision = self._revision
         self._saved_report = deepcopy(self._editor.report)
+        self._saved_media = (dict(self._assets), dict(self._library))

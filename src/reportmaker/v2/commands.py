@@ -11,7 +11,9 @@ from typing import Mapping
 from uuid import uuid4
 
 from ..model import (HeadingBlock, LocalizedText, Module, PageBreakBlock,
-                     ParagraphBlock, PhotoBlock, TableBlock)
+                     ParagraphBlock, PhotoBlock, PhotoVisual, TableBlock,
+                     validate_photo_visual)
+from ..media_import import ImportedPicture, StagedPicture, commit_staged_pictures
 from ..project_io import ASSET_ID
 from ..rich_text import RichFormatting, validate_rich
 from .adapters.tables import checked_rows
@@ -46,6 +48,12 @@ _KINDS = {
     "add_table": (set(), {"index"}),
     "add_page_break": (set(), {"index"}),
     "add_photo": ({"asset_id"}, {"index"}),
+    "import_photo": ({"image_bytes", "name"}, {"index"}),
+    "import_photos": ({"photos"}, {"index"}),
+    "replace_photo_import": ({"image_bytes", "name"}, set()),
+    "replace_photo": ({"asset_id"}, set()),
+    "set_photo_caption": ({"text"}, set()),
+    "set_photo_visual": ({"visual"}, set()),
     "set_table_rows": ({"rows"}, set()),
     "rename_module": ({"title"}, set()),
     "set_paragraph": ({"text"}, set()),
@@ -93,13 +101,28 @@ class CommandGateway:
                 raise ValueError("Table edit requires an owning table address")
             checked_rows(intent.args["rows"])
             return
-        if intent.kind == "add_photo":
+        if intent.kind in ("add_photo", "replace_photo"):
             asset_id = intent.args["asset_id"]
             if (not isinstance(asset_id, str) or ASSET_ID.fullmatch(asset_id) is None
                     or asset_id not in self._session.assets):
                 raise ValueError("Photo must reference an existing project-owned asset")
-        value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich") else "title"
-        if intent.kind not in ("add_table", "add_page_break", "add_photo") and not isinstance(intent.args[value_key], str):
+        if intent.kind in ("import_photo", "replace_photo_import"):
+            if (not isinstance(intent.args["image_bytes"], bytes)
+                    or not isinstance(intent.args["name"], str)):
+                raise ValueError("Import requires detached image bytes and a label")
+        if intent.kind == "import_photos":
+            from ..media_import import MAX_IMPORT_BATCH
+            photos = intent.args["photos"]
+            if (not isinstance(photos, (list, tuple))
+                    or not 1 <= len(photos) <= MAX_IMPORT_BATCH
+                    or any(not isinstance(photo, tuple) or len(photo) != 2
+                           or not isinstance(photo[0], str)
+                           or not isinstance(photo[1], bytes) for photo in photos)):
+                raise ValueError("Import batch must contain validated (name, bytes) pairs")
+        if intent.kind == "set_photo_visual":
+            validate_photo_visual(intent.args["visual"])
+        value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich", "set_photo_caption") else "title"
+        if intent.kind not in ("add_table", "add_page_break", "add_photo", "replace_photo", "import_photo", "import_photos", "replace_photo_import", "set_photo_visual") and not isinstance(intent.args[value_key], str):
             raise ValueError("Title and text must be strings")
         if intent.kind == "add_heading" and (type(intent.args["level"]) is not int
                                              or not 1 <= intent.args["level"] <= 6):
@@ -119,7 +142,13 @@ class CommandGateway:
             addr = intent.target
             if not isinstance(addr, NodeAddress) or addr.report_id != report.id:
                 raise ValueError("Action must address the active report")
-            if intent.kind in ("set_paragraph", "set_paragraph_rich", "set_heading_rich"):
+            if intent.kind in ("set_photo_caption", "set_photo_visual",
+                               "replace_photo", "replace_photo_import"):
+                if (addr.block_id is None or addr.field != "photo"
+                        or addr.row is not None or addr.column is not None
+                        or not isinstance(find_node(report, addr), PhotoBlock)):
+                    raise ValueError("Photo edit requires a stable photo block address")
+            elif intent.kind in ("set_paragraph", "set_paragraph_rich", "set_heading_rich"):
                 if addr.field != "text" or addr.block_id is None:
                     raise ValueError("Text edit requires a block text address")
                 block = find_node(report, addr)
@@ -135,7 +164,7 @@ class CommandGateway:
                 if intent.kind == "add_nested_module" and module.id == report.conclusion.id:
                     raise ValueError("Conclusions cannot have intervention submodules")
                 size = len(module.blocks)
-        if intent.kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table", "add_page_break", "add_photo"):
+        if intent.kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table", "add_page_break", "add_photo", "import_photo", "import_photos"):
             if "index" in intent.args and intent.args["index"] > size:
                 raise ValueError("Mixed insertion index exceeds parent length")
 
@@ -203,6 +232,75 @@ class CommandGateway:
             editor.apply(edit_table)
             change = ChangeSet(self._session.revision + 1,
                                frozenset({address.block_id}))
+            self._session._publish(change)
+            return change
+        if kind in ("import_photo", "import_photos", "replace_photo_import"):
+            from ..project_io import ReportProject, _assets_checked
+            staged = ReportProject(deepcopy(editor.report),
+                                   dict(self._session.assets), dict(self._session.media_library))
+            photos = (args["photos"] if kind == "import_photos"
+                      else [(args["name"], args["image_bytes"])])
+            imports = [
+                StagedPicture(name, ImportedPicture(
+                    blob, "approved", 1, 1, 1, 1, len(blob)))
+                for name, blob in photos
+            ]
+            asset_ids = commit_staged_pictures(staged, imports)
+            new_blocks = [
+                PhotoBlock(asset_id, LocalizedText(editor.report.primary_language, ""))
+                for asset_id in asset_ids
+            ]
+            if kind in ("import_photo", "import_photos"):
+                def edit(report):
+                    module = find_node(report, address)
+                    at = args.get("index", len(module.blocks))
+                    for offset, block in enumerate(new_blocks):
+                        module.blocks.insert(at + offset, deepcopy(block))
+                changed_ids = frozenset(block.id for block in new_blocks)
+                structure = True
+            else:
+                def edit(report):
+                    block = find_node(report, address)
+                    block.asset_id = new_blocks[0].asset_id
+                    block.visual = PhotoVisual()
+                changed_ids = frozenset({address.block_id})
+                structure = False
+            # Validate prospective report and owned media before touching live
+            # editor, undo history or session; a bad batch commits NOTHING.
+            preview = deepcopy(editor.report)
+            edit(preview)
+            _assets_checked(ReportProject(preview, staged.assets, staged.media_library))
+            editor.apply(edit)
+            self._session._assets = staged.assets
+            self._session._library = staged.media_library
+            change = ChangeSet(self._session.revision + 1, changed_ids,
+                               structure, True, structure)
+            self._session._publish(change)
+            return change
+        if kind in ("set_photo_caption", "set_photo_visual", "replace_photo"):
+            current = find_node(editor.report, address)
+            if kind == "set_photo_caption" and current.caption is not None and current.caption.original == args["text"]:
+                return None
+            if kind == "set_photo_visual" and current.visual == args["visual"]:
+                return None
+            if kind == "replace_photo" and current.asset_id == args["asset_id"]:
+                return None
+            def edit_photo(report):
+                block = find_node(report, address)
+                if kind == "set_photo_caption":
+                    if block.caption is None:
+                        block.caption = LocalizedText(report.primary_language, args["text"])
+                    else:
+                        block.caption.update_original(args["text"])
+                elif kind == "set_photo_visual":
+                    block.visual = deepcopy(args["visual"])
+                else:
+                    block.asset_id = args["asset_id"]
+                    block.visual = PhotoVisual()
+            editor.apply(edit_photo)
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({address.block_id}),
+                               False, kind == "replace_photo")
             self._session._publish(change)
             return change
         if kind == "set_paragraph":
@@ -294,7 +392,7 @@ class CommandGateway:
         change = ChangeSet(self._session.revision + 1,
                            frozenset({self._session._editor.report.id}),
                            True, False, True)
-        self._session._publish(change)
+        self._session._publish(change, history="undo")
         return change
 
     def redo(self, expected_generation: str, expected_revision: int) -> ChangeSet | None:
@@ -307,5 +405,5 @@ class CommandGateway:
         change = ChangeSet(self._session.revision + 1,
                            frozenset({self._session._editor.report.id}),
                            True, False, True)
-        self._session._publish(change)
+        self._session._publish(change, history="redo")
         return change

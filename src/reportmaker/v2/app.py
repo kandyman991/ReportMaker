@@ -107,6 +107,8 @@ class V2MainWindow(QMainWindow):
             ("v2AddTable", "+ Table", self.branch.add_table, ""),
             ("v2AddPageBreak", "+ Page break", self.branch.add_page_break, ""),
             ("v2AddExistingPhoto", "+ Existing photo", self.branch.add_photo, ""),
+            ("v2ImportPhoto", "+ Import photo", self.branch.import_photo_dialog, "Ctrl+Shift+I"),
+            ("v2PastePhoto", "Paste image", self.branch.paste_photo, "Ctrl+Shift+V"),
             ("v2MoveUp", "↑ Move", self.branch.move_selected_up, "Alt+Up"),
             ("v2MoveDown", "↓ Move", self.branch.move_selected_down, "Alt+Down"),
             ("v2Indent", "→ Indent", self.branch.indent_selected, "Alt+Shift+Right"),

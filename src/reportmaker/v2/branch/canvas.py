@@ -8,17 +8,23 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from math import ceil
+from pathlib import Path
 from uuid import uuid4
 
-from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QDrag, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRect, QSize, Qt, QTimer, Signal, QUrl
+from PySide6.QtGui import QColor, QDrag, QImage, QPixmap, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
 from PySide6.QtWidgets import (
-    QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit, QPlainTextEdit,
-    QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
+    QApplication, QFileDialog, QInputDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit,
+    QPlainTextEdit, QDialog, QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
     QVBoxLayout, QWidget,
 )
 
 from ...engine import module_outline, validate_report_tree
+from ...media_import import (INPUT_SUFFIXES, PictureImportError,
+                             convert_picture, convert_picture_bytes, stage_pictures)
+from ...photo_gallery import clipboard_image_png, local_picture_paths
+from ...photo_editor import render_photo
+from .photo_tools import V2PictureEditorDialog as PictureEditorDialog
 from ...rich_text import RichFormatting, style_at
 from ..adapters.formatting import (
     paragraph_uniform, selection_uniform, to_codepoint,
@@ -26,12 +32,12 @@ from ..adapters.formatting import (
 from .rich_preview import paint_rich
 from ...model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock,
-    ParagraphBlock, PhotoBlock, Report, TableBlock,
+    ParagraphBlock, PhotoBlock, PhotoVisual, Report, TableBlock,
 )
 
 from ..commands import CommandGateway, CommandIntent
 from ..drafts import DraftCoordinator
-from ..projections import NodeAddress, descendant_counts, project_branch
+from ..projections import NodeAddress, descendant_counts, find_node, project_branch
 from ..session import StaleIntentError, PendingDraftError, ReportSession
 from ..structure import plan_drop, plan_indent, plan_outdent, structural_node
 
@@ -252,6 +258,52 @@ class InlineParagraph(QPlainTextEdit):
             super().keyPressEvent(event)
 
 
+class PhotoThumbnail(QWidget):
+    """Responsive, intrinsic-height, non-scrolling photo view.
+
+    Only the shared project's immutable asset is decoded; each placement's
+    visual is independently rendered with annotations and transformations.
+    Qt layouts measure heightForWidth rather than a fixed image-card height.
+    """
+
+    def __init__(self, image: QImage, width_pct: int, alignment: str, parent=None):
+        super().__init__(parent)
+        self._image = image
+        self._width_pct = width_pct
+        self._alignment = alignment
+        self.setObjectName("v2PhotoThumbnail")
+        self.setAccessibleName("Project-owned photo preview")
+        policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def heightForWidth(self, width: int) -> int:
+        if self._image.isNull():
+            return 28
+        draw_width = max(1, min(self._image.width(), width * self._width_pct // 100))
+        return max(1, round(draw_width * self._image.height() / self._image.width()))
+
+    def sizeHint(self) -> QSize:
+        return QSize(450, self.heightForWidth(450))
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(1, self.heightForWidth(1))
+
+    def paintEvent(self, event):
+        if self._image.isNull():
+            return
+        draw_width = max(1, min(self._image.width(),
+                                self.width() * self._width_pct // 100))
+        draw_height = min(self.height(), self.heightForWidth(self.width()))
+        x = (0 if self._alignment == "left" else
+             max(0, self.width() - draw_width) if self._alignment == "right" else
+             max(0, (self.width() - draw_width) // 2))
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.drawImage(QRect(x, 0, draw_width, draw_height), self._image)
+        painter.end()
+
+
 @dataclass(frozen=True)
 class _DragContext:
     """An unforgeable in-process drag, with a frozen revision/generation."""
@@ -386,6 +438,8 @@ class DropRow(QWidget):
         self._canvas._preview_drop(self, event)
 
     def dragLeaveEvent(self, event):
+        # Do not reset the frozen revision when the cursor crosses adjacent
+        # branch rows during one native drag.
         self._canvas._clear_drop_preview(self)
         event.accept()
 
@@ -435,6 +489,8 @@ class BranchCanvas(QScrollArea):
         self._drag_context = None
         self._native_drag_active = False
         self._drag_refresh_pending = False
+        self._external_drag = None
+        self._external_mime = None
         # Prevent an already-rendered commit from rebuilding native editors
         # a second time when its deferred session notification arrives.
         self._last_rendered_token = None
@@ -552,6 +608,8 @@ class BranchCanvas(QScrollArea):
             self._selected_module_id = None
             self._restore = None
             self._drag_context = None
+            self._external_drag = None
+            self._external_mime = None
             self._clear_drop_preview()
         # Native Qt handlers must finish before rebuilding. UI commands may
         # already have performed a synchronous refresh; avoid a second rebuild
@@ -677,6 +735,8 @@ class BranchCanvas(QScrollArea):
             except RuntimeError:
                 pass  # Window shutdown can still destroy the source explicitly.
             self._drag_context = None
+            self._external_drag = None
+            self._external_mime = None
             self._clear_drop_preview()
             if self._drag_refresh_pending:
                 self._drag_refresh_pending = False
@@ -687,7 +747,10 @@ class BranchCanvas(QScrollArea):
             row.clear_indicator()
             return
         if self._preview_row is not None:
-            self._preview_row.clear_indicator()
+            try:
+                self._preview_row.clear_indicator()
+            except RuntimeError:
+                pass  # A queued session redraw may already own this row's deletion.
         self._preview_row = None
         self._hover_key = None
 
@@ -713,6 +776,10 @@ class BranchCanvas(QScrollArea):
             return position, None, str(exc)
 
     def _preview_drop(self, row: DropRow, event) -> None:
+        if (not event.mimeData().hasFormat(_INTERNAL_MOVE_MIME)
+                and event.source() is None and event.mimeData().hasUrls()):
+            self._preview_external_drop(row, event)
+            return
         position, plan, reason = self._candidate(row, event)
         if position is None:
             event.ignore()
@@ -740,6 +807,10 @@ class BranchCanvas(QScrollArea):
             event.accept()
 
     def _commit_drop(self, row: DropRow, event) -> None:
+        if (not event.mimeData().hasFormat(_INTERNAL_MOVE_MIME)
+                and event.source() is None and event.mimeData().hasUrls()):
+            self._commit_external_drop(row, event)
+            return
         position, plan, reason = self._candidate(row, event)
         context = self._drag_context
         self._clear_drop_preview()
@@ -766,6 +837,336 @@ class BranchCanvas(QScrollArea):
         event.setDropAction(Qt.DropAction.MoveAction)
         event.accept()
 
+    def _photo_drop_target(self, address: NodeAddress, position: str):
+        """Resolve a native file drop to the same mixed canonical slots."""
+        report = self._session.report_snapshot()
+        if address.report_id != report.id:
+            raise StaleIntentError("Drop belongs to an older project")
+        rows = project_branch(report)
+        row = next((entry for entry in rows
+                    if entry.stable_id == (address.block_id or address.module_id)), None)
+        if row is None or row.kind == "root":
+            raise ValueError("Choose a module or content insertion location")
+        if position == "inside" and row.kind in ("module", "conclusion"):
+            return row.stable_id, len(find_node(report, NodeAddress(report.id, row.stable_id)).blocks)
+        if position in ("before", "after") and row.parent_module_id is not None:
+            return row.parent_module_id, row.mixed_sibling_index + (position == "after")
+        raise ValueError("Drop inside a module, or before/after a content block")
+
+    def _preview_external_drop(self, row: DropRow, event):
+        # A new native MIME object marks a new drag gesture. Crossing between
+        # rows with the same MIME must NOT silently renew a stale revision.
+        mime = event.mimeData()
+        if self._external_drag is None or mime is not self._external_mime:
+            self._external_drag = (self._session.generation, self._session.revision)
+            self._external_mime = mime
+        position = row.position_at(event.position().y())
+        paths, errors = local_picture_paths(event.mimeData())
+        try:
+            if event.source() is not None or not paths or errors:
+                raise ValueError("; ".join(errors) or "Only local image file URLs are supported")
+            if not (event.possibleActions() & Qt.DropAction.CopyAction):
+                raise ValueError("Only copying image files is supported")
+            if self._external_drag != (self._session.generation, self._session.revision):
+                raise StaleIntentError("Report changed during external drag")
+            self._session.require_clean_drafts()
+            self._photo_drop_target(row.address, position)
+            valid, reason = True, ""
+        except (ValueError, LookupError, RuntimeError) as exc:
+            valid, reason = False, str(exc)
+        if self._preview_row is not row:
+            self._clear_drop_preview()
+        self._preview_row = row
+        row.show_indicator(position, valid, reason)
+        if valid:
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        elif paths and not errors:
+            # A supported local file may cross an invalid zone before an
+            # acceptable one; keep native move feedback alive across rows.
+            event.setDropAction(Qt.DropAction.IgnoreAction)
+            event.accept()
+        else:
+            # Never swallow foreign/empty/remote HTML and URL payloads.
+            event.ignore()
+
+    def _commit_external_drop(self, row: DropRow, event):
+        generation_revision = self._external_drag
+        position = row.position_at(event.position().y())
+        paths, errors = local_picture_paths(event.mimeData())
+        self._clear_drop_preview()
+        self._external_drag = None
+        self._external_mime = None
+        try:
+            if (generation_revision is None
+                    or generation_revision != (self._session.generation, self._session.revision)
+                    or errors or not paths
+                    or not (event.possibleActions() & Qt.DropAction.CopyAction)):
+                raise StaleIntentError("Invalid or stale native image drop")
+            self._session.require_clean_drafts()
+            module_id, index = self._photo_drop_target(row.address, position)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            event.ignore()
+            return
+        event.setDropAction(Qt.DropAction.CopyAction)
+        event.accept()
+        gen, rev = generation_revision
+        # Never retain a QDropEvent across the asynchronous image conversion.
+        QTimer.singleShot(0, lambda captured=tuple(paths), mid=module_id,
+                          at=index, g=gen, r=rev:
+                          self.import_photo_paths(captured, module_id=mid, index=at,
+                                                  expected_revision=r, expected_generation=g))
+
+    def import_photo_paths(self, paths, *, module_id=None, index=None,
+                           expected_revision=None, expected_generation=None) -> bool:
+        """Convert validated local originals once, then commit an atomic batch."""
+        if self._session is None:
+            return False
+        rev = self._session.revision if expected_revision is None else expected_revision
+        gen = self._session.generation if expected_generation is None else expected_generation
+        owner = self._selected_module_id if module_id is None else module_id
+        if owner is None:
+            self.feedback.emit("Select the destination module first")
+            return False
+        try:
+            self._session.require_clean_drafts()
+            if (gen, rev) != (self._session.generation, self._session.revision):
+                raise StaleIntentError("Image selection belongs to an obsolete report")
+            mime = QMimeData()
+            mime.setUrls([QUrl.fromLocalFile(str(path)) for path in paths])
+            approved, errors = local_picture_paths(mime)
+            if errors or len(approved) != len(paths) or not approved:
+                raise PictureImportError("; ".join(errors) or "Invalid local file selection")
+            staged = stage_pictures(approved)
+            # The dialog/decoder may reenter event processing; freeze the
+            # original revision and let the command gateway reject stale data.
+            photos = tuple((item.name, item.photo.data) for item in staged)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Image import rejected: " + str(exc))
+            return False
+        return self._run("import_photos",
+                         NodeAddress(self._session.report_snapshot().id, owner),
+                         expected_revision=rev, expected_generation=gen,
+                         photos=photos, **({} if index is None else {"index": index}))
+
+    def _import_photo_after(self, address, *, expected_revision=None,
+                            expected_generation=None):
+        report = self._session.report_snapshot()
+        if address.report_id != report.id:
+            return False
+        row = next((item for item in project_branch(report)
+                    if item.stable_id == address.block_id
+                    and item.parent_module_id == address.module_id), None)
+        if row is None:
+            return False
+        return self.import_photo_dialog(
+            module_id=address.module_id, index=row.mixed_sibling_index + 1,
+            expected_revision=expected_revision, expected_generation=expected_generation)
+
+    def import_photo_dialog(self, *, module_id=None, index=None,
+                            expected_revision=None, expected_generation=None):
+        if self._session is None:
+            return False
+        rev = self._session.revision if expected_revision is None else expected_revision
+        gen = self._session.generation if expected_generation is None else expected_generation
+        patterns = " ".join("*" + suffix for suffix in sorted(INPUT_SUFFIXES))
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Import local pictures", "", f"Supported images ({patterns})")
+        return (self.import_photo_paths(paths, module_id=module_id, index=index,
+                                        expected_revision=rev, expected_generation=gen)
+                if paths else False)
+
+    def paste_photo(self, *, module_id=None, index=None):
+        """Explicit native-image clipboard import; never parse browser HTML."""
+        if self._session is None:
+            return False
+        rev, gen = self._session.revision, self._session.generation
+        owner = self._selected_module_id if module_id is None else module_id
+        if owner is None:
+            self.feedback.emit("Select the destination module first")
+            return False
+        try:
+            self._session.require_clean_drafts()
+            mime = QApplication.clipboard().mimeData()
+            if mime is None:
+                raise PictureImportError("Clipboard does not contain native image data")
+            if mime.hasImage():
+                image = mime.imageData()
+                if isinstance(image, QPixmap):
+                    image = image.toImage()
+                if not isinstance(image, QImage):
+                    raise PictureImportError("Clipboard does not contain native pixels")
+                # HTML may accompany native pixels, but is never examined.
+                photo = convert_picture_bytes(clipboard_image_png(image))
+                return self._run("import_photo",
+                                 NodeAddress(self._session.report_snapshot().id, owner),
+                                 expected_revision=rev, expected_generation=gen,
+                                 image_bytes=photo.data, name="Clipboard photo",
+                                 **({} if index is None else {"index": index}))
+            paths, errors = local_picture_paths(mime)
+            if errors or not paths:
+                raise PictureImportError("Clipboard must contain native pixels or local image files")
+            return self.import_photo_paths(paths, module_id=owner, index=index,
+                                           expected_revision=rev, expected_generation=gen)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Image paste rejected: " + str(exc))
+            return False
+
+    def edit_photo(self, address: NodeAddress) -> bool:
+        if self._session is None:
+            return False
+        rev, gen = self._session.revision, self._session.generation
+        try:
+            self._session.require_clean_drafts()
+            photo = find_node(self._session.report_snapshot(), address)
+            if not isinstance(photo, PhotoBlock):
+                raise ValueError("Select a valid photo block")
+            dialog = PictureEditorDialog(
+                self, self._session.assets[photo.asset_id], photo.visual,
+                self._session.report_snapshot().primary_language)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return False
+            return self._run("set_photo_visual", address, visual=deepcopy(dialog.visual),
+                             expected_revision=rev, expected_generation=gen)
+        except (ValueError, LookupError, RuntimeError, KeyError) as exc:
+            self.feedback.emit("Photo editing rejected: " + str(exc))
+            return False
+
+    def _confirm_visual_reset(self, address: NodeAddress) -> bool:
+        photo = find_node(self._session.report_snapshot(), address)
+        if not isinstance(photo, PhotoBlock):
+            raise ValueError("Select a photo block")
+        if photo.visual == PhotoVisual():
+            return True
+        answer = QMessageBox.question(
+            self, "Reset photo edits?",
+            "Replacing this photo will reset this placement's crop, rotation, "
+            "scale, and editable annotations. The original project-owned image "
+            "and its other placements will not change. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        return answer == QMessageBox.StandardButton.Yes
+
+    def replace_photo_from_file(self, address: NodeAddress) -> bool:
+        if self._session is None:
+            return False
+        rev, gen = self._session.revision, self._session.generation
+        try:
+            self._session.require_clean_drafts()
+            if not self._confirm_visual_reset(address):
+                return False
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+        patterns = " ".join("*" + suffix for suffix in sorted(INPUT_SUFFIXES))
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Replace with local photo", "", f"Supported images ({patterns})")
+        if not path:
+            return False
+        try:
+            mime = QMimeData()
+            mime.setUrls([QUrl.fromLocalFile(path)])
+            approved, errors = local_picture_paths(mime)
+            if errors or len(approved) != 1:
+                raise PictureImportError("; ".join(errors) or "Unsafe local file")
+            new_photo = convert_picture(approved[0])
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Photo replacement rejected: " + str(exc))
+            return False
+        return self._run("replace_photo_import", address,
+                         expected_revision=rev, expected_generation=gen,
+                         name=Path(path).stem, image_bytes=new_photo.data)
+
+    def replace_photo(self, address: NodeAddress, *, asset_id: str | None = None) -> bool:
+        if self._session is None:
+            return False
+        rev, gen = self._session.revision, self._session.generation
+        try:
+            self._session.require_clean_drafts()
+            if not self._confirm_visual_reset(address):
+                return False
+            if asset_id is None:
+                names = self._session.media_library
+                choices = {f"{names.get(key, 'Project photo')} [{key}]": key
+                           for key in sorted(self._session.assets)}
+                if not choices:
+                    raise ValueError("No approved project photos available")
+                label, accepted = QInputDialog.getItem(
+                    self, "Replace photo", "Use existing project-owned image:",
+                    list(choices), 0, False)
+                if not accepted:
+                    return False
+                asset_id = choices[label]
+            return self._run("replace_photo", address, asset_id=asset_id,
+                             expected_revision=rev, expected_generation=gen)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+
+    def _photo_card(self, card: QFrame, address: NodeAddress, block: PhotoBlock):
+        try:
+            image = render_photo(self._session.assets[block.asset_id], block.visual, 1000)
+            preview = PhotoThumbnail(image, block.visual.width_pct,
+                                     block.visual.alignment, card)
+            card.layout().addWidget(preview)
+        except (ValueError, KeyError):
+            note = QLabel("Image unavailable — check project-owned asset", card)
+            note.setObjectName("v2PhotoAssetError")
+            card.layout().addWidget(note)
+        toolbar = QHBoxLayout()
+        for caption, name, callback in (
+            ("Edit photo", "v2PhotoEdit", lambda: self.edit_photo(address)),
+            ("Replace", "v2PhotoReplace", lambda: self.replace_photo(address)),
+            ("From file", "v2PhotoReplaceFile", lambda: self.replace_photo_from_file(address)),
+        ):
+            button = QPushButton(caption, card)
+            button.setObjectName(name)
+            button.clicked.connect(lambda checked=False, cb=callback: cb())
+            toolbar.addWidget(button)
+        toolbar.addStretch(1)
+        card.layout().addLayout(toolbar)
+        caption_addr = NodeAddress(address.report_id, address.module_id,
+                                   address.block_id, "caption")
+        caption_editor = InlineParagraph(card)
+        caption_editor.setObjectName("v2PhotoCaption")
+        caption_editor.setPlaceholderText("Photo caption (optional)")
+        caption_editor.setPlainText(self.drafts.text(caption_addr))
+        stale = self.drafts.text_stale(caption_addr)
+        external = self.drafts.draft_owner(caption_addr) not in (None, "branch")
+        caption_editor.setReadOnly(stale or external)
+        if stale or external:
+            note = QLabel(("Caption changed while a draft was pending; copy text and Revert."
+                           if stale and not external else
+                           "Caption draft belongs to the other editor; resolve it there."),
+                          card)
+            note.setObjectName("v2PhotoDraftWarning")
+            note.setWordWrap(True)
+            card.layout().addWidget(note)
+        self._editors[caption_addr] = caption_editor
+        buttons = QWidget(card)
+        layout = QHBoxLayout(buttons)
+        apply = QPushButton("Apply caption", buttons)
+        apply.setObjectName("v2ApplyPhotoCaption")
+        revert = QPushButton("Revert caption", buttons)
+        revert.setObjectName("v2RevertPhotoCaption")
+        apply.setEnabled(not stale and not external)
+        revert.setEnabled(not external)
+        layout.addWidget(apply)
+        layout.addWidget(revert)
+        layout.addStretch(1)
+        buttons.setVisible(self.drafts.is_dirty(caption_addr))
+        self._draft_bars[caption_addr] = buttons
+        caption_editor.textChanged.connect(
+            lambda e=caption_editor, a=caption_addr, b=buttons:
+            self._changed(a, e.toPlainText(), b))
+        caption_editor.commitRequested.connect(lambda a=caption_addr: self.apply_draft(a))
+        caption_editor.cancelRequested.connect(lambda a=caption_addr: self.revert_draft(a))
+        apply.clicked.connect(lambda checked=False, a=caption_addr: self.apply_draft(a))
+        revert.clicked.connect(lambda checked=False, a=caption_addr: self.revert_draft(a))
+        card.layout().addWidget(caption_editor)
+        card.layout().addWidget(buttons)
+
     def _changed(self, address, text, buttons):
         try:
             self.drafts.update(address, text)
@@ -773,7 +1174,7 @@ class BranchCanvas(QScrollArea):
             # while typing; the staged Unicode ranges are authoritative.
             # Highlighter-only refresh does not mutate Qt's text undo stack.
             editor = self._editors.get(address)
-            if isinstance(editor, InlineParagraph):
+            if isinstance(editor, InlineParagraph) and address.field == "text":
                 try:
                     paint_rich(editor, text, self.drafts.rich(address))
                 except ValueError:
@@ -863,7 +1264,7 @@ class BranchCanvas(QScrollArea):
             # Inserting through the toolbar into a collapsed container must
             # reveal the new block, not silently create invisible content.
             if kind in ("add_nested_module", "add_paragraph", "add_heading", "add_table",
-                        "add_page_break", "add_photo") and target is not None:
+                        "add_page_break", "add_photo", "import_photo", "import_photos") and target is not None:
                 reveal_insert_parent = target.module_id in self._collapsed
                 self._collapsed.discard(target.module_id)
             new_id = next(iter(change.changed_ids))
@@ -872,7 +1273,7 @@ class BranchCanvas(QScrollArea):
                 self._selected_module_id = new_id
                 self._restore = (NodeAddress(report_id, new_id), 0, -1)
             elif kind in ("add_paragraph", "add_heading", "add_table",
-                          "add_page_break", "add_photo"):
+                          "add_page_break", "add_photo", "import_photo", "import_photos"):
                 self._selected_module_id = target.module_id
                 self._restore = (
                     (NodeAddress(report_id, target.module_id, new_id,
@@ -1181,6 +1582,18 @@ class BranchCanvas(QScrollArea):
             outdent.setEnabled(self._planned_indent(address, outdent=True) is not None)
             outdent.triggered.connect(lambda: self._structural_move(address, outdent=True))
             menu.addSeparator()
+        if address.block_id is not None:
+            node = find_node(self._session.report_snapshot(), address)
+            if isinstance(node, PhotoBlock):
+                photo_address = NodeAddress(address.report_id, address.module_id,
+                                            address.block_id, "photo")
+                edit_photo = menu.addAction("Edit photo layers…")
+                edit_photo.triggered.connect(lambda: self.edit_photo(photo_address))
+                replace_photo = menu.addAction("Replace with existing photo…")
+                replace_photo.triggered.connect(lambda: self.replace_photo(photo_address))
+                new_file = menu.addAction("Replace with local photo…")
+                new_file.triggered.connect(lambda: self.replace_photo_from_file(photo_address))
+                menu.addSeparator()
         insert_menu = menu.addMenu("Insert inside" if address.block_id is None
                                    else "Insert after")
         source_revision, source_generation = self._session.revision, self._session.generation
@@ -1206,6 +1619,19 @@ class BranchCanvas(QScrollArea):
                            rev=source_revision, gen=source_generation:
                     self.insert_content_after(a, k, expected_revision=rev,
                                                expected_generation=gen))
+        from_disk = insert_menu.addAction("Import local photo…")
+        if address.block_id is None:
+            from_disk.triggered.connect(
+                lambda checked=False, mid=address.module_id,
+                       rev=source_revision, gen=source_generation:
+                self.import_photo_dialog(module_id=mid, expected_revision=rev,
+                                         expected_generation=gen))
+        else:
+            from_disk.triggered.connect(
+                lambda checked=False, a=address, rev=source_revision,
+                       gen=source_generation:
+                self._import_photo_after(a, expected_revision=rev,
+                                         expected_generation=gen))
         if address.block_id is None:
             submodule = insert_menu.addAction("Submodule")
             submodule.setEnabled(address.module_id !=
@@ -1764,7 +2190,11 @@ class BranchCanvas(QScrollArea):
                     self._context_menu(a, c.mapToGlobal(pt))
                 )
             card_layout.addLayout(header)
-            if self.drafts is not None and kind == "table":
+            if self.drafts is not None and kind == "photo":
+                photo_addr = NodeAddress(report.id, meta.parent_module_id, identifier, "photo")
+                photo_block = find_node(report, photo_addr)
+                self._photo_card(card, photo_addr, photo_block)
+            elif self.drafts is not None and kind == "table":
                 self._inline_table(card, NodeAddress(
                     report.id, meta.parent_module_id, identifier, "table"))
             elif self.drafts is not None and kind in ("module", "conclusion", "paragraph", "heading"):
