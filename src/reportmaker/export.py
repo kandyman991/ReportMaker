@@ -59,6 +59,9 @@ class ExportStyle:
     normal_size_pt: float = 11.0
     heading_font: str = ""
     heading_size_pt: float = 16.0
+    # Transient authored template prose; these are never included in .rmproj.
+    footer_source_language: str | None = None
+    footer_locale_approvals: tuple = ()
 
 
 def _validate_style(style: ExportStyle | None) -> ExportStyle:
@@ -92,7 +95,8 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
                        style.top_margin_cm, style.bottom_margin_cm,
                        style.header_distance_cm, style.footer_distance_cm,
                        style.normal_font, style.normal_size_pt,
-                       style.heading_font, style.heading_size_pt)
+                       style.heading_font, style.heading_size_pt,
+                       style.footer_source_language, style.footer_locale_approvals)
 
 
 def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
@@ -654,10 +658,11 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                               "increase the top margin or shorten the header")
 
     footer = None
-    if style.footer_note:
+    footer_note = (plan.locale_labels or {}).get("branding.footer_note", style.footer_note)
+    if footer_note:
         footer_style = ParagraphStyle("RMFooter", fontName=body_font,
                                       fontSize=8, leading=10)
-        markup = escape(style.footer_note).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
+        markup = escape(footer_note).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
         footer = Paragraph(markup, footer_style)
         note_width = max(2*cm, (style.page_width_cm-style.left_margin_cm-
                                 style.right_margin_cm-3)*cm)
@@ -697,7 +702,8 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                 canvas.setFont(body_font, 9)
                 canvas.drawRightString((style.page_width_cm-style.right_margin_cm)*cm,
                                        style.footer_distance_cm*cm,
-                                       "Page " + str(doc.page))
+                                       (plan.locale_labels or {}).get(
+                                           "label.page", "Page") + " " + str(doc.page))
             finally:
                 canvas.restoreState()
 
