@@ -42,9 +42,11 @@ class MetadataTranslationDialog(QDialog):
         self.language.setObjectName("v2MetadataLanguage")
         for language in session.report_snapshot().output_languages:
             self.language.addItem(language, language)
-        self.language.currentIndexChanged.connect(self._language_changed)
+        # Populate before connecting: the first addItem changes selection
+        # synchronously, before the field list is constructed.
         row.addWidget(self.language, 1)
         root.addLayout(row)
+        self.language.currentIndexChanged.connect(self._language_changed)
         self.fields = QListWidget(self)
         self.fields.setObjectName("v2MetadataFields")
         self.fields.currentRowChanged.connect(self._field_changed)
@@ -102,8 +104,11 @@ class MetadataTranslationDialog(QDialog):
     def _is_stale(self):
         if self._key is None or self._language is None:
             return False
-        record = self.session.report_snapshot().localization_ledger.get(
-            self._key, {}).get(self._language)
+        records = self.session.report_snapshot().localization_ledger.get(
+            self._key, {})
+        code = next((tag for tag in records
+                     if tag.casefold() == self._language.casefold()), None)
+        record = records[code] if code else None
         return record is not None and record["source_sha256"] != self._source_sha256
 
     def _language_changed(self, _index):
