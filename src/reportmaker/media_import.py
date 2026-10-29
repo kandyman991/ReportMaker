@@ -165,8 +165,13 @@ def convert_picture_bytes(data: bytes, *, preset: str = "balanced",
         return _convert_picture_data(data, preset=preset, output_format=output_format)
     except PictureImportError:
         raise
-    except (OSError, ValueError, UnidentifiedImageError,
-            Image.DecompressionBombError) as exc:
+    except UnidentifiedImageError as exc:
+        # Disallowed decoder formats are no longer parsed; retain the
+        # existing actionable "Unsupported image content" diagnostic.
+        raise PictureImportError(
+            "Unsupported image content format or damaged clipboard picture"
+        ) from exc
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise PictureImportError("Cannot decode clipboard picture") from exc
 
 
