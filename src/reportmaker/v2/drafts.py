@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from copy import deepcopy
 
-from ..model import HeadingBlock, LocalizedText, Module, ParagraphBlock, TableBlock
+from ..model import HeadingBlock, LocalizedText, Module, ParagraphBlock, PhotoBlock, TableBlock
 from ..rich_text import RichFormatting
 from .adapters.formatting import format_chars, format_paragraphs
 from .adapters.tables import checked_rows, edit_cell, change_grid
@@ -45,7 +45,9 @@ def _source(node, address: NodeAddress) -> str:
     if (address.field == "text" and address.block_id is not None
             and isinstance(node, (ParagraphBlock, HeadingBlock))):
         return node.text.original
-    raise ValueError("Only module titles, paragraph and heading text can be edited inline")
+    if address.field == "caption" and address.block_id is not None and isinstance(node, PhotoBlock):
+        return node.caption.original if node.caption is not None else ""
+    raise ValueError("Only module titles, paragraph/heading text and photo captions can be edited inline")
 
 
 class DraftCoordinator:
@@ -325,6 +327,11 @@ class DraftCoordinator:
             kind, args = "set_table_rows", {"rows": checked_rows(draft.rows)}
         elif address.field == "title":
             kind, args = "rename_module", {"title": draft.value}
+        elif address.field == "caption":
+            kind, args = "set_photo_caption", {"text": draft.value}
+            # Gateway address is photo-owned; draft lookup remains caption-owned.
+            address = NodeAddress(address.report_id, address.module_id,
+                                  address.block_id, "photo")
         else:
             kind = "set_heading_rich" if isinstance(node, HeadingBlock) else "set_paragraph_rich"
             args = {"text": draft.value,
@@ -339,7 +346,7 @@ class DraftCoordinator:
             change = self.gateway.execute(intent)
         finally:
             self._committing = False
-        self._clear(address)
+        self._clear(draft.address)
         return change
 
 
