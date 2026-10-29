@@ -55,7 +55,7 @@ _KINDS = {
     "set_report_metadata": ({"title", "created_date", "start_date", "end_date",
                              "ticket", "technicians", "intervention_types",
                              "other_intervention_detail", "customer_snapshot",
-                             "primary_language", "output_languages"}, set()),
+                             "primary_language", "output_languages"}, {"customer_id"}),
     "replace_photo_import": ({"image_bytes", "name"}, set()),
     "replace_photo": ({"asset_id"}, set()),
     "set_photo_caption": ({"text"}, set()),
@@ -73,6 +73,13 @@ _KINDS = {
 
 def _apply_report_metadata(report, args):
     """Validate by replaying the exact same one-report transaction."""
+    snapshot = args["customer_snapshot"]
+    # A selected database reference and its report key are one atomic pair.
+    # Legacy clients may omit customer_id, but may never override the snapshot.
+    customer_id = snapshot.customer_id if snapshot is not None else None
+    if "customer_id" in args and args["customer_id"] != customer_id:
+        raise ValueError("Customer ID does not match detached reference")
+    report.customer_id = customer_id
     report.title.update_original(args["title"])
     for field in ("created_date", "start_date", "end_date", "ticket",
                   "technicians", "intervention_types", "other_intervention_detail",
