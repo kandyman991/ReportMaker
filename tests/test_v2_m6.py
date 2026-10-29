@@ -263,6 +263,33 @@ class IntegratedWorkspaceTests(unittest.TestCase):
         self.assertEqual(self.win.session.report_snapshot(), self.before)
         self.assertTrue(self.win.editor_tab.revert_changes())
 
+    def test_word_template_selection_changes_export_style_not_report(self):
+        from docx import Document
+        from docx.shared import Cm
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "synthetic-layout.docx"
+            source = Document()
+            section = source.sections[0]
+            section.page_width, section.page_height = Cm(29.7), Cm(21)
+            section.left_margin, section.right_margin = Cm(2.5), Cm(2.5)
+            section.top_margin, section.bottom_margin = Cm(3.0), Cm(2.5)
+            section.header.paragraphs[0].text = "Synthetic header"
+            section.footer.paragraphs[0].text = "Synthetic footer"
+            source.save(path)
+            self.assertTrue(self.win.import_layout_template(path))
+            self.assertEqual(self.win.session.report_snapshot(), self.before)
+            self.assertAlmostEqual(self.win.preview_tab.style.page_width_cm, 29.7,
+                                   places=1)
+            self.assertEqual(self.win.preview_tab.style, self.win.editor_tab.style)
+            output = Path(directory) / "styled.docx"
+            self.assertTrue(self.win.preview_tab.export_to(output, "docx"))
+            exported = Document(output)
+            self.assertAlmostEqual(exported.sections[0].page_width.cm, 29.7,
+                                   places=1)
+            self.assertIn("Synthetic header",
+                          exported.sections[0].header.paragraphs[0].text)
+            self.assertEqual(self.win.session.report_snapshot(), self.before)
+
     def test_preview_and_export_refuse_pending_draft(self):
         child = self.before.modules[0].blocks[1].module
         address = NodeAddress(self.before.id, child.id, child.blocks[0].id, "text")
