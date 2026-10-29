@@ -38,6 +38,18 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      - name: Parse native acceptance builder without execution
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "scripts/build_v2_m73_local.ps1").Path,
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | Out-String | Write-Error
+            throw "M7.3 local Windows builder has invalid PowerShell syntax"
+          }
       - name: Install desktop and pinned offline packaging dependencies
         shell: pwsh
         run: |

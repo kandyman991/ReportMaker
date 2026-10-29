@@ -59,8 +59,13 @@ The canonical matrix has **6 layout**, **7 editing**, **7 structural**, **7 usab
 
 ## Preparation verification
 
-- New acceptance-tool unit tests exercise 33 pending cases, separate review, non-destructive ledger updates, evidence hash changes, failure issue requirements, and refusal to treat Linux as real Windows.
+- Nine acceptance-tool unit tests exercise 33 pending cases, separate review, non-destructive ledger updates, evidence hash changes, failure issue requirements, source/installer/installed EXE build-manifest consistency, future approved matrix-status changes without breaking older dossiers, local Windows builder boundaries, and refusal to treat Linux as real Windows.
 - Windows build script and native GUI steps **must still be tested on a physical Windows x64 PC**. A successful local synthetic/unit/hosted-CI run is preparation only.
 - Source, hash, OS build and scale evidence are recorded without hostname, Windows username, browser cookies or customer content; ensure redaction/cropping is done **before** storing any screenshot. Do not publish screenshots automatically.
 
 **Next gate:** A physical Windows owner must perform these tests and supply a privacy-reviewed status/evidence reference for each case. Independently review failures, implement fixes in the M7.3 PR, rerun targeted native regressions, and only then consider M7.3 acceptance/merge. Remain on V1 as the supported fallback until separately authorized M7.6.
+
+## Initial review hardening
+- Acceptance files bind to the SHA-256 of the stable **ordered scenario IDs and manual acceptance descriptions**, rather than the mutable matrix status/evidence fields. Otherwise an approved matrix-status change would make its underlying native dossiers unreadable.
+- The local builder treats untracked source files as a dirty worktree and writes PyInstaller's `.spec` outside the repository, so exact SHA refers to the code being packaged and repeat runs do not create untracked build specs.
+- Hosted M7.1 preflight additionally parses the M7.3 PowerShell build script **without executing it**, protecting CI from syntax regressions without pretending to install it on a physical PC.

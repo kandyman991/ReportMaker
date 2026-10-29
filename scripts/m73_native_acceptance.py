@@ -35,10 +35,26 @@ def _matrix() -> dict:
     ids = [item["id"] for item in rows]
     if (len(ids) != 33 or len(set(ids)) != 33
             or any(CASE_ID.fullmatch(i) is None for i in ids)
-            or any(item["status"] != "pending_native_acceptance"
-                   or item["evidence_ref"] is not None for item in rows)):
-        raise ValueError("Canonical native matrix was unexpectedly modified")
+            or any(not isinstance(item.get("manual_acceptance"), str)
+                   or not item["manual_acceptance"].strip() for item in rows)
+            or any(item.get("status") not in (
+                "pending_native_acceptance", "accepted_native_acceptance")
+                for item in rows)
+            or any((item["status"] == "pending_native_acceptance") !=
+                   (item.get("evidence_ref") is None) for item in rows)):
+        raise ValueError("Canonical native matrix has invalid acceptance records")
     return matrix
+
+
+def _matrix_digest() -> str:
+    # A reviewed status update must not invalidate older native dossiers.
+    # Bind evidence to immutable case IDs and required scenarios, not to
+    # mutable status/evidence-reference fields in the repository matrix.
+    cases = [{"id": row["id"], "manual_acceptance": row["manual_acceptance"]}
+             for row in _matrix()["requirements"]]
+    encoded = json.dumps(cases, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return sha256(encoded).hexdigest()
 
 
 def _digest(path: Path) -> str:
@@ -66,7 +82,7 @@ def _read(folder: Path) -> dict:
     expected = set(x["id"] for x in _matrix()["requirements"])
     if (data.get("schema_version") != 1 or data.get("platform") != "Windows-x64"
             or data.get("case_count") != 33 or set(data.get("cases", {})) != expected
-            or data.get("matrix_sha256") != _digest(MATRIX)
+            or data.get("matrix_sha256") != _matrix_digest()
             or not GIT_SHA.fullmatch(data.get("source_sha", ""))
             or not all(SHA256.fullmatch(data.get(k, "")) for k in
                        ("installer_sha256", "installed_exe_sha256"))):
@@ -151,7 +167,7 @@ def prepare(args) -> None:
         "windows_build": build, "display_scale": args.display_scale.strip(),
         "tested_at_utc": _now(), "source_sha": args.source_sha.lower(),
         "installer_sha256": _digest(setup), "installed_exe_sha256": _digest(exe),
-        "matrix_sha256": _digest(MATRIX), "case_count": 33,
+        "matrix_sha256": _matrix_digest(), "case_count": 33,
         "tester_alias": args.tester_alias.strip(),
         "cases": {
             row["id"]: {

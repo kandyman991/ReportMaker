@@ -143,6 +143,31 @@ class NativeAcceptanceToolTests(TestCase):
                 reviewer_alias="Reviewer-2", decision="accept",
                 notes="Different contents are not approved"))
 
+    def test_reviewed_matrix_status_change_keeps_prior_evidence_readable(self):
+        self._prepare()
+        original = gate._read(self.output)
+        matrix = gate._matrix()
+        matrix["requirements"][0]["status"] = "accepted_native_acceptance"
+        matrix["requirements"][0]["evidence_ref"] = "synthetic-reviewed-reference"
+        later = self.root / "future-matrix.json"
+        later.write_text(json.dumps(matrix), encoding="utf-8")
+        with mock.patch.object(gate, "MATRIX", later):
+            reopened = gate._read(self.output)
+            self.assertEqual(reopened["matrix_sha256"], original["matrix_sha256"])
+            self.assertEqual(reopened["cases"]["BE-L01"]["result"], "pending")
+
+    def test_windows_builder_does_not_publish_or_touch_v1(self):
+        root = SCRIPT.parents[1]
+        builder = (root / "scripts/build_v2_m73_local.ps1").read_text(encoding="utf-8")
+        self.assertIn("[switch]$Install", builder)
+        self.assertIn("--specpath $specDir", builder)
+        self.assertIn("ReportMakerV2.exe", builder)
+        self.assertIn("ReportMaker-V2-M7.iss", builder)
+        self.assertIn("Get-FileHash", builder)
+        self.assertNotIn("upload-artifact", builder)
+        self.assertNotIn("gh release", builder)
+        self.assertNotIn("ReportMaker.iss\"", builder)
+
     def test_build_provenance_mismatch_is_rejected(self):
         manifest = json.loads(self.build_manifest.read_text(encoding="utf-8"))
         manifest["installer_sha256"] = "0" * 64
