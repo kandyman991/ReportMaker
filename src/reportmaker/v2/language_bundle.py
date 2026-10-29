@@ -6,8 +6,8 @@ succeeded. Nothing is stored back in the .rmproj, browser, or customer database.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
 from pathlib import Path
+from hashlib import sha256
 from tempfile import TemporaryDirectory
 from typing import Callable, Sequence
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -46,16 +46,18 @@ def export_language_bundle(
         raise ExportError("Choose a .zip file in an existing folder")
 
     wanted = project.report.output_languages if languages is None else languages
-    if not isinstance(wanted, (tuple, list)) or not 1 <= len(wanted) <= 32:
-        raise ExportError("Select between 1 and 32 export languages")
+    if not isinstance(wanted, (tuple, list)) or not wanted:
+        raise ExportError("Select at least one export language")
     selected = []
+    seen = set()
     allowed = {tag.casefold(): tag for tag in project.report.output_languages}
     for language in wanted:
         validate_language_tag(language)
         if language.casefold() not in allowed:
             raise ExportError("Language is not selected in Report Information: " + language)
-        if language.casefold() in {tag.casefold() for tag in selected}:
+        if language.casefold() in seen:
             raise ExportError("Duplicate export language")
+        seen.add(language.casefold())
         selected.append(allowed[language.casefold()])
     if not isinstance(formats, (tuple, list)) or not 1 <= len(formats) <= 2:
         raise ExportError("Select DOCX, PDF, or both")
@@ -73,7 +75,12 @@ def export_language_bundle(
             for fmt in formats:
                 # Language syntax allows only ASCII letters, digits and '-',
                 # so no archive path may contain a slash, backslash or '..'.
-                name = f"report_{language}.{fmt}"
+                # Very long but syntactically valid tags must still fit
+                # portable Windows filenames; use a stable digest suffix.
+                safe = (language if len(language) <= 65 else
+                        language[:48] + "_" +
+                        sha256(language.encode("ascii")).hexdigest()[:12])
+                name = f"report_{safe}.{fmt}"
                 export_project(
                     translated, root / name, format=fmt, style=style,
                     visual_renderer=visual_renderer)
