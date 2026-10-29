@@ -111,15 +111,15 @@ Deliverables:
 
 **M6 implementation decomposition (2026-10-29):** [Seven formally tracked submilestones, evidence and PR ownership](M6_SUBMILESTONES.md). The approved M6 deliverables and Checkpoint C definition above/below are unchanged.
 
-1. **M6.1 — Canonical shared workspaces:** session-backed tabs, draft ownership and atomic Editor Apply. Implemented/hosted CI-tested within draft PR #83, independent acceptance pending.
-2. **M6.2 — Photos/Gallery and basic faithful exports:** safe media imports and annotated DOCX/PDF. Implemented/hosted CI-tested within PR #83, acceptance pending.
-3. **M6.3 — Report Info and references:** frozen customer/site/machine snapshots, multi-intervention metadata, template basics. Implemented/hosted CI-tested within PR #83, acceptance pending.
-4. **M6.4 — Explicit content translations and language delivery:** stable-ID translations, strict single/multi-language DOCX/PDF and ZIP, PDF proof; metadata localization is excluded. Implemented/hosted CI-tested within PR #83, acceptance pending.
-5. **M6.5 — Metadata and boilerplate localization:** NOT IMPLEMENTED; next separate, scoped PR; no silent source-language/English fallback.
-6. **M6.6 — Precise page Editor and Word/template fidelity:** basic infrastructure within PR #83, remaining fidelity work in its own later PR.
-7. **M6.7 — End-to-end Checkpoint C:** final independent integration tests and acceptance PR after the preceding slices.
+1. **M6.1 — Canonical shared workspaces:** reviewed and merged in PR #83.
+2. **M6.2 — Photos/Gallery and basic faithful exports:** reviewed and merged in PR #83.
+3. **M6.3 — Report Info and references:** reviewed and merged in PR #83.
+4. **M6.4 — Explicit content translations and language delivery:** reviewed and merged in PR #83.
+5. **M6.5 — Metadata and boilerplate localization:** reviewed and merged in PR #84, including strict schema-v5 provenance and export approvals.
+6. **M6.6 — Precise page Editor and Word/template fidelity:** development ACTIVE in a new independent draft branch; first paper-metric/fixed-table slice implemented, further Word/template fidelity and native acceptance still required. See [M6.6 progress](M6_6_PROGRESS.md).
+7. **M6.7 — End-to-end Checkpoint C:** NOT STARTED; follows independently accepted M6.6.
 
-**PR boundary:** PR #83 is frozen for new features after milestone formalization and represents M6.1–M6.4 only. Remaining features use *one separate milestone-sized PR at a time*, stacked on #83 only while it is unmerged. CI success alone is not approval or permission to merge. Physical installed Windows/release acceptance remains M7, with M6 hosted integration gates required.
+**PR boundary:** PR #83 and PR #84 are already merged. M6.6 must remain a separate, scoped draft PR against main, with independent review and exact-head hosted Windows CI before any merge. Physical installed Windows/release acceptance remains M7; Word pagination visual checks are not proven by schematic Qt or PDF proof.
 
 **Exit / Checkpoint C:** End-to-end synthetic technical report edits in Branch Editor, previews, saves and exports correctly; all tabs reference the same stable content IDs and no unsaved edits vanish.
 
@@ -136,8 +136,8 @@ Deliverables:
 
 ## PR and integration approach
 
-1. The initial roadmap/architecture documentation baseline was reviewed and merged separately (PR #65); later implementation PRs must honor that contract. **PR #83 is frozen as the historical M6.1–M6.4 implementation aggregation.**
-2. From M6.5 onward, use **one milestone-sized feature PR at a time**. While #83 is unmerged, the next M6.5 work uses a stacked draft PR against its branch, not `main`. Future PRs must remain narrow, testable and independently reviewable.
+1. The initial roadmap/architecture documentation baseline was reviewed and merged separately (PR #65); later implementation PRs must honor that contract. **PR #83 (M6.1–M6.4) and PR #84 (M6.5) are merged.**
+2. From M6.6 onward, use **one milestone-sized feature PR at a time**, from the reviewed `main` baseline. New PRs remain narrow, testable, independently reviewable and unmerged without explicit authorization.
 3. Prefer model/command and editing-session foundations before concurrent widget work. Parallel photo/preview changes are permissible only after their interfaces are stable and shared-file ownership is coordinated.
 4. Every PR must state baseline/head commit SHAs, exact tests run, unverified Windows steps, acceptance evidence and how it respects the architecture contract.
 5. Protect `main` and the V1 release path. CI success alone is not permission to merge.
@@ -157,4 +157,4 @@ Deliverables:
 - Invariants and module/service boundaries: [V2 architecture](ARCHITECTURE.md)
 - V1 source of truth stays [root architecture contract](../../ARCHITECTURE.md), [report composition](../REPORT_COMPOSITION_CONTRACT.md) and [existing roadmap](../../ROADMAP.md).
 
-**Current next action (2026-10-29):** Independently review draft PR #83 (M6.1–M6.4) without adding features or merging; M6.5 starts as the separately scoped stacked draft PR #84 with a proposed persistence/localization ADR. M6.6 and M6.7 remain gated in sequence. No installer, default-V2 promotion, release or merge is authorized by this roadmap.
+**Current next action (2026-10-29):** Finish the dedicated [M6.6 fidelity milestone](M6_6_PROGRESS.md) after the already merged PR #83 and #84. Independently review M6.6, verify exact-head hosted Windows 3.11/3.12 CI and record unverified native Word/Windows behavior before seeking merge authorization. M6.7, installer and default-V2 promotion remain separate.

@@ -470,3 +470,32 @@ Next reproducible action:
 - Independent M6.5 review corrected F1 high: style-only footer approvals may not impersonate report-owned v5 ledger entries; F2 medium: dedicated M6.5 test-file path patterns now trigger full V2 CI individually; F3 low: schematic Preview no longer claims metadata is English-only. Strict report/v5 provenance, rollback and transient branding boundaries remain intact; duplicate JSON key rejection was already implemented.
 - Regression added for F1 in `tests/test_v2_m65_integration.py`; all fixtures synthetic. See `docs/v2/M6_5_PROGRESS.md` for detailed findings.
 - Decision gate: independently review diff, test entire merged state, check exact final PR HEAD's GitHub-hosted Windows Python 3.11/3.12 M6.5 and V2 regression workflows plus M0/M1, and only then use explicit user authorization to merge #84. No physical installed-Windows acceptance, M6.6/6.7 acceptance, installer or V2 promotion.
+
+## CP-V2-M66-A — 2026-10-29 (development started, not accepted)
+- M6.1–M6.4 PR #83 and M6.5 PR #84 have merged. Started M6.6 **only** in [draft PR #88](https://github.com/kandyman991/ReportMaker/pull/88), isolated `feature/v2-m6-6-page-word-fidelity` from verified post-M6.5 `main` `e2b19d0a5fea6db6d211d1f306c657969dcc177f`; refer to `docs/v2/M6_6_PROGRESS.md` and issue #86.
+- Initial scope: responsive physical-margin Page Editor projection without nested scrollbars, base font fidelity to selected Word profile, live table growth; fixed full-printable-width OOXML tables, unaffected canonical report data and independent DOCX/PDF pagination.
+- Added synthetic pure/Qt regression suite and GitHub-hosted Windows Python 3.11/3.12 M6.6 acceptance workflow, plus coverage in existing full V2 workflow.
+- This is an **initial implementation checkpoint, not M6.6 completion or merge authorization**. Independent exact-head code review, full Windows CI, installed Microsoft Word visual acceptance, complex template limitations and stress coverage remain open. M6.7, V2 promotion and Windows release remain excluded.
+
+## CP-V2-M66-B — 2026-10-29 (continued PR #88 development; unmerged)
+- Continued only M6.6 in draft [PR #88](https://github.com/kandyman991/ReportMaker/pull/88). Scope: deterministic editable Word list numbering (decimal, lower/upper alpha, bullet), restart/continuity at canonical block boundaries, safe line leading based on largest rich run for Word/PDF, Word heading keep-with-next and configurable heading font sizes.
+- New synthetic regression assertions inspect OOXML numbering, paragraph metrics, Word headings, edited photo/pagebreak retention, 18 nested modules with tables, and narrow-template PDF-overflow preservation of existing outputs; existing rich PDF list and safe template import tests are now in hosted Windows 3.11/3.12 M6.6 gate.
+- Baseline previous fully green head `0e87abe0407247e4385352829fc4748027a3c6bd` (9 applicable hosted workflows, local 431 passing / 170 subtests). **Local M6.6-B results: 436 passed / 170 subtests. New B code/test head and exact hosted CI must be verified after push**. M6.6 native Word visual acceptance, deep complex-template fidelity, independent review and merge authorization remain open; M6.7 and release excluded.
+
+## CP-V2-M66-C — 2026-10-29 (continued PR #88, unmerged)
+- From previously green M6.6-B commit `1b1ef3929d136d9da9f6956120c378c0cd5d6ddd`, continued the **same** draft [PR #88](https://github.com/kandyman991/ReportMaker/pull/88) with safe complex-Word template diagnostics, cross-section first-page header warnings, explicit Latin/East Asian/complex-script font attributes, PDF proof font-substitution notice, and a read-only, macro-disabled **manual** installed-Word pagination/field verifier.
+- Synthetic tests include multi-section/column/border/numbering/mirror/style profiles and stable source bytes/non-leakage, untrusted malformed columns, `w:rFonts`, live Word PAGE/PAGEREF XML/bookmark preflight. Dedicated hosted M6.6 Windows 3.11/3.12 gate parses PowerShell syntax; licensed desktop Word is **not** part of CI.
+- See `docs/v2/M6_6_WORD_ACCEPTANCE.md` for the native visual checklist and exact limitations. Native Word acceptance, actual Word pages, independent M6.6 review and merge authorization are still **OPEN**. M6.6-C local tests: **440 passed, 179 subtests**; hosted exact-head Windows CI requires live verification after this commit is pushed.
+
+## CP-V2-M66-INDEPENDENT-REVIEW — 2026-10-29
+
+- Independent review of draft PR #88 (base `main`, pre-review head `ccda9a28635f90a57cbbc341e195fdc1f9b470ea`) identified and corrected F1 narrow-viewport photo clipping, F2 quadratic initial table geometry work and F3 incomplete native PAGEREF error detection. Source and synthetic regression changes are isolated to the M6.6 branch; no canonical report, export storage, language provenance or browser contract changed.
+- Separate Linux/offscreen checkout: full unittest discovery **441 passed**, M6.6 **13 passed**, diff whitespace validation passed. Final pushed head Windows CI is still a distinct required check; native licensed Windows Word COM/visual pagination evidence is absent.
+- User authorized review/correction/merge of #88, but previously declared milestone native Word acceptance remains outstanding; do not mark native fidelity verified or publish a release. See `docs/v2/M6_6_PROGRESS.md` and `docs/v2/M6_6_WORD_ACCEPTANCE.md`.
+
+## CP-V2-M66-NATIVE-WORD-ACCEPTANCE — 2026-10-29
+
+- User completed native Microsoft Word **16.0** read-only verification of the synthetic A4 DOCX exported from reviewed PR #88 code `3e4127518e8befe75fecea45cd41b972efdbb066`, alongside a positive user-reported comparison with the matching synthetic PDF.
+- The supplied JSON reports **3 pages before and after field update**, **4 PAGEREF fields**, **0 unresolved references**. No approved Word baseline (`expected_word_pages=0`) or Word/PDF equality assertion was requested; native Word build, Windows edition, DPI/fonts not captured. Evidence and residual scope are documented in `docs/v2/M6_6_WORD_ACCEPTANCE.md`.
+- PR #88 received independent review with three corrections; Linux/offscreen 441 tests and **9/9 applicable exact-code-head GitHub workflows** passed. User gave explicit authorization to review/fix/merge #88; check documentation-final HEAD CI, then merge if unchanged review/technical scope and green.
+- Still outside this gate: extensive native layout/template matrix, installed V2 app DPI/device checks, M6.7 Checkpoint C, V2-default promotion and public installer/release. Do not call those complete.

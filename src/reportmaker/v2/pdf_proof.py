@@ -103,7 +103,8 @@ class PdfProofPanel(QWidget):
             self.render_page(1)
             self.notice.setText(
                 f"Exact PDF export proof · {self.page_count} paginated pages. "
-                "Word DOCX layout may differ; unapplied drafts are excluded.")
+                "Word DOCX layout may differ; PDF uses available local fonts "
+                "and may substitute Word-only run families. Unapplied drafts are excluded.")
             return True
         except (OSError, ValueError, RuntimeError) as exc:
             self.invalidate()

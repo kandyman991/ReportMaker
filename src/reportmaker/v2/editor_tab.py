@@ -78,6 +78,13 @@ class NaturalPageTable(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.verticalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents)
+        # Resizing a cell must also resize the outer card immediately; no
+        # nested grid viewport may swallow a long edit until a window resize.
+        self.itemChanged.connect(self._content_changed)
+
+    def _content_changed(self, _item):
+        self.resizeRowsToContents()
+        self.updateGeometry()
 
     def sizeHint(self):
         size = super().sizeHint()
@@ -101,6 +108,86 @@ class NaturalPageTable(QTableWidget):
 
     def wheelEvent(self, event):
         event.ignore()
+
+
+class NaturalPagePhoto(QLabel):
+    """Keep report photos inside the responsive printable area at every width.
+
+    A QLabel's default size hint is the pixmap's pixel width; a fixed 610px
+    preview can otherwise force narrow paper offscreen with scrollbars hidden.
+    """
+    def __init__(self, image, parent=None):
+        super().__init__(parent)
+        pixmap = QPixmap.fromImage(image)
+        self._ratio = pixmap.height() / max(1, pixmap.width())
+        self.setPixmap(pixmap)
+        self.setScaledContents(True)
+        self.setMinimumSize(1, 1)
+        policy = QSizePolicy(QSizePolicy.Policy.Expanding,
+                             QSizePolicy.Policy.Fixed)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def heightForWidth(self, width):
+        return max(1, ceil(max(1, width) * self._ratio))
+
+    def sizeHint(self):
+        # Never turn original photo pixels into a minimum paper width.
+        hint = super().sizeHint()
+        hint.setWidth(1)
+        hint.setHeight(1)
+        return hint
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Qt does not consistently honor QLabel height-for-width in a
+        # vertically growing paper layout. Set the aspect-height explicitly.
+        height = self.heightForWidth(event.size().width())
+        if self.height() != height:
+            self.setFixedHeight(height)
+            self.updateGeometry()
+
+
+class NaturalPagePaper(QFrame):
+    """Responsive paper outline: one physical scale for width and margins.
+
+    This is a *continuous* editable document, not simulated Word page breaks.
+    At narrow viewport widths the whole paper and its margins scale together,
+    rather than hiding fixed 500px content under a disabled scrollbar.
+    """
+
+    PIXELS_PER_CM = 40.0
+
+    def __init__(self, style: ExportStyle, parent=None):
+        super().__init__(parent)
+        self.setObjectName("v2DocumentPaper")
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(round(self.PIXELS_PER_CM * style.page_width_cm))
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.setStyleSheet("QFrame#v2DocumentPaper { background: white;"
+                           " border: 1px solid #b1b8c1; }")
+        # Do not shadow QWidget.style(), which Qt uses for native painting.
+        self._export_style = style
+        self.flow = QVBoxLayout(self)
+        self.flow.setSpacing(8)
+        self._sync_margins()
+
+    def _sync_margins(self):
+        # The same cm-to-pixel scale is applied to all four printable margins.
+        # It is intentionally a responsive *projection*, not PDF pagination.
+        scale = max(1, self.width()) / self._export_style.page_width_cm
+        margins = tuple(round(scale * value) for value in (
+            self._export_style.left_margin_cm, self._export_style.top_margin_cm,
+            self._export_style.right_margin_cm, self._export_style.bottom_margin_cm))
+        if self.flow.getContentsMargins() != margins:
+            self.flow.setContentsMargins(*margins)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._sync_margins()
 
 
 class DocumentEditorTab(QWidget):
@@ -257,18 +344,8 @@ class DocumentEditorTab(QWidget):
                        self._module_id, self._page)
         shell = QWidget(self)
         root = QVBoxLayout(shell)
-        page = QFrame(shell)
-        page.setObjectName("v2DocumentPaper")
-        page.setMaximumWidth(max(500, min(1100, round(850 * self.style.page_width_cm / 21))))
-        page.setStyleSheet("QFrame#v2DocumentPaper { background: white;"
-                           " border: 1px solid #b1b8c1; }")
-        flow = QVBoxLayout(page)
-        flow.setContentsMargins(
-            max(18, round(35 * self.style.left_margin_cm / 2.1)),
-            max(18, round(35 * self.style.top_margin_cm / 3.0)),
-            max(18, round(35 * self.style.right_margin_cm / 2.1)),
-            max(18, round(35 * self.style.bottom_margin_cm / 2.5)))
-        flow.setSpacing(8)
+        page = NaturalPagePaper(self.style, shell)
+        flow = page.flow
         self._editors = {}
         self._tables = {}
 
@@ -304,11 +381,7 @@ class DocumentEditorTab(QWidget):
                         image = render_photo(self.session.assets[node.asset_id],
                                              node.visual, 900)
                         if not image.isNull():
-                            picture = QLabel(page)
-                            picture.setPixmap(QPixmap.fromImage(image).scaledToWidth(
-                                min(610, image.width()),
-                                Qt.TransformationMode.SmoothTransformation))
-                            flow.addWidget(picture)
+                            flow.addWidget(NaturalPagePhoto(image, page))
                     except (ValueError, KeyError):
                         label("Project photo unavailable")
                     address = NodeAddress(
@@ -321,6 +394,19 @@ class DocumentEditorTab(QWidget):
                         label("Heading", bold=True)
                 edit = NaturalPageText(page)
                 edit.setObjectName("v2DocumentField_" + row.stable_id)
+                # Present supported base font semantics consistently with
+                # the Word profile. Rich inline runs remain canonical and are
+                # edited in the Branch formatting toolbar, not silently lost.
+                font = edit.font()
+                family = (self.style.heading_font if row.kind == "heading"
+                          else self.style.normal_font)
+                if family:
+                    font.setFamily(family)
+                font.setPointSizeF(self.style.heading_size_pt if
+                                   row.kind == "heading" else
+                                   self.style.normal_size_pt)
+                font.setBold(row.kind == "heading")
+                edit.setFont(font)
                 edit.setPlainText(initial)
                 if self.branch.drafts.draft_owner(address) not in (None, "page-editor"):
                     edit.setReadOnly(True)
@@ -343,9 +429,15 @@ class DocumentEditorTab(QWidget):
                 table.setObjectName("v2DocumentTable_" + row.stable_id)
                 table.setAcceptDrops(False)
                 table.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
-                for i, values in enumerate(node.rows):
-                    for j, value in enumerate(values):
-                        table.setItem(i, j, QTableWidgetItem(value.original))
+                # Bulk population is not a live edit: avoid O(cells * rows)
+                # repeated geometry work before the table is even displayed.
+                table.blockSignals(True)
+                try:
+                    for i, values in enumerate(node.rows):
+                        for j, value in enumerate(values):
+                            table.setItem(i, j, QTableWidgetItem(value.original))
+                finally:
+                    table.blockSignals(False)
                 if self.branch.drafts.draft_owner(address) not in (None, "page-editor"):
                     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
                 else:

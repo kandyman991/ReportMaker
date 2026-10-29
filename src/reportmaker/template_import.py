@@ -237,6 +237,65 @@ def _inspect_package(blob: bytes) -> tuple[bytes, tuple[str, ...]]:
     return blob, tuple(sorted(set(warnings)))
 
 
+def _advanced_layout_warnings(document) -> tuple[str, ...]:
+    """Disclose unsupported Word layout without copying hostile OOXML nodes.
+
+    Keep warnings fixed, predictable and bounded: a customer-authored style
+    name or an OOXML attribute must never become trusted diagnostic text.
+    The .rmtemplate schema deliberately stores only an allowlisted profile.
+    """
+    from docx.oxml.ns import qn
+
+    warnings = []
+    section_props = [section._sectPr for section in document.sections]
+    if any(
+        (cols := props.find(qn("w:cols"))) is not None and
+        (cols.get(qn("w:num"), "1") not in ("1", "01") or
+         cols.get(qn("w:sep")) in ("1", "true", "on"))
+        for props in section_props
+    ):
+        warnings.append("Multi-column Word sections are not reproduced; report body uses one column")
+    if any(props.find(qn("w:pgBorders")) is not None for props in section_props):
+        warnings.append("Word page borders are not imported")
+    if any(props.find(qn("w:pgNumType")) is not None for props in section_props):
+        warnings.append("Word page-number restart/format is not imported; reports use a live PAGE field")
+    if any(props.find(qn("w:lnNumType")) is not None for props in section_props):
+        warnings.append("Word line numbering is not imported")
+    if document.settings.element.find(qn("w:mirrorMargins")) is not None:
+        warnings.append("Word mirrored/gutter margin layout is not imported")
+    if any(props.find(qn("w:rtlGutter")) is not None for props in section_props):
+        warnings.append("Word right-to-left gutter settings are not imported")
+    if (document.element.body.xpath(".//w:framePr") or
+        document.element.body.xpath(".//wp:anchor") or
+        document.element.body.xpath(".//w:txbxContent")):
+        warnings.append("Floating body frames/text boxes cannot be reconstructed as report layout")
+    for section in document.sections:
+        for part in (section.header, section.footer):
+            if part._element.xpath(".//w:txbxContent"):
+                warnings.append("Header/footer text boxes are not imported")
+            if part._element.xpath(".//wp:anchor"):
+                warnings.append("Floating header/footer objects are not positioned as in Word")
+    # The durable profile contains fonts/sizes only, not the source's rich
+    # paragraph style graph. Warn only for detected advanced formatting.
+    style_elements = (document.styles["Normal"]._element,
+                      document.styles["Heading 1"]._element)
+    if any(
+        element.xpath("./w:pPr/*") or
+        element.xpath("./w:rPr/w:color") or
+        element.xpath("./w:rPr/w:highlight") or
+        element.xpath("./w:rPr/w:shd") or
+        element.xpath("./w:rPr/w:spacing")
+        for element in style_elements
+    ):
+        warnings.append("Word paragraph spacing, tabs, colors and other rich style rules are not imported")
+    if any(
+        element.xpath("./w:rPr/w:rFonts[@w:asciiTheme or @w:hAnsiTheme or @w:eastAsiaTheme]")
+        for element in style_elements
+    ):
+        warnings.append("Theme-dependent Word font bindings may be substituted")
+    return tuple(dict.fromkeys(warnings))
+
+
 def import_word_template(path: str | Path) -> ImportResult:
     """Inspect a local Word package, then project supported static layout fields."""
     path = Path(path)
@@ -258,10 +317,11 @@ def import_word_template(path: str | Path) -> ImportResult:
         # None should escape as an unexpected GUI exception or fetch a URL.
         raise TemplateError("Unsupported or corrupt Word document") from exc
     warnings = list(warnings_in)
+    warnings.extend(_advanced_layout_warnings(doc))
     if len(doc.sections) != 1:
         warnings.append("Only the first section's geometry/header/footer is imported")
     sec = doc.sections[0]
-    if sec.different_first_page_header_footer:
+    if any(section.different_first_page_header_footer for section in doc.sections):
         warnings.append("Different first-page header/footer is not imported")
     if doc.settings.odd_and_even_pages_header_footer:
         warnings.append("Odd/even header and footer variants are not imported")

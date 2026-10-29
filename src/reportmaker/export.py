@@ -404,6 +404,94 @@ def _rich_pdf_markup(parts, fallback_bold=False):
     return "".join(result)
 
 
+def _rich_leading(parts, style: ExportStyle, *, heading_depth: int | None = None) -> float:
+    """One explicit line pitch for editable Word and locally paginated PDF.
+
+    Large custom run sizes must not be clipped by a base Normal-style leading.
+    Word and ReportLab use points for this same supported paragraph metric;
+    installed font substitution and Word's own pagination may still differ.
+    """
+    base = (max(10.0, style.heading_size_pt - heading_depth)
+            if heading_depth is not None else style.normal_size_pt)
+    return max((base, *(run.size for _, run in parts
+                        if run is not None and run.size)), default=base) * 1.4
+
+
+class _WordListNumbering:
+    """Explicit Word numbering for canonical list sequences and restart points.
+
+    Each switch of list type/indent, non-list paragraph or structural block
+    starts a new numbering instance; adjacent text blocks can continue one.
+    Never rely on an installed Word List Number/List Bullet style to decide
+    whether an alphabetic list starts at a, A or 1.
+    """
+    _FORMATS = {
+        "bullet": ("bullet", "•"),
+        "decimal": ("decimal", "%1."),
+        "lower-alpha": ("lowerLetter", "%1."),
+        "upper-alpha": ("upperLetter", "%1."),
+    }
+
+    def __init__(self, document):
+        self._root = document.part.numbering_part.element
+        self._abstract = {}
+        self._last_key = None
+        self._active_num = None
+
+    def reset(self):
+        self._last_key = None
+        self._active_num = None
+
+    def _abstract_id(self, kind: str) -> int:
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        if kind in self._abstract:
+            return self._abstract[kind]
+        if kind not in self._FORMATS:
+            raise ExportError("Unsupported Word list numbering format")
+        existing = self._root.xpath("./w:abstractNum")
+        number = max((int(item.get(qn("w:abstractNumId")))
+                      for item in existing), default=-1) + 1
+        abstract = OxmlElement("w:abstractNum")
+        abstract.set(qn("w:abstractNumId"), str(number))
+        level = OxmlElement("w:lvl")
+        level.set(qn("w:ilvl"), "0")
+        for tag, value in (
+            ("w:start", "1"),
+            ("w:numFmt", self._FORMATS[kind][0]),
+            ("w:lvlText", self._FORMATS[kind][1]),
+            ("w:lvlJc", "left"),
+        ):
+            element = OxmlElement(tag)
+            element.set(qn("w:val"), value)
+            level.append(element)
+        abstract.append(level)
+        # The numbering part schema places abstractNum before num entries.
+        nums = self._root.xpath("./w:num")
+        if nums:
+            self._root.insert(self._root.index(nums[0]), abstract)
+        else:
+            self._root.append(abstract)
+        self._abstract[kind] = number
+        return number
+
+    def assign(self, paragraph, kind: str, indent: int):
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        key = (kind, indent)
+        if self._last_key != key:
+            entry = self._root.add_num(self._abstract_id(kind))
+            self._active_num = int(entry.get(qn("w:numId")))
+            self._last_key = key
+        props = paragraph._p.get_or_add_pPr()
+        numpr = OxmlElement("w:numPr")
+        for tag, number in (("w:ilvl", 0), ("w:numId", self._active_num)):
+            element = OxmlElement(tag)
+            element.set(qn("w:val"), str(number))
+            numpr.append(element)
+        props.append(numpr)
+
+
 def _pdf_number_marker(kind: str, ordinal: int) -> str:
     """Visible numbering for canonical PDF list paragraphs (one-based)."""
     if kind == "decimal":
@@ -415,6 +503,48 @@ def _pdf_number_marker(kind: str, ordinal: int) -> str:
         ordinal, digit = divmod(ordinal - 1, 26)
         label = chr(ord("a") + digit) + label
     return (label.upper() if kind == "upper-alpha" else label) + ". "
+
+
+def _word_font_family(font, family: str) -> None:
+    """Apply an explicit font to Word's Latin, East Asian and complex scripts.
+
+    python-docx Font.name alone writes ascii/hAnsi; Word then guesses the
+    East Asian and complex-script face even when users chose one explicitly.
+    Installed glyph coverage and substitution still require native acceptance.
+    """
+    from docx.oxml.ns import qn
+
+    if not family:
+        return
+    font.name = family
+    fonts = font._element.get_or_add_rPr().get_or_add_rFonts()
+    fonts.set(qn("w:eastAsia"), family)
+    fonts.set(qn("w:cs"), family)
+
+
+def _word_fixed_table(table, widths_cm: tuple[float, ...]) -> None:
+    """Set *both* Word table grid and cell widths to the printable area.
+
+    python-docx's default autofit lets Word expand a table beyond the
+    selected template margins, unlike the explicitly sized PDF tables.
+    This keeps OOXML editable and deterministic across supported layouts.
+    """
+    from docx.shared import Cm
+    from docx.oxml.ns import qn
+
+    if len(widths_cm) != len(table.columns) or any(w <= 0 for w in widths_cm):
+        raise ExportError("Invalid printable Word table widths")
+    table.autofit = False
+    for col, width in zip(table.columns, widths_cm):
+        col.width = Cm(width)
+    for row in table.rows:
+        for cell, width in zip(row.cells, widths_cm):
+            cell.width = Cm(width)
+    table_width = table._tbl.tblPr.xpath("./w:tblW")
+    if len(table_width) != 1:
+        raise ExportError("Word table width definition is missing")
+    table_width[0].set(qn("w:type"), "dxa")
+    table_width[0].set(qn("w:w"), str(Cm(sum(widths_cm)).twips))
 
 
 def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
@@ -432,13 +562,15 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
     sec.header_distance = Cm(style.header_distance_cm)
     sec.footer_distance = Cm(style.footer_distance_cm)
     normal = document.styles["Normal"]
-    if style.normal_font:
-        normal.font.name = style.normal_font
+    _word_font_family(normal.font, style.normal_font)
     normal.font.size = Pt(style.normal_size_pt)
-    first_heading = document.styles["Heading 1"]
-    if style.heading_font:
-        first_heading.font.name = style.heading_font
-    first_heading.font.size = Pt(style.heading_size_pt)
+    # Nested module headings use Heading 1..9. A Word layout profile must
+    # govern every supported depth, not merely Heading 1 while descendants
+    # silently fall back to machine/default Word styles.
+    for level in range(1, 10):
+        heading_style = document.styles["Heading " + str(level)]
+        _word_font_family(heading_style.font, style.heading_font)
+        heading_style.font.size = Pt(max(10, style.heading_size_pt - (level - 1)))
     printable_width = style.page_width_cm - style.left_margin_cm - style.right_margin_cm
     # Repeated Word header/footer, with a live PAGE field.
     if style.company_name or style.logo:
@@ -465,6 +597,8 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
     for label, value in plan.info:
         row = table.add_row().cells
         row[0].text, row[1].text = label, value
+    info_label_width = min(4.2, printable_width * .28)
+    _word_fixed_table(table, (info_label_width, printable_width - info_label_width))
     document.add_heading((plan.locale_labels or {}).get(
         "heading.summary", "Summary"), level=2)
     for entry in plan.outline:
@@ -484,10 +618,14 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
 
     entry_map = {e.module_id: e for e in plan.outline}
     bookmark_numbers = {entry.module_id: i for i, entry in enumerate(plan.outline, 1)}
+    numbering = _WordListNumbering(document)
     for item in plan.items:
+        if item.kind not in ("paragraph", "heading"):
+            numbering.reset()
         if item.kind == "module":
             entry = entry_map[item.key]
             paragraph = document.add_heading(item.text, level=min(entry.depth + 1, 9))
+            paragraph.paragraph_format.keep_with_next = True
             if entry.depth >= 9:
                 paragraph.paragraph_format.left_indent = Cm(min(entry.depth, 12) * .4)
             _word_bookmark(paragraph, item.key, bookmark_numbers[item.key])
@@ -496,23 +634,27 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
             from docx.shared import RGBColor
             from docx.oxml import OxmlElement
             from docx.oxml.ns import qn
-            numbered = 0
             for parts, fmt in _rich_lines(item.text, item.rich):
-                if fmt.list_kind == "decimal":
-                    numbered += 1
+                p = document.add_paragraph(style="Normal")
+                if fmt.list_kind == "none":
+                    numbering.reset()
                 else:
-                    numbered = 0
-                style_name = ("List Bullet" if fmt.list_kind == "bullet" else
-                              "List Number" if fmt.list_kind != "none" else None)
-                p = document.add_paragraph(style=style_name)
+                    numbering.assign(p, fmt.list_kind, fmt.indent)
                 p.alignment = {
                     "left": WD_ALIGN_PARAGRAPH.LEFT,
                     "right": WD_ALIGN_PARAGRAPH.RIGHT,
                     "center": WD_ALIGN_PARAGRAPH.CENTER,
                     "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
                 }[fmt.align]
-                p.paragraph_format.left_indent = Cm(fmt.indent * 0.6)
-                p.paragraph_format.line_spacing = fmt.line_height
+                p.paragraph_format.left_indent = Cm(
+                    fmt.indent * 0.6 + (0.6 if fmt.list_kind != "none" else 0))
+                if fmt.list_kind != "none":
+                    p.paragraph_format.first_line_indent = Cm(-0.42)
+                p.paragraph_format.line_spacing = Pt(
+                    _rich_leading(parts, style, heading_depth=item.depth
+                                  if item.kind == "heading" else None) * fmt.line_height)
+                if item.kind == "heading":
+                    p.paragraph_format.keep_with_next = True
                 if fmt.shading:
                     shade = OxmlElement("w:shd")
                     shade.set(qn("w:fill"), fmt.shading.lstrip("#"))
@@ -528,10 +670,10 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
                     run = p.add_run(part)
                     if item.kind == "heading":
                         run.bold = True
-                        run.font.size = Pt(max(10, 16 - item.depth))
+                        run.font.size = Pt(max(10, style.heading_size_pt - item.depth))
+                        _word_font_family(run.font, style.heading_font)
                     if info is not None:
-                        if info.family:
-                            run.font.name = info.family
+                        _word_font_family(run.font, info.family)
                         if info.size:
                             run.font.size = Pt(info.size)
                         run.bold = info.bold or item.kind == "heading"
@@ -557,6 +699,7 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
             for i, row in enumerate(item.rows):
                 for j, value in enumerate(row):
                     table.cell(i, j).text = value
+            _word_fixed_table(table, (printable_width / width,) * width)
         elif item.kind == "photo":
             photo_w, photo_h = _photo_dimensions(
                 item.image, max_width_cm=min(
@@ -793,7 +936,8 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                         "left": TA_LEFT, "center": TA_CENTER,
                         "right": TA_RIGHT, "justify": TA_JUSTIFY,
                     }[fmt.align], leftIndent=base.leftIndent + fmt.indent * 15,
-                    leading=base.leading * fmt.line_height,
+                    leading=_rich_leading(parts, style, heading_depth=item.depth
+                                          if item.kind == "heading" else None) * fmt.line_height,
                     backColor=fmt.shading or None,
                     borderWidth=0.75 if fmt.border else 0,
                     borderColor=colors.HexColor("#777777") if fmt.border else None,

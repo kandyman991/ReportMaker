@@ -384,3 +384,28 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - Reviewed PR #83 is merged into main at `ec27693819a72afb72d24464e803b112ae6aec9a`; PR #84 is now reconciled against live `main` `faaa25cb6dc26f5fde49bfbef7f3d9728f96c8b9` using merge commit `fb4d8a89143b99c7e11f6aceaa780a3b2afa3251`. Retarget to `main` before the final merge.
 - Independent M6.5 post-implementation review: corrected transient footer approval spoofing of report-owned ledger keys, repaired V2 CI M6.5 test-only path filtering, and updated an English-only Preview notice. Regression and evidence in `docs/v2/M6_5_PROGRESS.md` and `docs/CHECKPOINTS.md`.
 - Require a green exact-final-head hosted Windows CI matrix, unchanged review scope and explicit user authorization (received for #84) before merging. V1 fallback, manual browser-only ChatGPT, frozen customer snapshots, M6.6 Word fidelity, M6.7 Checkpoint C and installed-Windows release acceptance remain separate.
+
+## 2026-10-29 — M6.6 started after reviewed M6.5 merge
+- Verified #84 merged into main at `42806a3f0ecef0c3cd5f1c8ff34e0129f25efdce` (post-merge continuity commit `e2b19d0a5fea6db6d211d1f306c657969dcc177f`). Began scoped M6.6 [draft PR #88](https://github.com/kandyman991/ReportMaker/pull/88), branch `feature/v2-m6-6-page-word-fidelity` from that live baseline; **draft/unmerged**.
+- Initial M6.6-A: physical ratio responsive Page Editor/paper margins, template base fonts, natural growing editable tables; deterministic fixed full-printable-width Word table XML. Source report, customer snapshots, multilingual approvals and browser boundary remain unchanged.
+- See `docs/v2/M6_6_PROGRESS.md` for detailed acceptance boundaries, synthetic tests, dedicated Windows CI and remaining deep/large/native Word fidelity work. Do not merge automatically or start M6.7. Windows installed-app and Word pagination acceptance are still pending.
+
+## 2026-10-29 — M6.6-B continued development
+- On existing draft PR #88, explicit Word list numbering now uses report-owned rich paragraph semantics and OOXML numbering instances rather than machine-default Word list styles. Supported decimal, alphabetic and bullet runs continue/restart across canonical blocks, without any new report data model. Rich paragraph line pitch and heading size/flow are aligned across DOCX and PDF supported semantics.
+- Synthetic regression suite expanded for list restart/continuation, font-line pitch, native OOXML heading properties, manual breaks/annotated media, deep nested modules and narrow template overflow rollback. See `docs/v2/M6_6_PROGRESS.md`. Validate exact new head Windows CI; no merge, release, M6.7 or installed Word parity claim.
+
+## 2026-10-29 — M6.6-C complex templates and native Word validation entry
+- Continued solely in draft PR #88 after green M6.6-B. Enhanced Word template import compatibility warnings (including later-section header variants), explicit multilingual Word font OOXML and clear PDF glyph/font substitution disclosure. Added read-only Windows PowerShell verifier for actual installed Microsoft Word PAGE/PAGEREF field refresh and pagination evidence; **not run without Microsoft Word installed**.
+- See `docs/v2/M6_6_WORD_ACCEPTANCE.md`, `docs/v2/M6_6_PROGRESS.md` and synthetic tests. Full suite/CI/independent review still need exact-head verification. Do not imply native Word acceptance, merge PR #88, start M6.7, or publish an installer.
+
+## 2026-10-29 — Independent M6.6 PR #88 review
+
+- Read architecture contracts, reviewed complete PR patch and tested on an isolated Linux checkout. Corrected a fixed-width photo preview violating narrow responsive paper, repeated O(rows × cells) sizing during initial table load and incomplete Word PAGEREF bookmark verification in the read-only native acceptance script. Added an offscreen photo width/aspect regression.
+- Local full suite: **441 tests passed**, dedicated M6.6: **13 passed**. Push/check exact final HEAD's Windows CI before any merge. No licensed Windows Word instance is connected, so the documented native Word pagination/visual acceptance gate is **not satisfied**. User requested review/fix/merge, not a release or a waiver of fidelity requirements. Keep M6.7 and installer promotion separate.
+
+## CP-V2-M66-NATIVE-WORD-ACCEPTANCE — 2026-10-29
+
+- User completed native Microsoft Word **16.0** read-only verification of the synthetic A4 DOCX exported from reviewed PR #88 code `3e4127518e8befe75fecea45cd41b972efdbb066`, alongside a positive user-reported comparison with the matching synthetic PDF.
+- The supplied JSON reports **3 pages before and after field update**, **4 PAGEREF fields**, **0 unresolved references**. No approved Word baseline (`expected_word_pages=0`) or Word/PDF equality assertion was requested; native Word build, Windows edition, DPI/fonts not captured. Evidence and residual scope are documented in `docs/v2/M6_6_WORD_ACCEPTANCE.md`.
+- PR #88 received independent review with three corrections; Linux/offscreen 441 tests and **9/9 applicable exact-code-head GitHub workflows** passed. User gave explicit authorization to review/fix/merge #88; check documentation-final HEAD CI, then merge if unchanged review/technical scope and green.
+- Still outside this gate: extensive native layout/template matrix, installed V2 app DPI/device checks, M6.7 Checkpoint C, V2-default promotion and public installer/release. Do not call those complete.
