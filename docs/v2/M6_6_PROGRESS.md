@@ -1,6 +1,6 @@
 # M6.6 — Precise Page Editor and Word/template fidelity
 
-**Status:** Started on isolated draft branch `feature/v2-m6-6-page-word-fidelity`; **not independently accepted or merged**. Baseline is post-M6.5 `main` at `e2b19d0a5fea6db6d211d1f306c657969dcc177f`. Follow-up to [issue #86](https://github.com/kandyman991/ReportMaker/issues/86) and the [formal M6 contract](M6_SUBMILESTONES.md).
+**Status:** Started in [draft PR #88](https://github.com/kandyman991/ReportMaker/pull/88) on isolated branch `feature/v2-m6-6-page-word-fidelity`; **not independently accepted or merged**. Baseline is post-M6.5 `main` at `e2b19d0a5fea6db6d211d1f306c657969dcc177f`. Follow-up to [issue #86](https://github.com/kandyman991/ReportMaker/issues/86) and the [formal M6 contract](M6_SUBMILESTONES.md).
 
 ## Acceptance and non-negotiable contracts
 
@@ -16,7 +16,7 @@
 2. The Page Editor adopts the selected Word profile's **base normal and heading font families/sizes**, preserving the source rich runs in the canonical model. Advanced inline typography must be controlled in the Branch formatting toolbar until further M6.6 validation.
 3. `NaturalPageTable` recomputes its natural height as cell text changes, retaining no inner scrolling.
 4. Editable DOCX Report Information and content tables have **fixed, explicit column/grid/cell widths** derived from selected printable width, aligned with the PDF table sizing policy. `w:tblLayout` and `w:tblW` no longer rely on Word autofit to keep data within imported margins. We do **not** assume the first user table row is a header.
-5. Added `tests/test_v2_m66_fidelity.py`: Word OOXML grid and margin verification, multi-page PDF with wide/long tables, narrow Qt paper scaling, table growth and canonical text-preservation font checks. Hosted Windows Python 3.11/3.12 dedicated `v2-m66-fidelity.yml` plus the broader V2 regression workflow are mandatory checks on this draft.
+5. Added `tests/test_v2_m66_fidelity.py`: Word OOXML grid and margin verification, multi-page PDF with wide/long tables, narrow Qt paper scaling, table growth, canonical text-preservation font checks and a native QWidget-style-method guard. Local isolated **431 tests / 170 subtests passed** on the initial implementation; targeted **5 tests / 2 subtests passed** after the native style-method guard. Hosted Windows Python 3.11/3.12 dedicated `v2-m66-fidelity.yml` plus the broader V2 regression workflow are mandatory checks on this draft.
 
 ## M6.6 remaining before milestone acceptance
 

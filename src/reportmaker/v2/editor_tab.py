@@ -128,7 +128,8 @@ class NaturalPagePaper(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setStyleSheet("QFrame#v2DocumentPaper { background: white;"
                            " border: 1px solid #b1b8c1; }")
-        self.style = style
+        # Do not shadow QWidget.style(), which Qt uses for native painting.
+        self._export_style = style
         self.flow = QVBoxLayout(self)
         self.flow.setSpacing(8)
         self._sync_margins()
@@ -136,10 +137,10 @@ class NaturalPagePaper(QFrame):
     def _sync_margins(self):
         # The same cm-to-pixel scale is applied to all four printable margins.
         # It is intentionally a responsive *projection*, not PDF pagination.
-        scale = max(1, self.width()) / self.style.page_width_cm
+        scale = max(1, self.width()) / self._export_style.page_width_cm
         margins = tuple(round(scale * value) for value in (
-            self.style.left_margin_cm, self.style.top_margin_cm,
-            self.style.right_margin_cm, self.style.bottom_margin_cm))
+            self._export_style.left_margin_cm, self._export_style.top_margin_cm,
+            self._export_style.right_margin_cm, self._export_style.bottom_margin_cm))
         if self.flow.getContentsMargins() != margins:
             self.flow.setContentsMargins(*margins)
 

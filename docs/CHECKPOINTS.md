@@ -472,7 +472,7 @@ Next reproducible action:
 - Decision gate: independently review diff, test entire merged state, check exact final PR HEAD's GitHub-hosted Windows Python 3.11/3.12 M6.5 and V2 regression workflows plus M0/M1, and only then use explicit user authorization to merge #84. No physical installed-Windows acceptance, M6.6/6.7 acceptance, installer or V2 promotion.
 
 ## CP-V2-M66-A — 2026-10-29 (development started, not accepted)
-- M6.1–M6.4 PR #83 and M6.5 PR #84 have merged. Started M6.6 **only** in isolated `feature/v2-m6-6-page-word-fidelity` from verified post-M6.5 `main` `e2b19d0a5fea6db6d211d1f306c657969dcc177f`; refer to `docs/v2/M6_6_PROGRESS.md` and issue #86.
+- M6.1–M6.4 PR #83 and M6.5 PR #84 have merged. Started M6.6 **only** in [draft PR #88](https://github.com/kandyman991/ReportMaker/pull/88), isolated `feature/v2-m6-6-page-word-fidelity` from verified post-M6.5 `main` `e2b19d0a5fea6db6d211d1f306c657969dcc177f`; refer to `docs/v2/M6_6_PROGRESS.md` and issue #86.
 - Initial scope: responsive physical-margin Page Editor projection without nested scrollbars, base font fidelity to selected Word profile, live table growth; fixed full-printable-width OOXML tables, unaffected canonical report data and independent DOCX/PDF pagination.
 - Added synthetic pure/Qt regression suite and GitHub-hosted Windows Python 3.11/3.12 M6.6 acceptance workflow, plus coverage in existing full V2 workflow.
 - This is an **initial implementation checkpoint, not M6.6 completion or merge authorization**. Independent exact-head code review, full Windows CI, installed Microsoft Word visual acceptance, complex template limitations and stress coverage remain open. M6.7, V2 promotion and Windows release remain excluded.

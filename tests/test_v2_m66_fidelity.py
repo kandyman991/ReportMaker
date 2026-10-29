@@ -88,6 +88,8 @@ class NaturalPageFidelityTests(unittest.TestCase):
                             bottom_margin_cm=2)
         paper = NaturalPagePaper(style)
         try:
+            # No Python attribute may mask QWidget.style() / native theming.
+            self.assertIsNotNone(paper.style())
             for width in (650, 310):
                 paper.resize(width, 250)
                 paper.show()
