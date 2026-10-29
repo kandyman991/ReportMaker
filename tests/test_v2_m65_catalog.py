@@ -292,3 +292,12 @@ class MetadataLocaleContractTests(unittest.TestCase):
             builder.resolve_many(["heading.summary"] * 1000, "en")
         with self.assertRaisesRegex(ValueError, "footer text"):
             visible_metadata_keys(self.report, footer_note="x" * 10001)
+
+    def test_malformed_customer_free_text_fails_before_source_export(self):
+        self.report.intervention_types = ["other"]
+        self.report.other_intervention_detail = "Invalid\\x00source"
+        with self.assertRaisesRegex(ValueError, "metadata source"):
+            MetadataLocale(self.report).resolve("metadata.other_intervention_detail", "en")
+        self.report.other_intervention_detail = "x" * 10001
+        with self.assertRaisesRegex(ValueError, "metadata source"):
+            MetadataLocale(self.report).source("metadata.other_intervention_detail")
