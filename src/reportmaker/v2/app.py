@@ -125,6 +125,7 @@ class V2MainWindow(QMainWindow):
             ("v2OpenProject", "Open", self.open_project, "Ctrl+O"),
             ("v2SaveProject", "Save", self.save_project, "Ctrl+S"),
             ("v2SaveProjectAs", "Save As", self.save_project_as, "Ctrl+Shift+S"),
+            ("v2ReportInfo", "Report info", self.edit_report_info, "Ctrl+Shift+R"),
             ("v2AddModule", "+ Module", self.branch.add_module, ""),
             ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
             ("v2AddParagraph", "+ Paragraph", self.branch.add_paragraph, ""),
@@ -263,6 +264,17 @@ class V2MainWindow(QMainWindow):
             self.statusBar().showMessage("Apply or Revert pending edits before revealing a match")
         else:
             self.statusBar().showMessage(f"Found {len(hits)} matching report blocks — F3 for next")
+
+    def edit_report_info(self) -> bool:
+        """Apply metadata through the same guarded canonical command history."""
+        from .report_info import ReportInfoDialog
+        try:
+            self.session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.statusBar().showMessage(str(exc))
+            return False
+        result = ReportInfoDialog(self.session, self.gateway, self).exec()
+        return bool(result)
 
     def _update_caption(self) -> None:
         name = self.session.path.name if self.session.path else "Untitled"
