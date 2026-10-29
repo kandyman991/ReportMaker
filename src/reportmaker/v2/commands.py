@@ -229,9 +229,12 @@ class CommandGateway:
                 raise ValueError("Unknown or transient metadata translation key")
             validate_language_tag(language)
             report = self._session.report_snapshot()
+            # Generated labels may also need approval for the primary
+            # writing language when it is not selected as an export language:
+            # the schematic original-language Preview still uses those labels.
             if not any(code.casefold() == language.casefold()
-                       for code in report.output_languages):
-                raise ValueError("Select metadata output language in Report Information")
+                       for code in (*report.output_languages, report.primary_language)):
+                raise ValueError("Select metadata language in Report Information")
             resolver = MetadataLocale(report)
             original, source_language = resolver.source(key)
             if expected != source_digest(key, source_language, original):
