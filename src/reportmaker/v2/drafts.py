@@ -59,6 +59,7 @@ class DraftCoordinator:
         self._drafts: dict[NodeAddress, TextDraft | TableDraft] = {}
         self._committing = False
         self._owners: dict[NodeAddress, str] = {}
+        self._state_listeners = []
         session.set_draft_guard(self._draft_guard)
 
     def _draft_guard(self) -> bool:
@@ -70,6 +71,30 @@ class DraftCoordinator:
             self._committing = False
             return True
         return False
+
+    def subscribe_pending(self, listener):
+        """Notify UI when first pending draft appears or last one resolves.
+
+        Draft content remains private to this coordinator; callbacks receive
+        only the boolean state, never report text or individual field drafts.
+        """
+        if not callable(listener):
+            raise TypeError("Draft-state listener must be callable")
+        self._state_listeners.append(listener)
+
+        def unsubscribe():
+            if listener in self._state_listeners:
+                self._state_listeners.remove(listener)
+        return unsubscribe
+
+    def _publish_pending(self, previous: bool):
+        if previous != bool(self._drafts):
+            for listener in tuple(self._state_listeners):
+                try:
+                    listener(bool(self._drafts))
+                except Exception:
+                    # A presentation listener cannot cancel a validated draft.
+                    continue
 
     @property
     def pending(self) -> bool:
@@ -92,12 +117,16 @@ class DraftCoordinator:
 
     def _store(self, address: NodeAddress, draft: TextDraft | TableDraft,
                owner: str) -> None:
+        previous = bool(self._drafts)
         self._drafts[address] = draft
         self._owners[address] = owner
+        self._publish_pending(previous)
 
     def _clear(self, address: NodeAddress) -> None:
+        previous = bool(self._drafts)
         self._drafts.pop(address, None)
         self._owners.pop(address, None)
+        self._publish_pending(previous)
 
     def for_editor(self, owner: str) -> "EditorDraftPort":
         """Give a future Editor/Gallery tab guarded access to the same drafts."""

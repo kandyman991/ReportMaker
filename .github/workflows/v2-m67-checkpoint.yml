@@ -1,0 +1,58 @@
+name: V2 M6.7 integrated Checkpoint C
+
+on:
+  push:
+    branches: [feature/v2-m6-7-checkpoint-c]
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/reportmaker/v2/**"
+      - "src/reportmaker/model.py"
+      - "src/reportmaker/engine.py"
+      - "src/reportmaker/project_io.py"
+      - "src/reportmaker/export.py"
+      - "tests/test_v2_m67_checkpoint.py"
+      - ".github/workflows/v2-m67-checkpoint.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-m67-checkpoint:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'feature/v2-m6-7-checkpoint-c'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+      - name: Install Windows desktop and export dependencies
+        run: python -m pip install -e ".[desktop]"
+      - name: Compile integrated report and regression path
+        run: python -m compileall -q src/reportmaker/v2 tests/test_v2_m67_checkpoint.py
+      - name: Checkpoint C end-to-end synthetic UI, provenance and export
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "src"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -m unittest discover -s tests -p test_v2_m67_checkpoint.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M6.7 Checkpoint C integration failed" }
+      - name: Verify backward compatibility and export/media safety
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "src"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -m unittest discover -s tests -p test_v2_m65_integration.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M6.5 persistence/migration regressions failed" }
+          python -m unittest discover -s tests -p test_v2_m6_bundle.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M6 language bundle regressions failed" }
+          python -m unittest discover -s tests -p test_v2_m66_fidelity.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M6.6 Word/page regressions failed" }

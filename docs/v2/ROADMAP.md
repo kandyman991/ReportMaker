@@ -116,10 +116,10 @@ Deliverables:
 3. **M6.3 — Report Info and references:** reviewed and merged in PR #83.
 4. **M6.4 — Explicit content translations and language delivery:** reviewed and merged in PR #83.
 5. **M6.5 — Metadata and boilerplate localization:** reviewed and merged in PR #84, including strict schema-v5 provenance and export approvals.
-6. **M6.6 — Precise page Editor and Word/template fidelity:** development ACTIVE in a new independent draft branch; first paper-metric/fixed-table slice implemented, further Word/template fidelity and native acceptance still required. See [M6.6 progress](M6_6_PROGRESS.md).
-7. **M6.7 — End-to-end Checkpoint C:** NOT STARTED; follows independently accepted M6.6.
+6. **M6.6 — Precise page Editor and Word/template fidelity:** independently reviewed, corrected and merged in PR #88. Synthetic native Word 16.0 verification and visual comparison passed; broader release testing is M7. See [M6.6 progress](M6_6_PROGRESS.md).
+7. **M6.7 — End-to-end Checkpoint C:** ACTIVE on isolated branch after PR #88; see [M6.7 progress](M6_7_PROGRESS.md). Not yet independently accepted or merged.
 
-**PR boundary:** PR #83 and PR #84 are already merged. M6.6 must remain a separate, scoped draft PR against main, with independent review and exact-head hosted Windows CI before any merge. Physical installed Windows/release acceptance remains M7; Word pagination visual checks are not proven by schematic Qt or PDF proof.
+**PR boundary:** PR #83, #84 and #88 are merged. M6.7 is a separate integration/checkpoint draft with dedicated synthetic Windows-hosted gates; independent review and explicit merge authorization still apply. Physical installed-Windows/release acceptance remains M7, beyond the narrowly recorded synthetic Word check.
 
 **Exit / Checkpoint C:** End-to-end synthetic technical report edits in Branch Editor, previews, saves and exports correctly; all tabs reference the same stable content IDs and no unsaved edits vanish.
 
@@ -157,4 +157,4 @@ Deliverables:
 - Invariants and module/service boundaries: [V2 architecture](ARCHITECTURE.md)
 - V1 source of truth stays [root architecture contract](../../ARCHITECTURE.md), [report composition](../REPORT_COMPOSITION_CONTRACT.md) and [existing roadmap](../../ROADMAP.md).
 
-**Current next action (2026-10-29):** Finish the dedicated [M6.6 fidelity milestone](M6_6_PROGRESS.md) after the already merged PR #83 and #84. Independently review M6.6, verify exact-head hosted Windows 3.11/3.12 CI and record unverified native Word/Windows behavior before seeking merge authorization. M6.7, installer and default-V2 promotion remain separate.
+**Current next action (2026-10-29):** Complete the dedicated [M6.7 end-to-end Checkpoint C](M6_7_PROGRESS.md) after merged PR #83, #84 and #88. Verify full hosted Windows 3.11/3.12 CI, independently review the synthetic round-trip and remaining risks, then seek user authorization to merge. M7 installer and default-V2 promotion remain separate.
