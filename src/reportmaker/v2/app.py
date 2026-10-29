@@ -126,6 +126,7 @@ class V2MainWindow(QMainWindow):
             ("v2SaveProject", "Save", self.save_project, "Ctrl+S"),
             ("v2SaveProjectAs", "Save As", self.save_project_as, "Ctrl+Shift+S"),
             ("v2ReportInfo", "Report info", self.edit_report_info, "Ctrl+Shift+R"),
+            ("v2Translations", "Translations…", self.edit_translations, ""),
             ("v2ImportTemplate", "Layout template…", self.import_layout_template, ""),
             ("v2AddModule", "+ Module", self.branch.add_module, ""),
             ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
@@ -302,6 +303,18 @@ class V2MainWindow(QMainWindow):
         except (OSError, ValueError, RuntimeError) as exc:
             self.statusBar().showMessage("Template import rejected: " + str(exc))
             return False
+        return True
+
+    def edit_translations(self) -> bool:
+        """Edit explicit localized fields without changing the source writing."""
+        from .translation_dialog import TranslationDialog
+        try:
+            self.session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.statusBar().showMessage(str(exc))
+            return False
+        TranslationDialog(self.session, self.gateway, self).exec()
+        self.preview_tab.invalidate()
         return True
 
     def edit_report_info(self) -> bool:
