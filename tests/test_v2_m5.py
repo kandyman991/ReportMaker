@@ -161,6 +161,60 @@ class NavigationQtTests(unittest.TestCase):
             other.close()
             self.pump()
 
+    def test_return_to_root_window_keeps_a_visible_module_selected(self):
+        from reportmaker.v2.app import V2MainWindow
+        project = fixture()
+        module = project.report.modules[0]
+        for i in range(160):
+            module.blocks.append(ParagraphBlock(LocalizedText("en", f"Boundary paragraph {i}")))
+        other = V2MainWindow(project=project)
+        other.show()
+        self.pump()
+        try:
+            canvas = other.branch
+            self.assertGreater(canvas.page_count, 1)
+            self.assertTrue(canvas.reveal_node(project.report.conclusion.id))
+            self.assertGreater(canvas._page, 0)
+            while canvas._page:
+                self.assertTrue(canvas.change_page(-1))
+            self.pump()
+            self.assertEqual(canvas._page, 0)
+            self.assertIn(module.id, [row[0] for row in canvas.visible_nodes])
+            self.assertEqual(canvas._selected_module_id, module.id)
+        finally:
+            other._confirm_transition = lambda: False
+            other.close()
+            self.pump()
+
+    def test_focus_restores_horizontal_pan_for_deep_workspace(self):
+        from reportmaker.v2.app import V2MainWindow
+        project = fixture()
+        module = project.report.modules[0]
+        cursor = module
+        for i in range(32):
+            nested = Module(LocalizedText("en", f"Deep level {i}"))
+            cursor.blocks.append(NestedModuleBlock(nested))
+            cursor = nested
+        other = V2MainWindow(project=project)
+        other.show()
+        self.pump()
+        try:
+            canvas = other.branch
+            horizontal = canvas.horizontalScrollBar()
+            self.assertGreater(horizontal.maximum(), 0)
+            saved = min(48, horizontal.maximum())
+            horizontal.setValue(saved)
+            self.assertTrue(canvas.focus_module(module.id))
+            horizontal.setValue(0)
+            self.assertTrue(canvas.exit_focus())
+            self.pump()
+            self.assertEqual(horizontal.value(), saved)
+            self.assertEqual(other.session.report_snapshot(), project.report)
+        finally:
+            other._confirm_transition = lambda: False
+            other.close()
+            self.pump()
+
     def test_zoom_and_fit_are_presentation_only_and_preserve_no_scrollbar(self):
         from PySide6.QtCore import Qt
         canvas = self.win.branch
