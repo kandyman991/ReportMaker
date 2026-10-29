@@ -96,6 +96,7 @@ class ReviewedM2SafetyTests(TestCase):
         # Construct an actual historical v1 manifest. New saves use v2,
         # where undeclared/orphan assets are intentionally forbidden.
         manifest["version"] = 1
+        manifest["report"].pop("localization_ledger")
         manifest.pop("media_library")
         # Reconstruct actual pre-v3 records, not a v3 manifest with a
         # version number changed: historical photo blocks had no visual key.
