@@ -48,6 +48,10 @@ FREE_TEXT_KEYS = frozenset({
     "branding.footer_note",
 })
 ALL_KEYS = frozenset(_ENGLISH) | FREE_TEXT_KEYS
+# ExportStyle is transient; footer text and its language cannot be reproduced
+# from a saved .rmproj. Only report-owned sources may enter the future v5 ledger.
+TRANSIENT_EXPORT_KEYS = frozenset({"branding.footer_note"})
+PERSISTABLE_KEYS = ALL_KEYS - TRANSIENT_EXPORT_KEYS
 MAX_ENTRIES = 4096
 MAX_FREE_TEXT = 10_000
 MAX_LABEL = 320
