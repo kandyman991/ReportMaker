@@ -1,6 +1,6 @@
 # M7.3 Linux native toolbar audit (non-release evidence)
 
-Environment: Lenovo Legion `mircea-gitmachine`, Ubuntu 26.04.1 LTS, GNOME/Wayland,
+Environment: Lenovo Legion, Ubuntu 26.04.1 LTS, GNOME/Wayland,
 PySide6 6.12.0. This audit uses only synthetic report and image data. The original
 source snapshot was `805b482b65efa0f17d4d306a374a734e84357966`.
 
@@ -34,7 +34,7 @@ The three priority insert buttons remain directly visible.
   the final commit.
 
 Evidence is stored locally on the Legion under
-`/home/mircea/ReportMaker-linux-audit-evidence/` and not committed
+`$HOME/ReportMaker-linux-audit-evidence/` and not committed
 (synthetic screenshots, local temporary project, logs).
 
 ## Explicit limits
