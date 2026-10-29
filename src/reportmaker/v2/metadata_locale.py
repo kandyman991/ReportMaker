@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from re import fullmatch
 from types import MappingProxyType
+from unicodedata import category
 
 from ..model import NestedModuleBlock, PageBreakBlock, Report, validate_language_tag
 
@@ -70,6 +71,13 @@ def _xml_safe_text(text: object, limit: int) -> bool:
                0xE000 <= ord(char) <= 0xFFFD or
                0x10000 <= ord(char) <= 0x10FFFF
                for char in text)
+
+
+def _has_visible_text(text: str) -> bool:
+    # Whitespace, controls, standalone marks and Unicode format characters
+    # (e.g. ZERO WIDTH SPACE) cannot constitute a customer-visible approval.
+    return any(not char.isspace() and category(char) not in
+               {"Cc", "Cf", "Mn", "Me", "Zl", "Zp"} for char in text)
 
 
 class MetadataTranslationRequiredError(ValueError):
@@ -163,9 +171,9 @@ class MetadataLocale:
             raise ValueError("Cannot translate over canonical source")
         if (not _xml_safe_text(text, MAX_FREE_TEXT if key in FREE_TEXT_KEYS
                                else MAX_LABEL) or
-                original.strip() and not text.strip()):
+                _has_visible_text(original) and not _has_visible_text(text)):
             raise ValueError("A nonempty source requires bounded, nonblank translation")
-        if key in FREE_TEXT_KEYS and not original.strip():
+        if key in FREE_TEXT_KEYS and not _has_visible_text(original):
             raise ValueError("Cannot invent a translated metadata value without source")
         return LocaleApproval(key, language, text,
                               source_digest(key, source_language, original))
@@ -178,28 +186,29 @@ class MetadataLocale:
             return original
         approval = self._records.get((key, language.casefold()))
         if approval is None:
-            if not original.strip():
+            if not _has_visible_text(original):
                 return ""
             raise MetadataTranslationRequiredError(
                 f"Missing {language} metadata translation: {key}")
         digest = source_digest(key, source_language, original)
-        if key in FREE_TEXT_KEYS and not original.strip():
-            if approval.source_sha256 == digest and approval.text.strip():
+        if key in FREE_TEXT_KEYS and not _has_visible_text(original):
+            if approval.source_sha256 == digest and _has_visible_text(approval.text):
                 raise MetadataTranslationRequiredError(
                     f"Fabricated {language} metadata translation: {key}")
             return ""
         if approval.source_sha256 != digest:
             raise MetadataTranslationRequiredError(
                 f"Outdated {language} metadata translation: {key}")
-        if original.strip() and not approval.text.strip():
+        if _has_visible_text(original) and not _has_visible_text(approval.text):
             raise MetadataTranslationRequiredError(
                 f"Blank {language} metadata translation: {key}")
         return approval.text
 
     def resolve_many(self, keys, language: str) -> dict[str, str]:
         """Resolve all required labels before a destination can be written."""
-        if not isinstance(keys, (tuple, list)) or any(
-                not isinstance(key, str) or key not in ALL_KEYS for key in keys):
+        if (not isinstance(keys, (tuple, list)) or len(keys) > len(ALL_KEYS) or
+                any(not isinstance(key, str) or key not in ALL_KEYS for key in keys) or
+                len(set(keys)) != len(keys)):
             raise ValueError("Invalid localization key sequence")
         return {key: self.resolve(key, language) for key in keys}
 
@@ -213,7 +222,7 @@ def visible_metadata_keys(report: Report, *, preview: bool = False,
     """
     if not isinstance(report, Report):
         raise ValueError("Expected canonical report")
-    if not isinstance(footer_note, str):
+    if not _xml_safe_text(footer_note, MAX_FREE_TEXT):
         raise ValueError("Invalid branding footer text")
     snapshot = report.customer_snapshot
     labels = [
