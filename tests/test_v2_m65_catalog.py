@@ -233,6 +233,13 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertEqual(source_digest("field.customer", "EN", "Customer"),
                          source_digest("field.customer", "en", "Customer"))
 
+    def test_source_digest_rejects_oversized_untrusted_source(self):
+        with self.assertRaisesRegex(ValueError, "source"):
+            source_digest("field.ticket", "en", "x" * 321)
+        with self.assertRaisesRegex(ValueError, "source"):
+            source_digest("metadata.other_intervention_detail", "en",
+                          "x" * 10001)
+
     def test_reject_excessive_entry_count_and_overlong_labels(self):
         record = MetadataLocale(self.report).approve(
             "field.customer", "de", "Kunde")
