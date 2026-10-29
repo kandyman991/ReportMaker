@@ -40,6 +40,8 @@ It exercises one fabricated report across:
 3. Two simultaneous document-Editor drafts (nested paragraph and
    table cell), with Save/PDF/ZIP rejection until one atomic Apply.
    Undo/Redo returns the exact prior/approved report, including IDs.
+   A **direct Branch Editor title edit** is then applied, and the
+   Page Editor scope selector and Contents both reflect it.
 4. Report-owned photo rotation/shape/text marks, then explicit
    canonical command approvals of content and metadata translations.
    Generated Contents and every workspace use the same session/IDs;

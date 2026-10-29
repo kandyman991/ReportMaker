@@ -154,6 +154,28 @@ class CheckpointCQtTests(unittest.TestCase):
             self.assertTrue(win.branch.redo())
             self.assertEqual(win.session.report_snapshot(), approved)
 
+            # Also edit *directly in the Branch Editor* and check the
+            # document-oriented Editor and generated Contents see that
+            # exact canonical change; neither maintains a separate tree.
+            module_address = NodeAddress(
+                report.id, report.modules[1].id, None, "title")
+            win.tabs.setCurrentWidget(win.branch)
+            self.pump()
+            branch_title = win.branch.editor_for(module_address)
+            branch_title.setText("Commissioning verification")
+            branch_title.textEdited.emit(branch_title.text())
+            self.assertTrue(win.branch.drafts.pending)
+            self.assertFalse(win.branch.undo())
+            self.assertTrue(win.branch.apply_draft(module_address))
+            win.tabs.setCurrentWidget(win.editor_tab)
+            self.pump()
+            self.assertTrue(any(
+                "Commissioning verification" in win.editor_tab.module_choice.itemText(i)
+                for i in range(win.editor_tab.module_choice.count())))
+            self.assertTrue(any(
+                "Commissioning verification" in action.text()
+                for action in win.build_contents_menu().actions()))
+
             execute(win, "set_photo_visual", {
                 "visual": PhotoVisual(rotation=90, marks=[
                     PhotoMark("arrow", .1, .2, .8, .7),
