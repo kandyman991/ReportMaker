@@ -1633,18 +1633,23 @@ class BranchCanvas(QScrollArea):
         external = self.drafts.draft_owner(address) not in (None, "branch")
         stale = self.drafts.text_stale(address)
         if stale:
-            note = QLabel("Source changed while a draft was pending. "
-                          "Copy staged text if needed, then Revert.", card)
+            message = ("Source changed while a draft was pending. Copy staged text "
+                       "if needed, then return to its owning editor to Revert."
+                       if external else
+                       "Source changed while a draft was pending. "
+                       "Copy staged text if needed, then Revert.")
+            note = QLabel(message, card)
             note.setWordWrap(True)
             note.setObjectName("v2StaleTextDraftWarning")
             card.layout().addWidget(note)
-        if stale or external:
-            editor.setReadOnly(True)
+        if external:
             note = QLabel("Unapplied changes belong to the other editor. "
                           "Apply or Revert them there.", card)
             note.setWordWrap(True)
             note.setObjectName("v2ExternalDraftNotice")
             card.layout().addWidget(note)
+        if stale or external:
+            editor.setReadOnly(True)
         editor.setProperty("nodeId", address.block_id or address.module_id)
         editor.setProperty("moduleId", address.module_id)
         editor.installEventFilter(self)

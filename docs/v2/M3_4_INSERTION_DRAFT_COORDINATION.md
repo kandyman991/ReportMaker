@@ -17,4 +17,8 @@
 - The current V2 shell is still Branch Editor-first and does **not** contain the final separate page Editor / Gallery tabs; M3.4 implements their shared session **integration boundary**, not the complete UI or a claim of real cross-tab manual acceptance. Tab integration, rendered photo editing and import remain M4/M6. Physical installed Windows 100/125/150% DPI, long reports, keyboard/menu/assistive technology and actual Word/PDF export remain M7 acceptance.
 - Browser/ChatGPT remains user-operated with manual copy/paste only. V1 UI, project schema, exporters, CI publication and legacy Windows RC PR #21 are unchanged. Synthetic fixtures only, no real customer/photos/browser state or releases.
 
-**Next:** independent review of the exact M3.4 PR head, correct findings and verify Windows workflows before an explicitly authorized merge. Upon merge, **M4 — Photo integration**.
+## Independent PR #80 review correction
+
+The initial head passed 153/153 local V2 regressions and the dedicated hosted Windows 3.11/3.12 workflow. Review found that a **branch-owned stale text draft** incorrectly displayed the notice reserved for **another editor's draft**. The display now distinguishes source staleness from cross-editor ownership, preserves read-only draft recovery and guides the correct owner to Revert. Qt regressions assert each notice only appears for its intended state. The correction requires a new exact-head Windows CI verification before merge.
+
+**Next:** upon reviewed merge, **M4 — Photo integration**.

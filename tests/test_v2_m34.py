@@ -226,13 +226,17 @@ class M34QtTests(unittest.TestCase):
 
     def test_external_edit_disables_branch_controls_and_keeps_natural_heights(self):
         from PySide6.QtCore import Qt
-        from PySide6.QtWidgets import QPushButton
+        from PySide6.QtWidgets import QPushButton, QLabel
         page = self.win.branch.drafts.for_editor("page-editor")
         page.stage_text(self.para, "Pending text from page editor")
         self.win.branch._refresh()
         editor = self.win.branch.editor_for(self.para)
         self.assertTrue(editor.isReadOnly())
         self.assertEqual(editor.toPlainText(), "Pending text from page editor")
+        self.assertIsNotNone(self.win.branch.findChild(
+            QLabel, "v2ExternalDraftNotice"))
+        self.assertIsNone(self.win.branch.findChild(
+            QLabel, "v2StaleTextDraftWarning"))
         self.assertEqual(editor.verticalScrollBarPolicy(),
                          Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.assertFalse(editor.parent().findChild(
@@ -263,6 +267,8 @@ class M34QtTests(unittest.TestCase):
         self.assertTrue(staged.isReadOnly())
         self.assertEqual(staged.toPlainText(), "Pending draft")
         self.assertIsNotNone(branch.findChild(QLabel, "v2StaleTextDraftWarning"))
+        # A stale branch-owned draft must not tell users to find another editor.
+        self.assertIsNone(branch.findChild(QLabel, "v2ExternalDraftNotice"))
         self.assertFalse(staged.parent().findChild(
             QPushButton, "v2ApplyDraft").isEnabled())
         branch.revert_draft(self.para)
