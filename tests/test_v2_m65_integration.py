@@ -163,6 +163,24 @@ class M65IntegrationTests(unittest.TestCase):
         self.assertEqual(MetadataLocale(session.report_snapshot()).resolve(key, language),
                          "Kunde")
 
+    def test_primary_language_preview_labels_without_extra_export_language(self):
+        from test_m2_project import example
+        project = example()  # authored in it; requested outputs are de/zh only
+        self.assertEqual(project.report.primary_language, "it")
+        self.assertNotIn("it", project.report.output_languages)
+        session = ReportSession(project)
+        gateway = CommandGateway(session)
+        key = "heading.summary"
+        source, src_lang = MetadataLocale(session.report_snapshot()).source(key)
+        gateway.execute(CommandIntent(
+            "set_metadata_translation", None,
+            {"key": key, "language": "it", "text": "Sommario",
+             "expected_source_sha256": source_digest(key, src_lang, source)},
+            session.revision, session.generation))
+        self.assertEqual(
+            MetadataLocale(session.report_snapshot()).resolve(key, "it"), "Sommario")
+        self.assertNotIn("it", session.report_snapshot().output_languages)
+
     def test_translated_other_metadata_and_boilerplate_in_render_plan(self):
         project = locale_project()
         report = project.report
