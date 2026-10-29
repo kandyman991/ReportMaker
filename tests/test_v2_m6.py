@@ -282,6 +282,14 @@ class IntegratedWorkspaceTests(unittest.TestCase):
                                    places=1)
             self.assertEqual(self.win.preview_tab.style, self.win.editor_tab.style)
             output = Path(directory) / "styled.docx"
+            # M6.5 requires explicit transient footer provenance; an imported
+            # Word footer must not inherit the report writing language.
+            self.assertFalse(self.win.preview_tab.export_to(output, "docx"))
+            self.assertFalse(output.exists())
+            from dataclasses import replace
+            style = replace(self.win.preview_tab.style, footer_source_language="en")
+            self.win.preview_tab.set_style(style)
+            self.win.editor_tab.set_style(style)
             self.assertTrue(self.win.preview_tab.export_to(output, "docx"))
             exported = Document(output)
             self.assertAlmostEqual(exported.sections[0].page_width.cm, 29.7,
