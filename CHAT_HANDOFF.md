@@ -337,4 +337,4 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 
 ## V2 M6 full integration start (2026-10-29)
 - M5 PR #82 merged main at `63e8d1a359087ddeb2849a17bb961f6c4d995dee`. Work isolated on `feature/v2-m6-full-integration`; no changes to RC PR #21 or V1 UI.
-- Started one-session tabbed Modules/Editor/Gallery/ChatGPT/Preview integration, owner-tagged cross-editor drafts, library-only photo imports and guarded visual DOCX/PDF export. See `docs/v2/M6_INTEGRATION.md` and dedicated `tests/test_v2_m6.py` Windows CI gate. M6 Checkpoint C and physical Windows acceptance remain **pending**; do not claim M6 complete or merge without review.
+- Started one-session tabbed Modules/Editor/Gallery/ChatGPT/Preview integration, owner-tagged cross-editor drafts, library-only photo imports, guarded visual DOCX/PDF export and validated undoable Report Information editing (multitype intervention and extensible languages). See `docs/v2/M6_INTEGRATION.md` and dedicated `tests/test_v2_m6.py` Windows CI gate. M6 Checkpoint C and physical Windows acceptance remain **pending**; do not claim M6 complete or merge without review.
