@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-28T22:10:30.635Z",
+  "generatedAt": "2026-10-29T06:16:35.638Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
-    "message": "Merge pull request #78 from kandyman991/feature/v2-m3-2-contextual-rich-ribbon\n\nV2 M3.2 — Contextual Rich-Text Ribbon and Safe Formatting Drafts",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/b979c572e6c5e64f0e2979585f8bcbb91fe90fe2"
+    "sha": "e686e301989186828f480114b84654c0a53d296e",
+    "message": "Merge pull request #79 from kandyman991/feature/v2-m3-3-inline-tables\n\nV2 M3.3 — Inline Table Cells and Atomic Grid Drafts\n\nReviewed, corrected stale-draft redraw recovery and zero-column row insertion; 141 local V2 tests and exact-head hosted Windows CI passed.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/e686e301989186828f480114b84654c0a53d296e"
   },
   "openPullRequests": [
     {
@@ -109,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40777883847,
+      "id": 40828219657,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "e686e301989186828f480114b84654c0a53d296e",
+      "event": "push",
+      "updatedAt": "2026-10-29T06:16:32Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828219657"
+    },
+    {
+      "id": 40828219631,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
+      "headSha": "e686e301989186828f480114b84654c0a53d296e",
       "event": "push",
-      "updatedAt": "2026-10-28T22:10:27Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777883847"
+      "updatedAt": "2026-10-29T06:16:31Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828219631"
     },
     {
-      "id": 40777883767,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
-      "event": "push",
-      "updatedAt": "2026-10-28T22:10:27Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777883767"
-    },
-    {
-      "id": 40777883737,
+      "id": 40828219630,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "b979c572e6c5e64f0e2979585f8bcbb91fe90fe2",
+      "headSha": "e686e301989186828f480114b84654c0a53d296e",
       "event": "push",
-      "updatedAt": "2026-10-28T22:10:27Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777883737"
+      "updatedAt": "2026-10-29T06:16:31Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828219630"
     },
     {
-      "id": 40777646673,
-      "name": "V2 M2 structural placement",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
-      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T22:09:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646673"
-    },
-    {
-      "id": 40777646671,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
-      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T22:08:48Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646671"
-    },
-    {
-      "id": 40777646572,
-      "name": "V2 M1.2 session, commands and persistence",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
-      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T22:09:11Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646572"
-    },
-    {
-      "id": 40777646568,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
-      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T22:10:10Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646568"
-    },
-    {
-      "id": 40777646565,
+      "id": 40828028567,
       "name": "V2 M1.1 Branch Editor shell",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
-      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "branch": "feature/v2-m3-3-inline-tables",
+      "headSha": "a7d552237d63d885ad3f6e68698f1d346fa8034d",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T22:09:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646565"
+      "updatedAt": "2026-10-29T06:15:28Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828028567"
     },
     {
-      "id": 40777646556,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
-      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
-      "event": "pull_request",
-      "updatedAt": "2026-10-28T22:09:49Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646556"
-    },
-    {
-      "id": 40777646554,
+      "id": 40828028548,
       "name": "V2 M1.3 inline branch editing",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m3-2-contextual-rich-ribbon",
-      "headSha": "aa8cd4623a6f2b1520962f34872f08208e4e66ef",
+      "branch": "feature/v2-m3-3-inline-tables",
+      "headSha": "a7d552237d63d885ad3f6e68698f1d346fa8034d",
       "event": "pull_request",
-      "updatedAt": "2026-10-28T22:09:42Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40777646554"
+      "updatedAt": "2026-10-29T06:15:46Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828028548"
+    },
+    {
+      "id": 40828028540,
+      "name": "V2 M1.4 project lifecycle and Checkpoint A",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-3-inline-tables",
+      "headSha": "a7d552237d63d885ad3f6e68698f1d346fa8034d",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T06:15:29Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828028540"
+    },
+    {
+      "id": 40828028527,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-3-inline-tables",
+      "headSha": "a7d552237d63d885ad3f6e68698f1d346fa8034d",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T06:16:02Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828028527"
+    },
+    {
+      "id": 40828028523,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-3-inline-tables",
+      "headSha": "a7d552237d63d885ad3f6e68698f1d346fa8034d",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T06:15:30Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828028523"
+    },
+    {
+      "id": 40828028519,
+      "name": "V2 M2 structural placement",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-3-inline-tables",
+      "headSha": "a7d552237d63d885ad3f6e68698f1d346fa8034d",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T06:15:36Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828028519"
+    },
+    {
+      "id": 40828028509,
+      "name": "V2 M1.2 session, commands and persistence",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m3-3-inline-tables",
+      "headSha": "a7d552237d63d885ad3f6e68698f1d346fa8034d",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T06:15:08Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40828028509"
     }
   ]
 }
