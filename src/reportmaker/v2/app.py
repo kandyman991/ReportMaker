@@ -104,6 +104,7 @@ class V2MainWindow(QMainWindow):
             ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
             ("v2AddParagraph", "+ Paragraph", self.branch.add_paragraph, ""),
             ("v2AddHeading", "+ Heading", self.branch.add_heading, ""),
+            ("v2AddTable", "+ Table", self.branch.add_table, ""),
             ("v2MoveUp", "↑ Move", self.branch.move_selected_up, "Alt+Up"),
             ("v2MoveDown", "↓ Move", self.branch.move_selected_down, "Alt+Down"),
             ("v2Indent", "→ Indent", self.branch.indent_selected, "Alt+Shift+Right"),

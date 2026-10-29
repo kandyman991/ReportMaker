@@ -13,7 +13,7 @@ from uuid import uuid4
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QDrag, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
 from PySide6.QtWidgets import (
-    QApplication, QFrame, QHBoxLayout, QLabel, QLayout, QLineEdit, QPlainTextEdit,
+    QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit, QPlainTextEdit,
     QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
     QVBoxLayout, QWidget,
 )
@@ -426,6 +426,8 @@ class BranchCanvas(QScrollArea):
         self._unsubscribe = None
         self._editors = {}
         self._draft_bars = {}
+        self._table_cells = {}
+        self._table_selected = {}
         self._ribbons = {}
         self._selected_module_id = None
         self._collapsed: set[str] = set()
@@ -612,6 +614,11 @@ class BranchCanvas(QScrollArea):
         # on every card. NoFocus actions preserve the editor's Qt selection.
         if (event.type() in (QEvent.Type.FocusIn, QEvent.Type.FocusOut)
                 and isinstance(watched, InlineParagraph)):
+            if event.type() == QEvent.Type.FocusIn:
+                cell = self._table_cells.get(watched)
+                if cell is not None:
+                    table_address, row_index, column_index = cell
+                    self._table_selected[table_address] = (row_index, column_index)
             QTimer.singleShot(0, self._sync_active_ribbon)
         # A projection refresh may focus widgets implicitly when old cards are
         # deleted. Only an actual user click selects a different insert target.
@@ -855,7 +862,7 @@ class BranchCanvas(QScrollArea):
         if change is not None:
             # Inserting through the toolbar into a collapsed container must
             # reveal the new block, not silently create invisible content.
-            if kind in ("add_nested_module", "add_paragraph", "add_heading") and target is not None:
+            if kind in ("add_nested_module", "add_paragraph", "add_heading", "add_table") and target is not None:
                 reveal_insert_parent = target.module_id in self._collapsed
                 self._collapsed.discard(target.module_id)
             new_id = next(iter(change.changed_ids))
@@ -863,9 +870,12 @@ class BranchCanvas(QScrollArea):
             if kind in ("add_module", "add_nested_module"):
                 self._selected_module_id = new_id
                 self._restore = (NodeAddress(report_id, new_id), 0, -1)
-            elif kind in ("add_paragraph", "add_heading"):
+            elif kind in ("add_paragraph", "add_heading", "add_table"):
                 self._selected_module_id = target.module_id
-                self._restore = (NodeAddress(report_id, target.module_id, new_id, "text"), 0, 0)
+                self._restore = (NodeAddress(report_id, target.module_id, new_id,
+                                             "cell" if kind == "add_table" else "text",
+                                             0 if kind == "add_table" else None,
+                                             0 if kind == "add_table" else None), 0, 0)
             elif kind == "duplicate_node":
                 if target.block_id is None:
                     self._selected_module_id = new_id
@@ -922,6 +932,31 @@ class BranchCanvas(QScrollArea):
         return self._run("add_heading",
                          NodeAddress(self._session.report_snapshot().id, owner),
                          **args)
+
+    def add_table(self, *, module_id: str | None = None,
+                  index: int | None = None) -> bool:
+        if self._session is None:
+            return False
+        owner = self._selected_module_id if module_id is None else module_id
+        if owner is None:
+            self.feedback.emit("Select a module first")
+            return False
+        args = {} if index is None else {"index": index}
+        return self._run("add_table",
+                         NodeAddress(self._session.report_snapshot().id, owner), **args)
+
+    def insert_table_after(self, address: NodeAddress) -> bool:
+        if self._session is None or address is None or address.block_id is None:
+            return False
+        report = self._session.report_snapshot()
+        try:
+            from ..projections import find_node
+            module = find_node(report, NodeAddress(report.id, address.module_id))
+            slot = next(i for i, block in enumerate(module.blocks)
+                        if block.id == address.block_id)
+        except (LookupError, ValueError, StopIteration):
+            return False
+        return self.add_table(module_id=address.module_id, index=slot + 1)
 
     def insert_heading_after(self, address: NodeAddress) -> bool:
         """Insert into the exact mixed-order slot after a visible content leaf."""
@@ -1098,6 +1133,15 @@ class BranchCanvas(QScrollArea):
             insert = menu.addAction("Insert heading after")
             insert.triggered.connect(
                 lambda checked=False, a=address: self.insert_heading_after(a))
+        if address.block_id is None:
+            insert_table = menu.addAction("Insert table inside")
+            insert_table.triggered.connect(
+                lambda checked=False, mid=address.module_id:
+                self.add_table(module_id=mid))
+        else:
+            insert_table = menu.addAction("Insert table after")
+            insert_table.triggered.connect(
+                lambda checked=False, a=address: self.insert_table_after(a))
         menu.addSeparator()
         duplicate = menu.addAction("Duplicate")
         duplicate.triggered.connect(lambda: self.duplicate_node(address))
@@ -1127,7 +1171,8 @@ class BranchCanvas(QScrollArea):
     def _sync_active_ribbon(self) -> None:
         focused = next((
             (address, editor) for address, editor in self._editors.items()
-            if isinstance(editor, InlineParagraph) and editor.hasFocus()
+            if isinstance(editor, InlineParagraph) and address.field == "text"
+            and editor.hasFocus()
         ), None)
         if focused is not None:
             address, editor = focused
@@ -1309,6 +1354,177 @@ class BranchCanvas(QScrollArea):
         except (ValueError, LookupError, RuntimeError):
             ribbon.hide()
 
+    def table_editor_for(self, table_address, row: int, column: int):
+        return self._editors.get(NodeAddress(
+            table_address.report_id, table_address.module_id, table_address.block_id,
+            "cell", row, column))
+
+    def _table_changed(self, address, row, column, text) -> None:
+        try:
+            self.drafts.update_cell(address, row, column, text)
+            self._draft_bars[address].setVisible(self.drafts.is_dirty(address))
+            self.feedback.emit("Unapplied table edit — Apply or Revert before Save/Undo")
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Table draft retained: " + str(exc))
+
+    def _capture_table_cell(self, address):
+        row, column = self._table_selected.get(address, (0, 0))
+        cell_address = NodeAddress(
+            address.report_id, address.module_id, address.block_id,
+            "cell", row, column)
+        if cell_address in self._editors:
+            self._capture(cell_address)
+
+    def apply_table_draft(self, address) -> bool:
+        if self.drafts is None or not self.drafts.is_dirty(address):
+            return False
+        self._capture_table_cell(address)
+        try:
+            self.drafts.commit(address)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Table draft retained: " + str(exc))
+            return False
+        self._refresh()
+        self.feedback.emit("Table applied — Undo available")
+        return True
+
+    def revert_table_draft(self, address) -> None:
+        if self.drafts is None:
+            return
+        self._capture_table_cell(address)
+        self.drafts.discard(address)
+        self._refresh()
+        self.feedback.emit("Table draft reverted")
+
+    def _table_action(self, address, operation: str):
+        try:
+            rows = self.drafts.table_rows(address)
+            selected_row, selected_column = self._table_selected.get(address, (0, 0))
+            if operation == "insert_row":
+                index = min(len(rows), selected_row + 1)
+            elif operation == "delete_row":
+                index = selected_row
+            elif operation == "insert_column":
+                index = selected_column + 1
+            elif operation == "delete_column":
+                index = selected_column
+            else:
+                raise ValueError("Unsupported table operation")
+            if not self.drafts.modify_table(address, operation, index):
+                return False
+            next_rows = self.drafts.table_rows(address)
+            row = max(0, min(selected_row + (operation == "insert_row"),
+                             len(next_rows) - 1))
+            col = max(0, min(selected_column + (operation == "insert_column"),
+                             len(next_rows[row]) - 1))
+            self._table_selected[address] = row, col
+            self._restore = (NodeAddress(
+                address.report_id, address.module_id, address.block_id,
+                "cell", row, col), 0, 0)
+            self._refresh()
+            self.feedback.emit("Unapplied table structure — Apply or Revert")
+            return True
+        except (ValueError, LookupError, RuntimeError, IndexError) as exc:
+            self.feedback.emit(str(exc))
+            return False
+
+    def _inline_table(self, card, address):
+        rows, stale = self.drafts.table_preview(address)
+        if stale:
+            warning = QLabel(
+                "Table changed while your edits were pending. You can copy your staged "
+                "text, then Revert; Apply and further edits are blocked.", card)
+            warning.setTextFormat(Qt.TextFormat.PlainText)
+            warning.setWordWrap(True)
+            warning.setObjectName("v2StaleTableDraftWarning")
+            card.layout().addWidget(warning)
+        surface = QWidget(card)
+        surface.setObjectName("v2InlineTable")
+        grid = QGridLayout(surface)
+        grid.setContentsMargins(0, 3, 0, 3)
+        grid.setHorizontalSpacing(3)
+        grid.setVerticalSpacing(3)
+        if not rows:
+            empty = QLabel("Empty table — use + Row to begin", surface)
+            empty.setTextFormat(Qt.TextFormat.PlainText)
+            grid.addWidget(empty, 0, 0)
+        for i, values in enumerate(rows):
+            for j, cell in enumerate(values):
+                editor = InlineParagraph(surface)
+                editor.setObjectName("v2TableCell")
+                editor.setAccessibleName(f"Table row {i + 1}, column {j + 1}")
+                editor.setPlainText(cell.original)
+                editor.setReadOnly(stale)
+                editor.setStyleSheet(
+                    "color: #182b3a; background: #f9fbff;"
+                    "border: 1px solid #aabbd0; border-radius: 3px;"
+                    "font-size: 13px; padding: 3px;")
+                editor.setTabChangesFocus(True)
+                cell_address = NodeAddress(
+                    address.report_id, address.module_id, address.block_id,
+                    "cell", i, j)
+                editor.installEventFilter(self)
+                self._editors[cell_address] = editor
+                self._table_cells[editor] = (address, i, j)
+                editor.textChanged.connect(
+                    lambda e=editor, a=address, r=i, c=j:
+                    self._table_changed(a, r, c, e.toPlainText()))
+                editor.commitRequested.connect(
+                    lambda a=address: self.apply_table_draft(a))
+                editor.cancelRequested.connect(
+                    lambda a=address: self.revert_table_draft(a))
+                grid.addWidget(editor, i, j)
+        card.layout().addWidget(surface)
+        operations = QWidget(card)
+        actions = QHBoxLayout(operations)
+        widths = {len(row) for row in rows}
+        rectangular = len(widths) <= 1
+        width = next(iter(widths), 0)
+        actions.setContentsMargins(0, 3, 0, 0)
+        for operation, label, tooltip in (
+            ("insert_row", "+ Row", "Insert row below selected cell"),
+            ("delete_row", "− Row", "Delete selected row"),
+            ("insert_column", "+ Column", "Insert column after selected cell"),
+            ("delete_column", "− Column", "Delete selected column"),
+        ):
+            button = QToolButton(operations)
+            button.setObjectName("v2Table" + "".join(part.title() for part in operation.split("_")))
+            button.setText(label)
+            button.setAccessibleName(tooltip)
+            button.setToolTip(tooltip)
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            enabled = rectangular and {
+                "insert_row": not rows or width > 0,
+                "delete_row": len(rows) > 1,
+                "insert_column": bool(rows),
+                "delete_column": width > 1,
+            }[operation]
+            button.setEnabled(enabled and not stale)
+            if not rectangular:
+                button.setToolTip("Ragged tables permit cell edits only")
+            button.clicked.connect(
+                lambda checked=False, a=address, op=operation:
+                self._table_action(a, op))
+            actions.addWidget(button)
+        actions.addStretch(1)
+        card.layout().addWidget(operations)
+        bar = QWidget(card)
+        buttons = QHBoxLayout(bar)
+        buttons.setContentsMargins(0, 3, 0, 0)
+        apply = QPushButton("Apply table", bar)
+        apply.setObjectName("v2ApplyTableDraft")
+        apply.setEnabled(not stale)
+        revert = QPushButton("Revert table", bar)
+        revert.setObjectName("v2RevertTableDraft")
+        apply.clicked.connect(lambda checked=False, a=address: self.apply_table_draft(a))
+        revert.clicked.connect(lambda checked=False, a=address: self.revert_table_draft(a))
+        buttons.addWidget(apply)
+        buttons.addWidget(revert)
+        buttons.addStretch(1)
+        bar.setVisible(self.drafts.is_dirty(address))
+        card.layout().addWidget(bar)
+        self._draft_bars[address] = bar
+
     def _inline(self, card, address, kind, original):
         text = self.drafts.text(address)
         if kind in ("module", "conclusion"):
@@ -1381,6 +1597,7 @@ class BranchCanvas(QScrollArea):
         scroll = self.verticalScrollBar().value()
         self._editors.clear()
         self._draft_bars.clear()
+        self._table_cells.clear()
         self._ribbons.clear()
         while self._body.count():
             item = self._body.takeAt(0)
@@ -1443,7 +1660,10 @@ class BranchCanvas(QScrollArea):
                     self._context_menu(a, c.mapToGlobal(pt))
                 )
             card_layout.addLayout(header)
-            if self.drafts is not None and kind in ("module", "conclusion", "paragraph", "heading"):
+            if self.drafts is not None and kind == "table":
+                self._inline_table(card, NodeAddress(
+                    report.id, meta.parent_module_id, identifier, "table"))
+            elif self.drafts is not None and kind in ("module", "conclusion", "paragraph", "heading"):
                 address = (NodeAddress(report.id, identifier)
                            if kind in ("module", "conclusion")
                            else NodeAddress(report.id, meta.parent_module_id, identifier, "text"))
@@ -1470,6 +1690,11 @@ class BranchCanvas(QScrollArea):
             line.addWidget(card, 1)
             self._body.addWidget(row)
         self._body.addStretch(1)
+        active_table_ids = {r.stable_id for r in all_rows if r.kind == "table"}
+        self._table_selected = {
+            addr: cell for addr, cell in self._table_selected.items()
+            if addr.report_id == report.id and addr.block_id in active_table_ids
+        }
         self._visible_nodes = tuple(
             (identifier, kind, depth, text)
             for identifier, kind, _, text, depth, _, _ in rows
