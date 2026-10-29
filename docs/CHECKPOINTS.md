@@ -416,3 +416,8 @@ Next reproducible action:
 - Tests: synthetic pure/Qt `tests/test_v2_m5.py`; hosted Windows Python 3.11/3.12 dedicated workflow step. See `docs/v2/M5_NAVIGATION_SCALABILITY.md`. Verify exact final-head CI and independent review before merging.
 - PR #82 independent review corrections: focus exit restores vertical **and horizontal** scroll context, and returning from a later window selects a visible first-window module instead of leaving an unusable root selection. Added synthetic Qt regression tests for both; final exact-head CI must be checked after these commits.
 - Physical installed Windows DPI, wheel/touchpad, real keyboard/accessibility, heavy-image long-report benchmarks remain manual release gates; M6 owns Editor/Gallery/ChatGPT tabs and fully annotated export. V1/schema/browser/installer unchanged. Next planned M6 after review/authorized merge.
+
+## CP-V2-M6 — Full application integration started (2026-10-29)
+- Baseline: M5 PR #82 squash-merged main `63e8d1a359087ddeb2849a17bb961f6c4d995dee`. Isolated M6 feature branch `feature/v2-m6-full-integration`; unrelated RC PR #21 untouched.
+- Initial slice: one-session Modules/Editor/Gallery/ChatGPT/Preview tabs; shared owner-tagged drafts; atomic unplaced gallery imports; explicit V2 annotated DOCX/PDF export bridge preserving pure exporter fail-closed default and immutable project assets. Windows M6 CI gate added; see `docs/v2/M6_INTEGRATION.md`.
+- M6 Checkpoint C **not achieved** until metadata/language/template workflows, precise editor/preview fidelity, remaining end-to-end regression gates, independent review and real installed-Windows acceptance. Final-head CI must be verified; no release/installer authorized.
