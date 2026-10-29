@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
+    QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QTabWidget,
 )
 
 from ..engine import module_outline
@@ -72,7 +72,10 @@ class V2MainWindow(QMainWindow):
 
     def __init__(self, report: Report | None = None, *,
                  project: ReportProject | None = None,
-                 presentation: PresentationStore | None = None) -> None:
+                 presentation: PresentationStore | None = None,
+                 load_website: bool = True,
+                 browser_profile_root: Path | None = None,
+                 ephemeral_browser: bool = False) -> None:
         super().__init__()
         if report is not None and project is not None:
             raise ValueError("Pass either a Report or an existing project")
@@ -88,9 +91,31 @@ class V2MainWindow(QMainWindow):
         self.persistence = ProjectPersistence()
         self.presentation = presentation or PresentationStore()
         self.branch = BranchCanvas(self)
-        self.setCentralWidget(self.branch)
         self.branch.bind_session(self.session, self.gateway)
         self.branch.feedback.connect(self.statusBar().showMessage)
+        # Distinct workspaces share the *same* canonical report session.
+        # No V1 three-pane shell or second data tree is imported.
+        from .editor_tab import DocumentEditorTab
+        from .gallery_tab import GalleryTab
+        from .chat_tab import ChatTab
+        from .preview_tab import PreviewTab
+        self.tabs = QTabWidget(self)
+        self.tabs.setObjectName("v2WorkspaceTabs")
+        self.editor_tab = DocumentEditorTab(self.session, self.branch, self.tabs)
+        self.gallery_tab = GalleryTab(self.session, self.gateway, self.branch, self.tabs)
+        self.chat_tab = ChatTab(
+            load_website=load_website, browser_profile_root=browser_profile_root,
+            ephemeral_browser=ephemeral_browser, parent=self.tabs)
+        self.preview_tab = PreviewTab(self.session, self.tabs)
+        self.tabs.addTab(self.branch, "Modules")
+        self.tabs.addTab(self.editor_tab, "Editor")
+        self.tabs.addTab(self.gallery_tab, "Photo Gallery")
+        self.tabs.addTab(self.chat_tab, "ChatGPT")
+        self.tabs.addTab(self.preview_tab, "Preview")
+        self.gallery_tab.on_inserted = lambda: self.tabs.setCurrentWidget(self.branch)
+        self.tabs.currentChanged.connect(self._tab_changed)
+        self.setCentralWidget(self.tabs)
+        self.session.subscribe(self._workspace_changed)
         self.session.subscribe(lambda _: self._update_caption())
 
         toolbar = self.addToolBar("Project and branch actions")
@@ -163,6 +188,24 @@ class V2MainWindow(QMainWindow):
             "Edit inline, Apply or Revert drafts before Save/Open; "
             "New/Open/Save/Save As use portable .rmproj files."
         )
+
+    def _workspace_changed(self, change) -> None:
+        # Lazily rebuild inactive document/preview panes. Draft-owning widgets
+        # are never thrown away during a native Qt text-change callback.
+        self.preview_tab.invalidate()
+        if self.tabs.currentWidget() is self.gallery_tab:
+            self.gallery_tab.refresh()
+
+    def _tab_changed(self, index: int) -> None:
+        pane = self.tabs.widget(index)
+        if pane is self.editor_tab:
+            self.editor_tab.activate()
+        elif pane is self.gallery_tab:
+            self.gallery_tab.refresh()
+        elif pane is self.chat_tab:
+            self.chat_tab.activate()
+        elif pane is self.preview_tab:
+            self.preview_tab.refresh()
 
     def _update_move_actions(self) -> None:
         """Disable unavailable moves, including their keyboard shortcuts."""
