@@ -57,6 +57,76 @@ class IntegratedMediaTests(unittest.TestCase):
             self.assertEqual(reopened.media_library[key], "Synthetic unplaced")
             self.assertEqual(reopened.assets[key], sample)
 
+    def test_metadata_is_canonical_atomic_multitype_and_open_language(self):
+        from datetime import date
+        from dataclasses import replace
+        project = synthetic_project()
+        session = ReportSession(project)
+        gateway = CommandGateway(session)
+        baseline = session.report_snapshot()
+        args = {
+            "title": "Synthetic intervention summary",
+            "created_date": date(2026, 10, 29),
+            "start_date": date(2026, 10, 27),
+            "end_date": date(2026, 10, 29),
+            "ticket": "FAKE-123",
+            "technicians": ["Synthetic Technician"],
+            "intervention_types": ["supervision", "ordinary_maintenance", "other"],
+            "other_intervention_detail": "Fabricated",
+            "customer_snapshot": replace(
+                baseline.customer_snapshot, site_name="Synthetic site",
+                machine_name="Synthetic equipment"),
+            "primary_language": "en",
+            "output_languages": ["en", "de", "fr-CA"],
+        }
+        action = CommandIntent("set_report_metadata", None, args,
+                               session.revision, session.generation)
+        change = gateway.execute(action)
+        self.assertTrue(change.outline_invalidated)
+        report = session.report_snapshot()
+        self.assertEqual(report.id, baseline.id)
+        self.assertEqual(report.modules, baseline.modules)
+        self.assertEqual(report.conclusion, baseline.conclusion)
+        self.assertEqual(report.ticket, "FAKE-123")
+        self.assertEqual(report.intervention_types, args["intervention_types"])
+        self.assertEqual(report.output_languages, ["en", "de", "fr-CA"])
+        with TemporaryDirectory() as directory:
+            from reportmaker.v2.adapters.persistence import ProjectPersistence
+            from reportmaker.project_io import load_project
+            target = Path(directory) / "metadata.rmproj"
+            ProjectPersistence().save(session, target)
+            self.assertEqual(load_project(target).report, report)
+        self.assertTrue(gateway.undo(session.generation, session.revision))
+        self.assertEqual(session.report_snapshot(), baseline)
+        self.assertTrue(gateway.redo(session.generation, session.revision))
+        self.assertEqual(session.report_snapshot(), report)
+
+    def test_invalid_report_information_preserves_revision_and_undo_history(self):
+        from datetime import date
+        project = synthetic_project()
+        session = ReportSession(project)
+        gateway = CommandGateway(session)
+        original = session.report_snapshot()
+        info = {
+            "title": original.title.original,
+            "created_date": original.created_date,
+            "start_date": date(2026, 10, 29),
+            "end_date": date(2026, 10, 28),
+            "ticket": original.ticket,
+            "technicians": original.technicians,
+            "intervention_types": original.intervention_types,
+            "other_intervention_detail": original.other_intervention_detail,
+            "customer_snapshot": original.customer_snapshot,
+            "primary_language": original.primary_language,
+            "output_languages": original.output_languages,
+        }
+        with self.assertRaises(ValueError):
+            gateway.execute(CommandIntent(
+                "set_report_metadata", None, info, session.revision, session.generation))
+        self.assertEqual(session.revision, 0)
+        self.assertEqual(session.report_snapshot(), original)
+        self.assertFalse(session._editor.can_undo)
+
     def test_pure_export_still_fails_closed_without_explicit_visual_renderer(self):
         project = synthetic_project()
         photo = project.report.modules[0].blocks[2]
@@ -163,6 +233,35 @@ class IntegratedWorkspaceTests(unittest.TestCase):
         self.pump()
         self.assertFalse(self.win.branch.drafts.pending)
         self.assertEqual(self.win.session.report_snapshot(), self.before)
+
+    def test_report_info_dialog_commits_and_pending_editor_draft_blocks_it(self):
+        from reportmaker.v2.report_info import ReportInfoDialog
+        from PySide6.QtGui import QAction
+        action = self.win.findChild(QAction, "v2ReportInfo")
+        self.assertIsNotNone(action)
+        dialog = ReportInfoDialog(self.win.session, self.win.gateway, self.win)
+        dialog.fields["title"].setText("Synthetic report title M6")
+        dialog.types["supervision"].setChecked(True)
+        dialog.types["ordinary_maintenance"].setChecked(True)
+        dialog.fields["output_languages"].setText("en, de, es-MX")
+        self.assertTrue(dialog.apply_changes())
+        report = self.win.session.report_snapshot()
+        self.assertEqual(report.title.original, "Synthetic report title M6")
+        self.assertEqual(report.intervention_types,
+                         ["supervision", "ordinary_maintenance"])
+        self.assertEqual(report.output_languages, ["en", "de", "es-MX"])
+        self.assertTrue(self.win.branch.undo())
+        self.assertEqual(self.win.session.report_snapshot(), self.before)
+        child = self.before.modules[0].blocks[1].module
+        addr = NodeAddress(self.before.id, child.id, child.blocks[0].id, "text")
+        self.win.tabs.setCurrentWidget(self.win.editor_tab)
+        self.win.editor_tab._editors[addr].setPlainText("Pending editor draft")
+        self.pump()
+        dialog = ReportInfoDialog(self.win.session, self.win.gateway, self.win)
+        dialog.fields["title"].setText("Should not commit")
+        self.assertFalse(dialog.apply_changes())
+        self.assertEqual(self.win.session.report_snapshot(), self.before)
+        self.assertTrue(self.win.editor_tab.revert_changes())
 
     def test_preview_and_export_refuse_pending_draft(self):
         child = self.before.modules[0].blocks[1].module
