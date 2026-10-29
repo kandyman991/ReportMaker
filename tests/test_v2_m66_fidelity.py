@@ -375,6 +375,35 @@ class NaturalPageFidelityTests(unittest.TestCase):
         finally:
             paper.close()
 
+    def test_large_photo_preview_tracks_narrow_paper_without_hidden_overflow(self):
+        from PySide6.QtGui import QImage
+        from reportmaker.v2.editor_tab import NaturalPagePaper, NaturalPagePhoto
+
+        image = QImage(900, 450, QImage.Format.Format_RGB32)
+        image.fill(0x336699)
+        paper = NaturalPagePaper(ExportStyle(page_width_cm=18,
+                                            left_margin_cm=2,
+                                            right_margin_cm=2))
+        photo = NaturalPagePhoto(image, paper)
+        paper.flow.addWidget(photo)
+        try:
+            paper.show()
+            widths = []
+            for width in (310, 620, 310):
+                paper.resize(width, 500)
+                for _ in range(4):
+                    self.app.processEvents()
+                left, _, right, _ = paper.flow.getContentsMargins()
+                content_width = width - left - right
+                widths.append(photo.width())
+                self.assertLessEqual(photo.width(), content_width + 1)
+                self.assertGreaterEqual(photo.width(), content_width - 2)
+                self.assertAlmostEqual(photo.height(), photo.width() / 2, delta=3)
+            self.assertGreater(widths[1], widths[0])
+            self.assertAlmostEqual(widths[2], widths[0], delta=2)
+        finally:
+            paper.close()
+
     def test_page_editor_applies_template_font_without_mutating_canonical_rich_text(self):
         from reportmaker.v2.app import V2MainWindow
         from reportmaker.v2.projections import NodeAddress

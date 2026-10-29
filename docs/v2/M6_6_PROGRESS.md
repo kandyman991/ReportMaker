@@ -46,3 +46,13 @@
 **Local verification of M6.6-C:** complete offscreen/Linux suite **440 tests and 179 subtests passed**, 16 inherited deprecation warnings. The scoped M6.6 suite passes **12 tests and 2 subtests**; complex template importer tests pass **17 tests and 13 subtests**. Hosted exact-head Windows CI is pending verification after push.
 
 **Acceptance boundary:** The script has not been run on an installed licensed Windows Microsoft Word instance. Native page count, field updates, font substitution, UI layout and visual fidelity **remain unverified**. Complete full regression testing and exact-new-head hosted Windows checks, independent review and explicit merge approval before declaring M6.6 accepted.
+
+## Independent PR #88 review — 2026-10-29
+
+Reviewed the final M6.6-A/B/C implementation against AGENTS.md, root and V2 architecture contracts, using a separate clean checkout. Corrected three findings:
+
+- **F1 (medium, responsive layout):** fixed-width photo preview pixmaps could exceed narrow printable Editor paper while scrollbars are hidden. Added `NaturalPagePhoto` with width-following aspect height and a 310/620/310px synthetic resize regression.
+- **F2 (medium, large-table scalability):** initial table population emitted `itemChanged` for every inserted cell, repeatedly resizing every row before first render. Block only initialization-time signals; live cell changes still expand the widget and stage canonical drafts.
+- **F3 (medium, acceptance integrity):** Word COM verifier classified only the literal `?` as unresolved, missing malformed/nonexistent PAGEREF bookmarks and Word's error messages. It now validates each field's actual bookmark target and empty/error results without outputting report content.
+
+**Local review checkout:** 441 full-suite tests passed (offscreen Linux), 13 dedicated M6.6 tests passed, `git diff --check` clean. Hosted exact-final-head Windows CI must be checked following this review commit; actual native installed Microsoft Word pagination and visual inspection remain **unperformed**. User explicitly requested review/fix/merge on 2026-10-29, but acceptance must not be represented as complete without the documented native Word gate. M6.7, release and V2-default activation are separate.

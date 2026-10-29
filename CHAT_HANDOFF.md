@@ -397,3 +397,8 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 ## 2026-10-29 — M6.6-C complex templates and native Word validation entry
 - Continued solely in draft PR #88 after green M6.6-B. Enhanced Word template import compatibility warnings (including later-section header variants), explicit multilingual Word font OOXML and clear PDF glyph/font substitution disclosure. Added read-only Windows PowerShell verifier for actual installed Microsoft Word PAGE/PAGEREF field refresh and pagination evidence; **not run without Microsoft Word installed**.
 - See `docs/v2/M6_6_WORD_ACCEPTANCE.md`, `docs/v2/M6_6_PROGRESS.md` and synthetic tests. Full suite/CI/independent review still need exact-head verification. Do not imply native Word acceptance, merge PR #88, start M6.7, or publish an installer.
+
+## 2026-10-29 — Independent M6.6 PR #88 review
+
+- Read architecture contracts, reviewed complete PR patch and tested on an isolated Linux checkout. Corrected a fixed-width photo preview violating narrow responsive paper, repeated O(rows × cells) sizing during initial table load and incomplete Word PAGEREF bookmark verification in the read-only native acceptance script. Added an offscreen photo width/aspect regression.
+- Local full suite: **441 tests passed**, dedicated M6.6: **13 passed**. Push/check exact final HEAD's Windows CI before any merge. No licensed Windows Word instance is connected, so the documented native Word pagination/visual acceptance gate is **not satisfied**. User requested review/fix/merge, not a release or a waiver of fidelity requirements. Keep M6.7 and installer promotion separate.

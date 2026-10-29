@@ -59,9 +59,23 @@ try {
     $referenceCount = 0
     $unresolved = 0
     foreach ($field in $document.Fields) {
-        if ($field.Code.Text -match "PAGEREF") {
+        $fieldCode = [string] $field.Code.Text
+        if ($fieldCode -match '(?i)\bPAGEREF\b') {
             $referenceCount++
-            if ($field.Result.Text.Trim() -eq "?") {
+            # Word may display localized error text rather than the '?' used
+            # in our exported DOCX placeholder. Check the actual bookmark
+            # target as well as the cached field result.
+            $match = [regex]::Match($fieldCode,
+                '(?i)\bPAGEREF\s+([A-Za-z_][A-Za-z0-9_]*)')
+            if (-not $match.Success) {
+                $unresolved++
+                continue
+            }
+            $targetBookmark = $match.Groups[1].Value
+            $fieldResult = [string] $field.Result.Text
+            if ((-not $document.Bookmarks.Exists($targetBookmark)) -or
+                [string]::IsNullOrWhiteSpace($fieldResult) -or
+                $fieldResult.Trim() -match '^(\?+|Error!)') {
                 $unresolved++
             }
         }

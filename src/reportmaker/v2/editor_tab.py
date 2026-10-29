@@ -110,6 +110,47 @@ class NaturalPageTable(QTableWidget):
         event.ignore()
 
 
+class NaturalPagePhoto(QLabel):
+    """Keep report photos inside the responsive printable area at every width.
+
+    A QLabel's default size hint is the pixmap's pixel width; a fixed 610px
+    preview can otherwise force narrow paper offscreen with scrollbars hidden.
+    """
+    def __init__(self, image, parent=None):
+        super().__init__(parent)
+        pixmap = QPixmap.fromImage(image)
+        self._ratio = pixmap.height() / max(1, pixmap.width())
+        self.setPixmap(pixmap)
+        self.setScaledContents(True)
+        self.setMinimumSize(1, 1)
+        policy = QSizePolicy(QSizePolicy.Policy.Expanding,
+                             QSizePolicy.Policy.Fixed)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def heightForWidth(self, width):
+        return max(1, ceil(max(1, width) * self._ratio))
+
+    def sizeHint(self):
+        # Never turn original photo pixels into a minimum paper width.
+        hint = super().sizeHint()
+        hint.setWidth(1)
+        hint.setHeight(1)
+        return hint
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Qt does not consistently honor QLabel height-for-width in a
+        # vertically growing paper layout. Set the aspect-height explicitly.
+        height = self.heightForWidth(event.size().width())
+        if self.height() != height:
+            self.setFixedHeight(height)
+            self.updateGeometry()
+
+
 class NaturalPagePaper(QFrame):
     """Responsive paper outline: one physical scale for width and margins.
 
@@ -340,11 +381,7 @@ class DocumentEditorTab(QWidget):
                         image = render_photo(self.session.assets[node.asset_id],
                                              node.visual, 900)
                         if not image.isNull():
-                            picture = QLabel(page)
-                            picture.setPixmap(QPixmap.fromImage(image).scaledToWidth(
-                                min(610, image.width()),
-                                Qt.TransformationMode.SmoothTransformation))
-                            flow.addWidget(picture)
+                            flow.addWidget(NaturalPagePhoto(image, page))
                     except (ValueError, KeyError):
                         label("Project photo unavailable")
                     address = NodeAddress(
@@ -392,9 +429,15 @@ class DocumentEditorTab(QWidget):
                 table.setObjectName("v2DocumentTable_" + row.stable_id)
                 table.setAcceptDrops(False)
                 table.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
-                for i, values in enumerate(node.rows):
-                    for j, value in enumerate(values):
-                        table.setItem(i, j, QTableWidgetItem(value.original))
+                # Bulk population is not a live edit: avoid O(cells * rows)
+                # repeated geometry work before the table is even displayed.
+                table.blockSignals(True)
+                try:
+                    for i, values in enumerate(node.rows):
+                        for j, value in enumerate(values):
+                            table.setItem(i, j, QTableWidgetItem(value.original))
+                finally:
+                    table.blockSignals(False)
                 if self.branch.drafts.draft_owner(address) not in (None, "page-editor"):
                     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
                 else:
