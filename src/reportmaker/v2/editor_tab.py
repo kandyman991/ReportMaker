@@ -107,6 +107,8 @@ class DocumentEditorTab(QWidget):
         self.scroll = QScrollArea(self)
         self.scroll.setObjectName("v2DocumentScroll")
         self.scroll.setWidgetResizable(True)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         outer.addWidget(self.scroll, 1)
         self.session.subscribe(self._changed)
         self.refresh()
