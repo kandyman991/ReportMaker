@@ -19,7 +19,7 @@ on:
       - "tests/test_v2_m6_followup.py"
       - "tests/test_v2_m6_integrity.py"
       - "tests/test_v2_m6_bundle.py"
-      - "tests/test_v2_m65_catalog.py tests/test_v2_m65_integration.py"
+      - "tests/test_v2_m65_catalog.py tests/test_v2_m65_integration.py tests/test_v2_m65_qt.py"
       - "src/reportmaker/export.py"
       - "tests/test_v2_natural_cards.py"
       - "tests/test_v2_session.py"
@@ -114,6 +114,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "M6.5 metadata locale provenance contract regressions failed" }
           python -m unittest discover -s tests -p test_v2_m65_integration.py -v
           if ($LASTEXITCODE -ne 0) { throw "M6.5 project/export migration tests failed" }
+          python -m unittest discover -s tests -p test_v2_m65_qt.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M6.5 Qt metadata/preview tests failed" }
       - name: Verify natural-height card geometry and invisible scrollbars
         shell: pwsh
         run: |
