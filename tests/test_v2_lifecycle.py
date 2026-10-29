@@ -273,6 +273,7 @@ class ProjectLifecycleQtTests(unittest.TestCase):
         with ZipFile(base) as archive:
             legacy = json.loads(archive.read("manifest.json"))
         legacy["version"] = 3
+        legacy["report"].pop("localization_ledger")
         with ZipFile(source, "w", ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", json.dumps(legacy))
         original_bytes = source.read_bytes()
@@ -290,7 +291,7 @@ class ProjectLifecycleQtTests(unittest.TestCase):
         self.assertEqual(self.win.session.loaded_version, 3)
         with patch.object(self.win, "_choose_save_path", return_value=upgraded):
             self.assertTrue(self.win.save_project())
-        self.assertEqual(self.win.session.loaded_version, 4)
+        self.assertEqual(self.win.session.loaded_version, 5)
         self.assertEqual(self.win.session.path, upgraded)
         self.assertEqual(source.read_bytes(), original_bytes)
         self.assertEqual(load_project(upgraded).report.id,
