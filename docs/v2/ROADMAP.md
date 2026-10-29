@@ -1,7 +1,7 @@
 # ReportMaker V2 — Development Roadmap
 
-**Status:** Proposed planning baseline — pending PR merge; no V2 implementation started  
-**Date:** 2026-10-28  
+**Status:** Approved architecture baseline; V2 implementation in progress at M6 (submilestone status below)  
+**Date:** 2026-10-29  
 **Requirements baseline:** [RM-BE-001 — Branch Editor requirements](BRANCH_EDITOR_REQUIREMENTS.md), 33 selected features  
 **Architecture baseline:** [V2 architecture](ARCHITECTURE.md)  
 **V1 reference:** [existing roadmap](../../ROADMAP.md) (unchanged)
@@ -16,8 +16,8 @@ Modules, nested submodules and ordered rich text, photographs, headings, tables 
 
 ## Project boundaries
 
-- V1's original `ROADMAP.md` and application implementation remain unchanged throughout this documentation PR.
-- Plan V2 in the existing repository, initially in an isolated development line with milestone-sized reviewed PRs. Creating an integration branch is a later implementation action, not part of this documentation PR.
+- Preserve V1's original `ROADMAP.md`, application implementation, and release fallback while V2 is built on its own reviewed feature branches.
+- Plan and execute V2 in this repository using reviewed, milestone-sized PRs. M6.1–M6.4 implementation currently resides in draft PR #83, which is now frozen for new features.
 - Before copying a V1 module into V2, inventory its runtime and transitive imports, identify UI coupling, licensing, test coverage and migration assumptions. Prefer shared, independently testable services over a forked second report engine.
 - Never silently alter the binding project invariants in the root `ARCHITECTURE.md`, `AGENTS.md` or related ADRs. Any unavoidable contract change requires a reviewed ADR.
 - Avoid modifying shared V1 files from concurrent workstreams without an explicitly coordinated PR boundary.
@@ -136,8 +136,8 @@ Deliverables:
 
 ## PR and integration approach
 
-1. This documentation PR targets `main` and changes **only** the three files under `docs/v2/`. Do not merge without explicit approval.
-2. Following M0, establish V2's isolated integration line if approved. New implementation PRs should be narrow, testable and independently reviewable; avoid a giant cross-cutting rewrite.
+1. The initial roadmap/architecture documentation baseline was reviewed and merged separately (PR #65); later implementation PRs must honor that contract. **PR #83 is frozen as the historical M6.1–M6.4 implementation aggregation.**
+2. From M6.5 onward, use **one milestone-sized feature PR at a time**. While #83 is unmerged, the next M6.5 work uses a stacked draft PR against its branch, not `main`. Future PRs must remain narrow, testable and independently reviewable.
 3. Prefer model/command and editing-session foundations before concurrent widget work. Parallel photo/preview changes are permissible only after their interfaces are stable and shared-file ownership is coordinated.
 4. Every PR must state baseline/head commit SHAs, exact tests run, unverified Windows steps, acceptance evidence and how it respects the architecture contract.
 5. Protect `main` and the V1 release path. CI success alone is not permission to merge.
@@ -157,4 +157,4 @@ Deliverables:
 - Invariants and module/service boundaries: [V2 architecture](ARCHITECTURE.md)
 - V1 source of truth stays [root architecture contract](../../ARCHITECTURE.md), [report composition](../REPORT_COMPOSITION_CONTRACT.md) and [existing roadmap](../../ROADMAP.md).
 
-**Current next action:** Review and approve this documentation PR; then commence **M0 only**. No V2 code, installer, release or merge is authorized by this roadmap.
+**Current next action (2026-10-29):** Independently review draft PR #83 (M6.1–M6.4) without adding features or merging; M6.5 starts as the separately scoped stacked draft PR #84 with a proposed persistence/localization ADR. M6.6 and M6.7 remain gated in sequence. No installer, default-V2 promotion, release or merge is authorized by this roadmap.
