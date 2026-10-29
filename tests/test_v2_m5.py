@@ -196,6 +196,7 @@ class NavigationQtTests(unittest.TestCase):
             cursor.blocks.append(NestedModuleBlock(nested))
             cursor = nested
         other = V2MainWindow(project=project)
+        other.resize(660, 460)  # Force a real horizontal overflow at safe nesting depth.
         other.show()
         self.pump()
         try:
