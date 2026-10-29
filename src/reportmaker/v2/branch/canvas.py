@@ -98,14 +98,17 @@ class ConnectorGutter(QWidget):
     """Draw explicit parent/child lines without changing report structure."""
 
     def __init__(self, depth: int, ancestors: tuple[bool, ...], has_next: bool,
-                 parent: QWidget | None = None) -> None:
+                 parent: QWidget | None = None, *, zoom_pct: int = 100) -> None:
         super().__init__(parent)
         self._depth = depth
         self._ancestors = ancestors
         self._has_next = has_next
-        # The canonical model permits 256 nesting levels; never collapse
-        # connector geometry into the same position after level 32.
-        self.setFixedWidth(18 + _STEP * max(0, depth))
+        self._step = max(1, round(_STEP * zoom_pct / 100))
+        self._origin = max(1, round(11 * zoom_pct / 100))
+        self._elbow = max(1, round(16 * zoom_pct / 100))
+        # Never collapse connector geometry into the same position at depth.
+        self.setFixedWidth(max(1, round(18 * zoom_pct / 100))
+                           + self._step * max(0, depth))
         self.setMinimumHeight(48)
 
     def paintEvent(self, event) -> None:
@@ -118,12 +121,12 @@ class ConnectorGutter(QWidget):
         middle = self.height() // 2
         for level, continues in enumerate(self._ancestors):
             if continues:
-                x = 11 + _STEP * level
+                x = self._origin + self._step * level
                 painter.drawLine(x, 0, x, self.height())
         level = self._depth - 1
-        x = 11 + _STEP * level
+        x = self._origin + self._step * level
         painter.drawLine(x, 0, x, middle)
-        painter.drawLine(x, middle, x + 16, middle)
+        painter.drawLine(x, middle, x + self._elbow, middle)
         if self._has_next:
             painter.drawLine(x, middle, x, self.height())
         painter.end()
@@ -268,11 +271,13 @@ class PhotoThumbnail(QWidget):
     Qt layouts measure heightForWidth rather than a fixed image-card height.
     """
 
-    def __init__(self, image: QImage, width_pct: int, alignment: str, parent=None):
+    def __init__(self, image: QImage, width_pct: int, alignment: str, parent=None,
+                 *, zoom_pct: int = 100):
         super().__init__(parent)
         self._image = image
         self._width_pct = width_pct
         self._alignment = alignment
+        self._zoom_pct = zoom_pct
         self.setObjectName("v2PhotoThumbnail")
         self.setAccessibleName("Project-owned photo preview")
         policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -282,7 +287,8 @@ class PhotoThumbnail(QWidget):
     def heightForWidth(self, width: int) -> int:
         if self._image.isNull():
             return 28
-        draw_width = max(1, min(self._image.width(), width * self._width_pct // 100))
+        draw_width = max(1, min(self._image.width() * self._zoom_pct // 100,
+                                width * self._width_pct // 100))
         return max(1, round(draw_width * self._image.height() / self._image.width()))
 
     def sizeHint(self) -> QSize:
@@ -294,7 +300,7 @@ class PhotoThumbnail(QWidget):
     def paintEvent(self, event):
         if self._image.isNull():
             return
-        draw_width = max(1, min(self._image.width(),
+        draw_width = max(1, min(self._image.width() * self._zoom_pct // 100,
                                 self.width() * self._width_pct // 100))
         draw_height = min(self.height(), self.heightForWidth(self.width()))
         x = (0 if self._alignment == "left" else
@@ -1394,7 +1400,8 @@ class BranchCanvas(QScrollArea):
         try:
             image = render_photo(self._session.assets[block.asset_id], block.visual, 1000)
             preview = PhotoThumbnail(image, block.visual.width_pct,
-                                     block.visual.alignment, card)
+                                     block.visual.alignment, card,
+                                     zoom_pct=self._zoom_pct)
             card.layout().addWidget(preview)
         except (ValueError, KeyError):
             note = QLabel("Image unavailable — check project-owned asset", card)
@@ -2476,7 +2483,8 @@ class BranchCanvas(QScrollArea):
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
             line.setSpacing(0)
-            line.addWidget(ConnectorGutter(depth, ancestors, has_next, row))
+            line.addWidget(ConnectorGutter(depth, ancestors, has_next, row,
+                                           zoom_pct=self._zoom_pct))
             card = QFrame(row)
             card.setObjectName("v2BranchCard")
             card.setStyleSheet("QFrame#v2BranchCard { background: white; border: 1px solid #cbd5e1; border-radius: 8px; }")

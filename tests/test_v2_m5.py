@@ -173,6 +173,15 @@ class NavigationQtTests(unittest.TestCase):
         self.assertTrue(canvas.set_zoom(130))
         self.assertEqual(canvas.zoom_percent, 130)
         self.assertIn("font-size: 18px", canvas.editor_for(addr).styleSheet())
+        from PySide6.QtGui import QImage
+        from reportmaker.v2.branch.canvas import ConnectorGutter, PhotoThumbnail
+        image = QImage(400, 200, QImage.Format.Format_RGB32)
+        original = PhotoThumbnail(image, 100, "center", zoom_pct=100)
+        enlarged = PhotoThumbnail(image, 100, "center", zoom_pct=130)
+        self.assertGreater(enlarged.heightForWidth(800), original.heightForWidth(800))
+        base_connector = ConnectorGutter(4, (), False, zoom_pct=100)
+        zoom_connector = ConnectorGutter(4, (), False, zoom_pct=130)
+        self.assertGreater(zoom_connector.width(), base_connector.width())
         self.assertTrue(canvas.fit_to_screen())
         self.assertTrue(55 <= canvas.zoom_percent <= 160)
         self.assertEqual(canvas.verticalScrollBarPolicy(), Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
