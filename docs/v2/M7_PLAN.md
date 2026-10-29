@@ -2,8 +2,8 @@
 
 **Started:** 2026-10-29, after merged M6.7 PR #89.  
 **Base:** post-merge `main` `b875c4f6a6f68552decf740d5eab7f506318e1db` (includes merge `6cd9565a1514e84c1ee2a21543174dafef4c911e`).  
-**Status:** In development. M7.1 isolated draft PR; **no V2 release, V1 replacement, or native installed-PC acceptance yet**.  
-**Tracking:** [M7 parent issue #90](https://github.com/kandyman991/ReportMaker/issues/90), [M7.1 issue #91](https://github.com/kandyman991/ReportMaker/issues/91), [33-feature matrix](M7_ACCEPTANCE_MATRIX.json).
+**Status:** M7.1 reviewed/merged (PR #92, `83ef81ab798c100f521a84c745796e895d411206`); M7.2 legacy project migration is in a separate draft branch. **No V2 release, V1 replacement, or native installed-PC acceptance yet**.  
+**Tracking:** [M7 parent issue #90](https://github.com/kandyman991/ReportMaker/issues/90), [M7.1 issue #91](https://github.com/kandyman991/ReportMaker/issues/91), [M7.2 issue #94](https://github.com/kandyman991/ReportMaker/issues/94), [33-feature matrix](M7_ACCEPTANCE_MATRIX.json).
 
 ## Sequential, independently reviewed boundaries
 
@@ -38,3 +38,8 @@ Focus native checks on the known risks: [browser copy/download #64](https://gith
 ## Restrictions
 
 The binding `AGENTS.md`, root `ARCHITECTURE.md`, and [V2 architecture](ARCHITECTURE.md) remain unchanged. No second report model or browser bridge; no public customer assets. Existing V1 releases remain fallback. A successful M7.1 CI does **not** accept M7.3–M7.6, publish a V2 release, or approve promotion to default.
+
+
+## M7.2 implementation gate
+
+[M7.2 progress](M7_2_PROGRESS.md) records the five-version synthetic migration matrix, byte-preserving legacy Save As, snapshot and media integrity, and deliberate rejection of damaged/unsupported projects. Windows Python 3.11/3.12 tests and an independent review are required before a distinct M7.2 merge decision. M7.1 hosted installer preflight is not evidence of native Windows acceptance or V1 opening v5.

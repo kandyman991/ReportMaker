@@ -1,0 +1,56 @@
+name: V2 M7.2 legacy project migration integrity
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/reportmaker/**"
+      - "tests/test_v2_m7_migration.py"
+      - "tests/test_m2_project.py"
+      - "tests/test_v2_lifecycle.py"
+      - "tests/test_v2_m65_integration.py"
+      - ".github/workflows/v2-m7-migration.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  windows-migration:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+      - name: Install Windows runtime
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -e ".[desktop]"
+          if ($LASTEXITCODE -ne 0) { throw "Desktop dependencies failed" }
+      - name: Validate migration, persistence, localization and V2 lifecycle
+        shell: pwsh
+        run: |
+          python -m compileall -q src/reportmaker tests/test_v2_m7_migration.py
+          if ($LASTEXITCODE -ne 0) { throw "Python compilation failed" }
+          foreach ($case in @("test_v2_m7_migration.py", "test_m2_project.py",
+                              "test_v2_m65_integration.py", "test_v2_lifecycle.py")) {
+            python -m unittest discover -s tests -p $case -v
+            if ($LASTEXITCODE -ne 0) { throw "Regression failed: $case" }
+          }
