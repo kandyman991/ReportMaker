@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QLabel,
     QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView,
 )
 from PySide6.QtGui import QPixmap
 
@@ -63,6 +63,43 @@ class NaturalPageText(QPlainTextEdit):
 
     def wheelEvent(self, event):
         # Never trap scroll within a paragraph; allow the parent document to move.
+        event.ignore()
+
+
+class NaturalPageTable(QTableWidget):
+    """Size the complete editable grid to its content; outer page owns scroll."""
+
+    def __init__(self, rows: int, columns: int, parent=None):
+        super().__init__(rows, columns, parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setWordWrap(True)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents)
+
+    def sizeHint(self):
+        size = super().sizeHint()
+        header = (self.horizontalHeader().height()
+                  if self.horizontalHeader().isVisible() else 0)
+        size.setHeight(max(35, header + sum(self.rowHeight(i)
+                       for i in range(self.rowCount())) + 2 * self.frameWidth() + 6))
+        return size
+
+    def minimumSizeHint(self):
+        size = self.sizeHint()
+        size.setWidth(1)
+        return size
+
+    def resizeEvent(self, event):
+        changed_width = event.oldSize().width() != event.size().width()
+        super().resizeEvent(event)
+        if changed_width:
+            self.resizeRowsToContents()
+            self.updateGeometry()
+
+    def wheelEvent(self, event):
         event.ignore()
 
 
@@ -300,9 +337,9 @@ class DocumentEditorTab(QWidget):
                     report.id, row.parent_module_id, row.stable_id, "table"))
                 address = NodeAddress(
                     report.id, row.parent_module_id, row.stable_id, "table")
-                table = QTableWidget(len(node.rows),
-                                     max((len(values) for values in node.rows), default=0),
-                                     page)
+                table = NaturalPageTable(len(node.rows),
+                                        max((len(values) for values in node.rows), default=0),
+                                        page)
                 table.setObjectName("v2DocumentTable_" + row.stable_id)
                 table.setAcceptDrops(False)
                 table.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
@@ -316,7 +353,8 @@ class DocumentEditorTab(QWidget):
                         lambda item, a=address:
                         self._record(a, lambda: self.port.stage_cell(
                             a, item.row(), item.column(), item.text())))
-                table.setMinimumHeight(min(420, 95 + len(node.rows) * 35))
+                table.resizeRowsToContents()
+                table.updateGeometry()
                 flow.addWidget(table)
                 self._tables[address] = table
             elif row.kind == "page-break":
