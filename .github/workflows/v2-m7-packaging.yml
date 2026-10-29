@@ -1,0 +1,159 @@
+name: V2 M7.1 isolated Windows installer preflight
+
+# The legacy V1 installer/release workflows are intentionally untouched.
+# M7.1 does not publish, upload, cache, or distribute binaries.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packaging/windows/v2_launcher.py"
+      - "packaging/windows/ReportMaker-V2-M7.iss"
+      - "packaging/windows/requirements-build.txt"
+      - "src/reportmaker/v2/**"
+      - "src/reportmaker/model.py"
+      - "src/reportmaker/project_io.py"
+      - "src/reportmaker/export.py"
+      - "tests/test_v2_m7_packaging.py"
+      - "tests/test_v2_m67_checkpoint.py"
+      - "docs/v2/M7_ACCEPTANCE_MATRIX.json"
+      - ".github/workflows/v2-m7-packaging.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  windows-v2-frozen-installed-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Install desktop and pinned offline packaging dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --disable-pip-version-check -e ".[desktop]"
+          if ($LASTEXITCODE -ne 0) { throw "Desktop dependency installation failed" }
+          python -m pip install --disable-pip-version-check -r packaging/windows/requirements-build.txt
+          if ($LASTEXITCODE -ne 0) { throw "Frozen build tool installation failed" }
+
+      - name: Validate source V2 smoke and M7 package boundaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -m compileall -q src/reportmaker/v2 packaging/windows/v2_launcher.py tests/test_v2_m7_packaging.py
+          if ($LASTEXITCODE -ne 0) { throw "V2 compilation failed" }
+          python -m reportmaker.v2 --offline-self-test
+          if ($LASTEXITCODE -ne 0) { throw "V2 source offline smoke failed" }
+          $env:PYTHONPATH = "src"
+          python -m unittest discover -s tests -p test_v2_m7_packaging.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M7 package contract failed" }
+          python -m unittest discover -s tests -p test_v2_m67_checkpoint.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M6.7 checkpoint regression failed" }
+
+      - name: Freeze actual V2 executable, not V1
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 `
+            --hidden-import PySide6.QtWebEngineWidgets `
+            --hidden-import PySide6.QtWebEngineCore `
+            --collect-submodules reportmaker `
+            --collect-all pillow_heif `
+            packaging/windows/v2_launcher.py
+          if ($LASTEXITCODE -ne 0) { throw "V2 PyInstaller failed" }
+          if (!(Test-Path "dist/ReportMakerV2/ReportMakerV2.exe")) {
+            throw "Frozen V2 executable missing"
+          }
+          if (!(Test-Path "dist/ReportMakerV2/_internal")) {
+            throw "Frozen dependencies missing"
+          }
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $exe = (Resolve-Path "dist/ReportMakerV2/ReportMakerV2.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--offline-self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Frozen V2 offline smoke failed: $($p.ExitCode)" }
+
+      - name: Locate Inno Setup 6
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $compiler) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup install failed" }
+          }
+
+      - name: Build local-only distinct per-user V2 installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $compiler) { throw "ISCC not found" }
+          $source = (Resolve-Path .).Path
+          $output = Join-Path $env:RUNNER_TEMP "m7-v2-setup"
+          New-Item -ItemType Directory -Path $output -Force | Out-Null
+          & $compiler "/DSourceRoot=$source" "/DOutputRoot=$output" "packaging/windows/ReportMaker-V2-M7.iss"
+          if ($LASTEXITCODE -ne 0) { throw "V2 installer build failed" }
+          if (!(Test-Path (Join-Path $output "ReportMaker-V2-M7-Preview-Setup.exe"))) {
+            throw "V2 installer missing"
+          }
+
+      - name: Silent install, compare binary, smoke and uninstall (CI only)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Join-Path $env:RUNNER_TEMP "m7-v2-setup/ReportMaker-V2-M7-Preview-Setup.exe"
+          $installDir = Join-Path $env:RUNNER_TEMP "M7V2Installed"
+          $installArgs = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+                           "/DIR=`"$installDir`"")
+          $installation = Start-Process -FilePath $setup -ArgumentList $installArgs -Wait -PassThru
+          if ($installation.ExitCode -ne 0) {
+            throw "Silent V2 installation failed: $($installation.ExitCode)"
+          }
+          $installedExe = Join-Path $installDir "ReportMakerV2.exe"
+          try {
+            if (!(Test-Path $installedExe)) { throw "Installed V2 exe missing" }
+            $originalExe = (Resolve-Path "dist/ReportMakerV2/ReportMakerV2.exe").Path
+            $originalHash = (Get-FileHash -LiteralPath $originalExe -Algorithm SHA256).Hash
+            $installedHash = (Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash
+            if ($originalHash -ne $installedHash) {
+              throw "Installed binary is not the reviewed frozen V2 executable"
+            }
+            $env:QT_QPA_PLATFORM = "offscreen"
+            $smoke = Start-Process -FilePath $installedExe -ArgumentList "--offline-self-test" -Wait -PassThru
+            if ($smoke.ExitCode -ne 0) {
+              throw "Installed V2 offline smoke failed: $($smoke.ExitCode)"
+            }
+            Write-Host "Synthetic hosted-Windows installed V2 smoke passed (NOT physical UI acceptance)"
+          }
+          finally {
+            $uninstaller = Join-Path $installDir "unins000.exe"
+            if (Test-Path $uninstaller) {
+              $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @(
+                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
+              if ($uninstall.ExitCode -ne 0) {
+                throw "V2 CI uninstall failed: $($uninstall.ExitCode)"
+              }
+            }
+          }
