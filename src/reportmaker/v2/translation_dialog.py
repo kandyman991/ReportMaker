@@ -77,7 +77,13 @@ class TranslationDialog(QDialog):
 
     def _dirty_changed(self):
         if not self._updating:
-            self.apply_button.setEnabled(self._has_draft())
+            stale = False
+        if self._key is not None and self.language.currentData() is not None:
+            selected = dict(localized_fields(self.session.report_snapshot())).get(self._key)
+            if selected is not None:
+                stale = any(tag.casefold() == self.language.currentData().casefold()
+                            for tag in selected.stale_languages)
+        self.apply_button.setEnabled(self._has_draft() or stale)
 
     def _rebuild(self):
         report = self.session.report_snapshot()
