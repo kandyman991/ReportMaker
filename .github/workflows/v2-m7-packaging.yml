@@ -6,15 +6,11 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "packaging/windows/v2_launcher.py"
-      - "packaging/windows/ReportMaker-V2-M7.iss"
-      - "packaging/windows/requirements-build.txt"
-      - "src/reportmaker/v2/**"
-      - "src/reportmaker/model.py"
-      - "src/reportmaker/project_io.py"
-      - "src/reportmaker/export.py"
-      - "tests/test_v2_m7_packaging.py"
-      - "tests/test_v2_m67_checkpoint.py"
+      # V2 also imports shared V1/core modules. Keep frozen/installed preflight
+      # attached to ALL package/runtime changes, not only the V2 subpackage.
+      - "packaging/windows/**"
+      - "src/reportmaker/**"
+      - "tests/test_v2_*.py"
       - "docs/v2/M7_ACCEPTANCE_MATRIX.json"
       - ".github/workflows/v2-m7-packaging.yml"
       - "pyproject.toml"
@@ -134,11 +130,23 @@ jobs:
           $installedExe = Join-Path $installDir "ReportMakerV2.exe"
           try {
             if (!(Test-Path $installedExe)) { throw "Installed V2 exe missing" }
-            $originalExe = (Resolve-Path "dist/ReportMakerV2/ReportMakerV2.exe").Path
-            $originalHash = (Get-FileHash -LiteralPath $originalExe -Algorithm SHA256).Hash
-            $installedHash = (Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash
-            if ($originalHash -ne $installedHash) {
-              throw "Installed binary is not the reviewed frozen V2 executable"
+            # Compare the ENTIRE frozen payload, not just the small EXE.
+            # Missing/modified DLLs, Qt plugins, and bundled resources must
+            # not be mistaken for an intact installed Windows application.
+            $originalDir = (Resolve-Path "dist/ReportMakerV2").Path
+            $payloadFiles = @(Get-ChildItem -LiteralPath $originalDir -Recurse -File)
+            if ($payloadFiles.Count -lt 2) { throw "Frozen V2 payload is incomplete" }
+            foreach ($payload in $payloadFiles) {
+              $relativePath = $payload.FullName.Substring($originalDir.Length + 1)
+              $installedPayload = Join-Path $installDir $relativePath
+              if (!(Test-Path -LiteralPath $installedPayload -PathType Leaf)) {
+                throw "Installed frozen payload file is missing: $relativePath"
+              }
+              $originalHash = (Get-FileHash -LiteralPath $payload.FullName -Algorithm SHA256).Hash
+              $installedHash = (Get-FileHash -LiteralPath $installedPayload -Algorithm SHA256).Hash
+              if ($originalHash -ne $installedHash) {
+                throw "Installed frozen payload file does not match: $relativePath"
+              }
             }
             $env:QT_QPA_PLATFORM = "offscreen"
             $smoke = Start-Process -FilePath $installedExe -ArgumentList "--offline-self-test" -Wait -PassThru

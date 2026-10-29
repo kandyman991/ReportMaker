@@ -41,6 +41,21 @@ class M7PackageContractTests(unittest.TestCase):
                         self.assertTrue(row[field].strip())
                     self.assertRegex(row["installer_sha256"], r"^[0-9a-fA-F]{64}$")
 
+    def test_preflight_rebuilds_for_shared_runtime_changes_and_checks_all_files(self):
+        workflow = (ROOT / ".github/workflows/v2-m7-packaging.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('      - "src/reportmaker/**"', workflow)
+        self.assertIn('      - "tests/test_v2_*.py"', workflow)
+        self.assertIn('      - "packaging/windows/**"', workflow)
+        self.assertNotIn('      - "src/reportmaker/v2/**"', workflow)
+        self.assertIn("Get-ChildItem -LiteralPath $originalDir -Recurse -File", workflow)
+        self.assertIn("Join-Path $installDir $relativePath", workflow)
+        self.assertIn("Get-FileHash -LiteralPath $payload.FullName", workflow)
+        self.assertIn("Get-FileHash -LiteralPath $installedPayload", workflow)
+        self.assertIn("Installed frozen payload file is missing:", workflow)
+        self.assertIn("Installed frozen payload file does not match:", workflow)
+
     def test_launcher_uses_v2_not_legacy_gui(self):
         v2 = (ROOT / "packaging/windows/v2_launcher.py").read_text(encoding="utf-8")
         self.assertIn("from reportmaker.v2.__main__ import main", v2)

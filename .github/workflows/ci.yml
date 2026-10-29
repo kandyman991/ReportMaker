@@ -1,8 +1,13 @@
 name: M0 architecture and model gates
 
+# Validate every PR and the merged main branch, not each intermediate feature push.
+# Unrestricted feature-branch push triggers caused redundant cancelled Windows runs.
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   # Cancel obsolete validation for the same workflow/event/PR or pushed ref.
