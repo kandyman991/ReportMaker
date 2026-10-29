@@ -77,7 +77,9 @@ class ProjectLifecycleQtTests(unittest.TestCase):
         from PySide6.QtWidgets import QSplitter, QTreeWidget
         self.assertFalse(win.findChildren(QSplitter))
         self.assertFalse(win.findChildren(QTreeWidget))
-        self.assertIs(win.centralWidget(), win.branch)
+        self.assertIs(win.centralWidget(), win.tabs)
+        self.assertIs(win.tabs.currentWidget(), win.branch)
+        self.assertIs(win.tabs.widget(0), win.branch)
 
     def _rename(self, title):
         report = self.win.session.report_snapshot()
