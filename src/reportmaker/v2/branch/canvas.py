@@ -616,8 +616,9 @@ class BranchCanvas(QScrollArea):
             return False
         if self._focus_id is None:
             self._focus_saved = (self._selected_module_id,
-                                 self.verticalScrollBar().value(), frozenset(self._collapsed),
-                                 self._page)
+                                 self.verticalScrollBar().value(),
+                                 self.horizontalScrollBar().value(),
+                                 frozenset(self._collapsed), self._page)
         self._focus_id = module_id
         by_id = {row.stable_id: row for row in rows}
         ancestor = module_id
@@ -640,7 +641,7 @@ class BranchCanvas(QScrollArea):
         except PendingDraftError as exc:
             self.feedback.emit(str(exc))
             return False
-        selected, scroll, collapsed, page = self._focus_saved
+        selected, scroll, horizontal, collapsed, page = self._focus_saved
         self._focus_id = None
         self._focus_saved = None
         self._selected_module_id = selected
@@ -649,10 +650,16 @@ class BranchCanvas(QScrollArea):
         self._restore = None
         self._refresh()
         self.verticalScrollBar().setValue(scroll)
+        self.horizontalScrollBar().setValue(horizontal)
         generation = self._session.generation
-        QTimer.singleShot(0, lambda value=scroll, gen=generation:
-                          self.verticalScrollBar().setValue(value)
-                          if self._session.generation == gen else None)
+        # Let Qt finish the new layout before restoring both pan axes.
+        # Do not replay this callback after another page/focus transition.
+        QTimer.singleShot(0, lambda vertical=scroll, horizontal=horizontal,
+                          gen=generation, saved_page=page:
+                          (self.verticalScrollBar().setValue(vertical),
+                           self.horizontalScrollBar().setValue(horizontal))
+                          if (self._session.generation == gen and self._focus_id is None
+                              and self._page == saved_page) else None)
         self.visibilityChanged.emit()
         return True
 
@@ -2442,9 +2449,12 @@ class BranchCanvas(QScrollArea):
                                              if r.parent_module_id is not None}
             if self._selected_module_id not in shown_owners:
                 first = projection[0]
-                self._selected_module_id = (first.stable_id
-                                            if first.kind in ("module", "conclusion")
-                                            else first.parent_module_id)
+                # The root report row has no owning module. Prefer the first
+                # actually visible module to keep toolbar actions usable when
+                # paging back to window 1 from a much later window.
+                first_module = next((r.stable_id for r in projection
+                                     if r.kind in ("module", "conclusion")), None)
+                self._selected_module_id = first_module or first.parent_module_id
         scroll = self.verticalScrollBar().value()
         self._editors.clear()
         self._draft_bars.clear()
