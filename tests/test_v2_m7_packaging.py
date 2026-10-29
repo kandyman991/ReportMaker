@@ -21,9 +21,25 @@ class M7PackageContractTests(unittest.TestCase):
         self.assertEqual(matrix["schema_version"], 1)
         rows = matrix["requirements"]
         self.assertEqual([r["id"] for r in rows], expected)
-        self.assertTrue(all(r["status"] == "pending_native_acceptance" for r in rows))
-        self.assertTrue(all(r["evidence_ref"] is None for r in rows))
         self.assertTrue(all(r["manual_acceptance"].strip() for r in rows))
+        # New M7.1 cases start pending. Later M7.3 native acceptance
+        # may change statuses, but only with auditable physical evidence.
+        allowed = {"pending_native_acceptance", "failed_native_acceptance",
+                   "passed_native_acceptance"}
+        for row in rows:
+            with self.subTest(id=row["id"]):
+                self.assertIn(row["status"], allowed)
+                if row["status"] == "pending_native_acceptance":
+                    self.assertIsNone(row["evidence_ref"])
+                else:
+                    self.assertIsInstance(row["evidence_ref"], str)
+                    self.assertTrue(row["evidence_ref"].strip())
+                if row["status"] == "passed_native_acceptance":
+                    for field in ("reviewed_by", "tested_on", "windows_build",
+                                  "display_scale", "installer_sha256"):
+                        self.assertIsInstance(row.get(field), str)
+                        self.assertTrue(row[field].strip())
+                    self.assertRegex(row["installer_sha256"], r"^[0-9a-fA-F]{64}$")
 
     def test_launcher_uses_v2_not_legacy_gui(self):
         v2 = (ROOT / "packaging/windows/v2_launcher.py").read_text(encoding="utf-8")
@@ -64,6 +80,10 @@ class M7PackageContractTests(unittest.TestCase):
                         workflow.index("Build local-only distinct per-user V2 installer"))
         self.assertLess(workflow.index("Build local-only distinct per-user V2 installer"),
                         workflow.index("Silent install, compare binary, smoke and uninstall"))
+        # A successful installed-app gate must prove cleanup, not quietly skip
+        # removal if the preview installer omitted its uninstaller.
+        self.assertIn('if (!(Test-Path $uninstaller))', workflow)
+        self.assertIn('throw "V2 binaries remain after the silent uninstall"', workflow)
 
 
 if __name__ == "__main__":
