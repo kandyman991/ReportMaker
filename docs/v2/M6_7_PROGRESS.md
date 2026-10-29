@@ -52,7 +52,9 @@ It exercises one fabricated report across:
    pictures and approved translations survive.
 6. Actual source-language editable DOCX/PDF export; translated
    language-specific Word export; PDF proof; all-language DOCX/PDF ZIP.
-   Validate editable OOXML structure, body text, independent PDF,
+   Validate that annotated exported Word media differs from untouched
+   project-owned bytes and that translated photo annotation media differs
+   across output languages. Validate editable OOXML, body text, PDF,
    manifest and internal archive members. Source report stays unchanged.
 7. A late source edit stales translation; existing translated DOCX
    and ZIP remain byte-for-byte unchanged after failed exports.

@@ -238,6 +238,19 @@ class CheckpointCQtTests(unittest.TestCase):
             self.assertIn("SYN-CHECKPOINT-C", "\n".join(
                 cell.text for tbl in doc.tables for row in tbl.rows for cell in row.cells))
             self.assertGreaterEqual(len(doc.inline_shapes), 1)
+            # The exported photo must represent the canonical placement
+            # annotations, not silently reuse unchanged project-owned bytes.
+            def exported_images(path):
+                with ZipFile(path) as package:
+                    return tuple(package.read(name) for name in package.namelist()
+                                 if name.startswith("word/media/"))
+            source_images = exported_images(folder / "original.docx")
+            localized_images = exported_images(folder / "translated.docx")
+            self.assertTrue(source_images)
+            self.assertTrue(localized_images)
+            self.assertTrue(all(raw != original_photo for raw in source_images))
+            self.assertTrue(all(raw != original_photo for raw in localized_images))
+            self.assertNotEqual(source_images, localized_images)
             self.assertGreaterEqual(len(doc.tables), 2)
             self.assertGreaterEqual(len(PdfReader(folder / "original.pdf").pages), 1)
             with ZipFile(folder / "all-languages.zip") as archive:
