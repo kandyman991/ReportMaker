@@ -231,19 +231,26 @@ def visible_metadata_keys(report: Report, *, preview: bool = False,
         raise ValueError("Expected canonical report")
     if not _xml_safe_text(footer_note, MAX_FREE_TEXT):
         raise ValueError("Invalid branding footer text")
+    snapshot = report.customer_snapshot
     labels = [
         "heading.report_information", "heading.summary", "label.page",
         "field.created", "field.intervention_from", "field.intervention_to",
     ]
-    # ExportPlan.info emits every field label even when its value is blank
-    # (DOCX/PDF metadata tables and schematic Preview do not omit rows).
-    # Missing translations for those labels must never escape preflight.
-    labels.extend((
-        "field.customer", "field.site", "field.machine",
-        "field.machine_serial", "field.ticket", "field.personnel",
-        "field.intervention_types",
-    ))
-    labels.extend("intervention." + kind for kind in report.intervention_types)
+    # ExportPlan.info filters out empty-value rows. Guard exactly the
+    # labels actually emitted, not absent fields that need no translation.
+    for key, value in (
+        ("field.customer", snapshot.customer_name if snapshot else ""),
+        ("field.site", snapshot.site_name if snapshot else ""),
+        ("field.machine", snapshot.machine_name if snapshot else ""),
+        ("field.machine_serial", snapshot.machine_serial if snapshot else ""),
+        ("field.ticket", report.ticket),
+        ("field.personnel", ", ".join(report.technicians)),
+    ):
+        if value:
+            labels.append(key)
+    if report.intervention_types:
+        labels.append("field.intervention_types")
+        labels.extend("intervention." + kind for kind in report.intervention_types)
     if "other" in report.intervention_types:
         labels.extend(("field.other_intervention_details",
                        "metadata.other_intervention_detail"))
