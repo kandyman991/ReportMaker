@@ -37,6 +37,24 @@ class WorkflowConcurrencyContractTests(unittest.TestCase):
                 self.assertIn("\n  push:", body)
                 self.assertIn("\njobs:\n", body)
 
+    def test_m0_validates_every_pr_and_main_but_not_feature_pushes(self):
+        body = (ROOT / WORKFLOWS[0]).read_text(encoding="utf-8")
+        triggers = body.split("\non:\n", 1)[1].split("\nconcurrency:\n", 1)[0]
+        declarations = "\n".join(
+            line for line in triggers.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        )
+        # No path filters or draft exemptions: every PR to main remains gated.
+        self.assertEqual(declarations, (
+            "  push:\n    branches: [main]\n"
+            "  pull_request:\n    branches: [main]\n"
+            "  workflow_dispatch:"
+        ))
+        self.assertNotIn("paths:", triggers)
+        self.assertNotIn("types:", triggers)
+        self.assertIn("cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}", body)
+        self.assertIn("github.run_id", body)
+
     def test_publishers_and_shared_state_writers_remain_serialized(self):
         release = (ROOT / ".github/workflows/windows-installer.yml").read_text(
             encoding="utf-8"
