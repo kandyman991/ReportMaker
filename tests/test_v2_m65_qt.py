@@ -77,7 +77,13 @@ class M65QtIntegrationTests(unittest.TestCase):
                 self.assertTrue(preview.proof.is_current)
                 self.assertGreater(preview.proof.page_count, 0)
         finally:
+            # Release QtPdf's document and its QBuffer *before* QWidget teardown.
+            # Otherwise some hosted Windows/PySide versions return a nonzero
+            # process exit even after unittest reports all tests passed.
+            preview.proof.invalidate()
             preview.close()
+            preview.deleteLater()
+            self.app.processEvents()
 
 
 if __name__ == "__main__":
