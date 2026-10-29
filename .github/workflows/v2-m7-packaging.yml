@@ -79,6 +79,8 @@ jobs:
           $env:PYTHONPATH = "src"
           python -m unittest discover -s tests -p test_v2_m7_packaging.py -v
           if ($LASTEXITCODE -ne 0) { throw "M7 package contract failed" }
+          python -m unittest discover -s tests -p test_v2_m73_native_draft_recovery.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M7.3 Windows pending-edit recovery regression failed" }
           python -m unittest discover -s tests -p test_v2_m67_checkpoint.py -v
           if ($LASTEXITCODE -ne 0) { throw "M6.7 checkpoint regression failed" }
 
