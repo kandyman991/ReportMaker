@@ -14,6 +14,7 @@ from ..model import (HeadingBlock, LocalizedText, Module, PageBreakBlock,
                      ParagraphBlock, PhotoBlock, PhotoVisual, TableBlock,
                      validate_photo_visual)
 from ..media_import import ImportedPicture, StagedPicture, commit_staged_pictures
+from ..engine import validate_report_tree
 from ..project_io import ASSET_ID
 from ..rich_text import RichFormatting, validate_rich
 from .adapters.tables import checked_rows
@@ -51,6 +52,10 @@ _KINDS = {
     "import_photo": ({"image_bytes", "name"}, {"index"}),
     "import_photos": ({"photos"}, {"index"}),
     "import_library_photos": ({"photos"}, set()),
+    "set_report_metadata": ({"title", "created_date", "start_date", "end_date",
+                             "ticket", "technicians", "intervention_types",
+                             "other_intervention_detail", "customer_snapshot",
+                             "primary_language", "output_languages"}, set()),
     "replace_photo_import": ({"image_bytes", "name"}, set()),
     "replace_photo": ({"asset_id"}, set()),
     "set_photo_caption": ({"text"}, set()),
@@ -64,6 +69,15 @@ _KINDS = {
     "duplicate_node": (set(), set()),
     "delete_node": (set(), set()),
 }
+
+
+def _apply_report_metadata(report, args):
+    """Validate by replaying the exact same one-report transaction."""
+    report.title.update_original(args["title"])
+    for field in ("created_date", "start_date", "end_date", "ticket",
+                  "technicians", "intervention_types", "other_intervention_detail",
+                  "customer_snapshot", "primary_language", "output_languages"):
+        setattr(report, field, deepcopy(args[field]))
 
 
 class CommandGateway:
@@ -124,6 +138,13 @@ class CommandGateway:
             if intent.target is not None:
                 raise ValueError("Library import cannot carry a report placement")
             return
+        if intent.kind == "set_report_metadata":
+            if intent.target is not None:
+                raise ValueError("Report information must target the whole report")
+            candidate = self._session.report_snapshot()
+            _apply_report_metadata(candidate, intent.args)
+            validate_report_tree(candidate)
+            return
         if intent.kind == "set_photo_visual":
             validate_photo_visual(intent.args["visual"])
         value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich", "set_photo_caption") else "title"
@@ -180,6 +201,16 @@ class CommandGateway:
         # callables/fields never enter the transaction.
         kind, args, address = intent.kind, dict(intent.args), intent.target
         editor = self._session._editor
+        if kind == "set_report_metadata":
+            candidate = deepcopy(editor.report)
+            _apply_report_metadata(candidate, args)
+            if candidate == editor.report:
+                return None
+            editor.apply(lambda report: _apply_report_metadata(report, args))
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({editor.report.id}), False, False, True)
+            self._session._publish(change)
+            return change
         if kind == "move_node":
             plan = plan_drop(editor.report, address, args["anchor"], args["position"])
             if plan.noop:
