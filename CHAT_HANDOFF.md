@@ -445,3 +445,10 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - PR #95 original head `3e2ac2d071a2f3869ad6f4beaba6957f831203e1` passed hosted M0/M1/continuity, M7.2 synthetic Windows 3.11/3.12 and M7.1 installer/frozen/offline regression (runs 40902786794, 40902786639, 40902786784, 40902787315, 40902786864).
 - Independent review of architecture contract, archive security and integrity found three **acceptance-test coverage** gaps: non-default v4/v5 rich typography migration, actual v5 metadata approval provenance, and hostile ZIP/direct-session rollback cases. Corrective tests prepared in one atomic commit; no production architecture change.
 - Next: exact corrected-head full applicable CI, review comment/checkpoint, mark PR ready and merge only with all mandatory checks green. User's latest request expressly authorized review, correction and merge; no V2 release or installed-PC acceptance.
+
+## 2026-10-29 — M7.3 native acceptance preparation started
+
+- M7.2 PR #95 independently reviewed, exact-head green, and merged as `1774cedb18ac53b60a04d298268f31c227655d19`; main mechanical handoff tip `f3e9e5e661f49ba5d3bacef6202d866aa3bdc621`. Initial M7.3 issue #96 opened under parent #90.
+- M7.3 physical installed-Windows acceptance has **0/33 accepted**. Connected development device the connected Linux development device is Linux; it cannot produce valid native Windows, DPI, clipboard, Explorer or manual browser evidence.
+- Initial draft adds a local-only V2 preview installer build/install script and private redacted-evidence ledger requiring per-case observations and independent reviewer, with no matrix auto-update, publishing, V1 replacement or personal data upload. Refer to `docs/v2/M7_3_PROGRESS.md`.
+- Next: draft PR and hosted CI review; then real installed x64 Windows 33-case execution, fix blockers and retest against exact installer/source hashes, independently review and request separate explicit M7.3 merge authorization. Do not claim M7.3 completed yet, publish V2 or promote over V1.

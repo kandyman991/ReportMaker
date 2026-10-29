@@ -537,3 +537,9 @@ Next reproducible action:
 - Original PR head `3e2ac2d071a2f3869ad6f4beaba6957f831203e1` completed M0 (40902786794), M1 (40902786639), continuity (40902786784), M7.2 synthetic Windows 3.11/3.12 (40902787315), and M7.1 Windows frozen/installer/offline smoke (40902786864); M6.5/M6.6 conditionally skipped.
 - Review F01/F02/F03 corrected as targeted assertions and negative tests: non-default rich formatting for v4-v5 vs legacy defaults; v5 approved translation/provenance; dangerous ZIP member/compression and invalid-session rollback.
 - No physical native 33-case RM-BE signoff, live browser/Word compatibility or V2 publication. Exact **corrected** PR-head green CI still required before accepting merge. User explicitly requested this M7.2 review/fix/merge gate.
+
+## CP-V2-M73-START — 2026-10-29
+
+- Baseline: M7.2 PR #95 merged `1774cedb18ac53b60a04d298268f31c227655d19` after exact reviewed head `bc5848cf967108e1b1f53123039f1aa7a380c3a0` passed M0 (40904187349), M1 (40904187410), M7.2 Windows migration 3.11/3.12 (40904187553), continuity (40904187432) and M7.1 Windows isolated installer preflight (40904187422). `main` mechanical tip `f3e9e5e661f49ba5d3bacef6202d866aa3bdc621`.
+- Created M7.3 issue #96. The 33-case RM-BE matrix remains **0 accepted / 33 pending** until real physical Windows evidence. Current connected the connected Linux development device is **Linux**, not a qualifying native Windows test machine.
+- Initial draft preparation implements explicit opt-in local V2-only Windows build/install, source + installer SHA-256, and private per-case manual observation/evidence review tooling. Synthetic tooling tests are **not** physical GUI results. No V2 release or V1 replacement. Next: CI on draft PR; then obtain physical x64 Windows evidence and independently review every case; no M7.3 merge without separate explicit authorization.

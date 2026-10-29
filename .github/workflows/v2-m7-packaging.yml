@@ -12,6 +12,8 @@ on:
       - "src/reportmaker/**"
       - "tests/test_v2_*.py"
       - "docs/v2/M7_ACCEPTANCE_MATRIX.json"
+      - "scripts/build_v2_m73_local.ps1"
+      - "scripts/m73_native_acceptance.py"
       - ".github/workflows/v2-m7-packaging.yml"
       - "pyproject.toml"
   workflow_dispatch:

@@ -1,6 +1,6 @@
 # M7.2 — Legacy project migration and data integrity
 
-**Status:** Independent review corrections prepared on the M7.2 branch; fresh exact-head Windows CI and final merge are still gated.
+**Status:** Reviewed and merged as PR #95 on 2026-10-29; corrected head `bc5848cf967108e1b1f53123039f1aa7a380c3a0`, squash commit `1774cedb18ac53b60a04d298268f31c227655d19`. Hosted exact-head M0/M1/continuity/M7.2 Windows 3.11+3.12/M7.1 installer CI passed. Physical 33-case M7.3 acceptance remains pending.
 **Parent:** M7 issue #90, M7.2 issue #94.
 **Base:** Post-M7.1 `main` `b84c6cb16973b35af8ed7e10ca038812e15a5b80` (includes merged PR #92, `83ef81ab798c100f521a84c745796e895d411206`).
 
