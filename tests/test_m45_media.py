@@ -59,7 +59,7 @@ class M45MediaContainerTests(unittest.TestCase):
         self.assertEqual(restored.media_library, {identifier: "source"})
         with ZipFile(self.dest) as bundle:
             manifest = json.loads(bundle.read("manifest.json"))
-            self.assertEqual(manifest["version"], 4)
+            self.assertEqual(manifest["version"], 5)
             self.assertEqual(manifest["media_library"], [
                 {"id": identifier, "name": "source", "format": "JPEG",
                  "width": 340, "height": 240}])
