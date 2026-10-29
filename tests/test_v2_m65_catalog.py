@@ -295,7 +295,7 @@ class MetadataLocaleContractTests(unittest.TestCase):
 
     def test_malformed_customer_free_text_fails_before_source_export(self):
         self.report.intervention_types = ["other"]
-        self.report.other_intervention_detail = "Invalid\\x00source"
+        self.report.other_intervention_detail = "Invalid\\x00source".encode("ascii").decode("unicode_escape")
         with self.assertRaisesRegex(ValueError, "metadata source"):
             MetadataLocale(self.report).resolve("metadata.other_intervention_detail", "en")
         self.report.other_intervention_detail = "x" * 10001
