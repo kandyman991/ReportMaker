@@ -49,7 +49,8 @@ class PreviewTab(QWidget):
         self._token = None
 
     def refresh(self):
-        token = (self.session.generation, self.session.revision)
+        token = (self.session.generation, self.session.revision,
+                 self.session._draft_guard())
         if token == self._token:
             return
         self._token = token
@@ -138,6 +139,7 @@ class PreviewTab(QWidget):
             export_project(project, path, format=format, visual_renderer=annotated_png)
         except (OSError, ValueError, RuntimeError) as exc:
             self.notice.setText("Export rejected; existing file left unchanged: " + str(exc))
+            self.invalidate()  # Next visit refreshes the normal applied-content preview.
             return False
         self.notice.setText(f"Exported {Path(path).name} from the applied canonical report")
         return True
