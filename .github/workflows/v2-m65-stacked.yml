@@ -1,19 +1,12 @@
 name: V2 M6.5 staged metadata localization contract
 
 on:
+  # No paths filters: docs-only heads, future v5 serializer/editor/export changes
+  # and CI edits must all run the exact-head M6.5 gate.
   push:
     branches: [feature/v2-m6-5-metadata-localization]
-    paths:
-      - "src/reportmaker/v2/metadata_locale.py"
-      - "tests/test_v2_m65_catalog.py"
-      - ".github/workflows/v2-m65-stacked.yml"
-      - "docs/v2/ADR_M6_5_METADATA_LOCALIZATION.md"
   pull_request:
     branches: [feature/v2-m6-full-integration, main]
-    paths:
-      - "src/reportmaker/v2/metadata_locale.py"
-      - "tests/test_v2_m65_catalog.py"
-      - ".github/workflows/v2-m65-stacked.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,6 +14,8 @@ permissions:
 
 jobs:
   windows-m65-pure:
+    # Avoid running the staged gate for unrelated PRs targeting main.
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'feature/v2-m6-5-metadata-localization'
     runs-on: windows-latest
     timeout-minutes: 15
     strategy:
