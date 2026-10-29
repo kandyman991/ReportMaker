@@ -185,6 +185,27 @@ class LanguageBundleQtTests(unittest.TestCase):
         self.win.close()
         self.app.processEvents()
 
+    def test_document_table_expands_past_former_height_cap_without_inner_scroll(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QTableWidgetItem
+        from reportmaker.v2.editor_tab import NaturalPageTable
+        table = NaturalPageTable(22, 2)
+        table.resize(500, 80)
+        for row in range(22):
+            for col in range(2):
+                table.setItem(row, col, QTableWidgetItem(
+                    "Fabricated inspection data " * 5))
+        table.show()
+        self.app.processEvents()
+        table.resizeRowsToContents()
+        self.app.processEvents()
+        self.assertGreater(table.sizeHint().height(), 420)
+        self.assertEqual(table.verticalScrollBarPolicy(),
+                         Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.assertEqual(table.horizontalScrollBarPolicy(),
+                         Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.close()
+
     def test_preview_package_controls_and_selected_format(self):
         from PySide6.QtWidgets import QPushButton
         preview = self.win.preview_tab
