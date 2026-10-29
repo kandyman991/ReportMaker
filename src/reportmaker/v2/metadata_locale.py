@@ -97,7 +97,8 @@ class LocaleApproval:
 def source_digest(key: str, source_language: str, source: str) -> str:
     """Bind translation approval to its semantic field and exact original."""
     if (not isinstance(key, str) or key not in ALL_KEYS or
-            not isinstance(source, str) or not _xml_safe_text(source, len(source))):
+            not _xml_safe_text(source, MAX_FREE_TEXT if key in FREE_TEXT_KEYS
+                               else MAX_LABEL)):
         raise ValueError("Unknown metadata localization source")
     validate_language_tag(source_language)
     # Prefix length avoids concatenation ambiguity even if a field has a null.
