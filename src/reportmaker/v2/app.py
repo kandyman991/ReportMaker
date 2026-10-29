@@ -125,8 +125,37 @@ class V2MainWindow(QMainWindow):
                 action.setShortcut(shortcut)
             action.triggered.connect(lambda checked=False, callback=method: callback())
             toolbar.addAction(action)
+        # M5 navigation is separate so its controls are not buried behind
+        # all the editing actions on a normal Windows laptop screen.
+        self.addToolBarBreak()
+        navigation = self.addToolBar("Branch navigation")
+        navigation.setObjectName("v2BranchNavigation")
+        for name, label, method, shortcut in (
+            ("v2Search", "Find", self.search_branches, "Ctrl+F"),
+            ("v2NextMatch", "Next match", self.branch.next_match, "F3"),
+            ("v2Focus", "Focus", self.branch.focus_module, "Ctrl+Shift+F"),
+            ("v2ExitFocus", "Exit focus", self.branch.exit_focus, "Ctrl+Shift+Escape"),
+            ("v2ZoomOut", "Zoom −", lambda: self.branch.zoom_by(-10), "Ctrl+-"),
+            ("v2ZoomIn", "Zoom +", lambda: self.branch.zoom_by(10), "Ctrl++"),
+            ("v2ZoomReset", "100%", lambda: self.branch.set_zoom(100), "Ctrl+0"),
+            ("v2Fit", "Fit width", self.branch.fit_to_screen, "Ctrl+Shift+0"),
+            ("v2PrevWindow", "Previous", lambda: self.branch.change_page(-1), "Ctrl+PageUp"),
+            ("v2NextWindow", "Next", lambda: self.branch.change_page(1), "Ctrl+PageDown"),
+            ("v2SelectPrevious", "Select above", lambda: self.branch.select_adjacent_module(-1), "Ctrl+Alt+Up"),
+            ("v2SelectNext", "Select below", lambda: self.branch.select_adjacent_module(1), "Ctrl+Alt+Down"),
+            ("v2PanLeft", "Pan ←", lambda: self.branch.pan_by(-160), "Ctrl+Alt+Left"),
+            ("v2PanRight", "Pan →", lambda: self.branch.pan_by(160), "Ctrl+Alt+Right"),
+        ):
+            action = QAction(label, self)
+            action.setObjectName(name)
+            if shortcut:
+                action.setShortcut(shortcut)
+                action.setToolTip(f"{label} ({shortcut})")
+            action.triggered.connect(lambda checked=False, callback=method: callback())
+            navigation.addAction(action)
         self.branch.selectionChanged.connect(self._update_move_actions)
         self.branch.visibilityChanged.connect(self._persist_live_view)
+        self.branch.visibilityChanged.connect(self._update_move_actions)
         self._update_move_actions()
         self._restore_presentation()
         self._update_caption()
@@ -144,6 +173,10 @@ class V2MainWindow(QMainWindow):
         if down is not None:
             down.setEnabled(self.branch.can_move_selected(1))
         for name, enabled in (
+            ("v2Focus", self.branch._selected_module_id is not None),
+            ("v2ExitFocus", self.branch.focus_module_id is not None),
+            ("v2PrevWindow", self.branch._page > 0),
+            ("v2NextWindow", self.branch._page < self.branch.page_count - 1),
             ("v2Indent", self.branch.can_indent_selected()),
             ("v2Outdent", self.branch.can_outdent_selected()),
             ("v2Duplicate", self.branch.can_duplicate_selected()),
@@ -165,7 +198,7 @@ class V2MainWindow(QMainWindow):
             action.setData(entry.module_id)
             action.triggered.connect(
                 lambda checked=False, mid=entry.module_id, gen=generation:
-                self.branch.reveal_module(mid) if gen == self.session.generation else None
+                self.branch.reveal_node(mid) if gen == self.session.generation else None
             )
         return menu
 
@@ -173,6 +206,20 @@ class V2MainWindow(QMainWindow):
         # Menu is rebuilt from the live canonical outline on every opening.
         self._contents_menu = self.build_contents_menu()
         self._contents_menu.popup(self.mapToGlobal(self.rect().topRight()))
+
+    def search_branches(self) -> None:
+        """User-initiated canonical search, including hidden captions and titles."""
+        text, accepted = QInputDialog.getText(
+            self, "Find in report", "Title, text, table or photo caption:")
+        if not accepted:
+            return
+        hits = self.branch.search(text)
+        if not hits:
+            self.statusBar().showMessage("No matches in report")
+        elif self.branch._search_index < 0:
+            self.statusBar().showMessage("Apply or Revert pending edits before revealing a match")
+        else:
+            self.statusBar().showMessage(f"Found {len(hits)} matching report blocks — F3 for next")
 
     def _update_caption(self) -> None:
         name = self.session.path.name if self.session.path else "Untitled"
