@@ -221,7 +221,9 @@ def prepare_export(project: ReportProject, *,
                 source = project.assets[block.asset_id]
                 if block.visual != PhotoVisual():
                     if visual_renderer is None:
-                        raise ExportError("Edited photographs require an approved visual renderer")
+                        raise ExportError("Edited photographs cannot be exported until "
+                                          "M4.5.4 annotated DOCX/PDF support is implemented "
+                                          "(or an approved V2 renderer is supplied)")
                     try:
                         source = visual_renderer(source, block.visual)
                     except (ValueError, RuntimeError, OSError) as exc:
