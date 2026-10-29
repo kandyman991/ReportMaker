@@ -1,35 +1,39 @@
 # ReportMaker
 
-Windows-first modular technical report editor and Word document generator.
+Windows-first modular technical report editor and document generator; Linux is a supported secondary native-GUI testing platform.
 
-## Status
-M0, M1 and M2 (editable .rmproj projects) are merged into main. The native visual report editor is under review in [draft M3 PR #11](https://github.com/kandyman991/ReportMaker/pull/11). Full editable DOCX/PDF export and Word templates remain future M4/M6 milestones; M3 is not a production-ready report generator.
+## Current development status
+
+The older M0–M6 implementation and M7.1/M7.2 source milestones are integrated into `main`; **V2's 33-case native installed-Windows M7.3 acceptance is still pending**, with work in [PR #97](https://github.com/kandyman991/ReportMaker/pull/97). M7.4–M7.6 and any V2 default/release promotion have distinct gates. The Windows **V1 fallback remains separate**. Check live PR/issue/CI state before relying on this dated description (2026-10-29). Green hosted CI or successful install/launch is **not** proof of interactive acceptance.
+
+**Auditors and AI reviewers: start with [the independent audit playbook](docs/AUDIT_PLAYBOOK.md), then [AGENTS.md](AGENTS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [security boundaries](docs/SECURITY.md), [V2 acceptance matrix](docs/v2/M7_ACCEPTANCE_MATRIX.json) and the live GitHub PR/issues.** The playbook specifies security, dependency and release supply-chain checks, data-integrity regressions, physical Windows / native Linux tests, and the evidence required to call a finding fixed. Open security follow-ups: [#104](https://github.com/kandyman991/ReportMaker/issues/104), [#105](https://github.com/kandyman991/ReportMaker/issues/105), [#106](https://github.com/kandyman991/ReportMaker/issues/106).
 
 ## Product workflow
-Select an existing customer/site/machine, choose intervention dates, compose arbitrarily ordered and nested modules containing text/photos/tables, finish with conclusions, and export editable DOCX (with optional PDF). Every translatable text element can carry any BCP-47-style language tag; export may be monolingual or multilingual. Templates may be imported from Word or designed visually.
 
-The optional ChatGPT panel is a normal website, **not** an AI integration. No application API key, paid token service, site automation, credential collection, or automatic conversation access. The user manually copies approved text to an editable report block. Embedded authentication might not work; an external-browser fallback is always available.
+Select a customer/site/machine from local data or supply a manual reference; build reports from independently editable, arbitrarily nested and reordered modules containing text, images, tables and submodules; finish with Conclusions. The module tree and Summary/TOC derive from one canonical hierarchy. Reports preserve source text and per-language translation records. `.rmproj` is the editable local project; DOCX/PDF are derived exports. Template import and design have feature and fidelity limits, so review the relevant acceptance documents before promising full Word compatibility.
 
-## Windows installation (no Python or Git needed)
-**Developer preview, not a completed report generator.**
-A successful Windows installer build publishes an unsigned, rolling **GitHub prerelease** (the same scheme as RoadPilot Graph Studio), without consuming GitHub Actions artifact storage. Open [ReportMaker Windows M0 prerelease](https://github.com/kandyman991/ReportMaker/releases/tag/reportmaker-windows-m0), download `ReportMaker-M0-Setup.exe` and optionally verify `SHA256SUMS.txt`, then run the installer. It creates a Start Menu shortcut and an optional desktop shortcut. Installation is per-user and should not require administrator rights. There is no API/key integration.
+The optional ChatGPT panel is an ordinary **user-controlled website**, **not** an API or automated agent integration. Users manually copy approved text between the website and report editor. Embedded authentication may fail; an external-browser fallback is available. The site can use the network; report data and browser profiles must remain isolated.
 
-The installer is currently **unsigned** and may be flagged by Windows SmartScreen; use only trusted, reviewed builds from this repository and do not disable Windows security protections. A successful CI build does not prove live ChatGPT sign-in or full interactive desktop functionality. Keep the external-browser fallback.
+## Windows builds and acceptance
 
-See `docs/WINDOWS_DISTRIBUTION.md` for precise build and validation instructions.
+The [historical M0 Windows prerelease](https://github.com/kandyman991/ReportMaker/releases/tag/reportmaker-windows-m0) is a **legacy reference**, not the current V2 release. V1 release candidates and V2 test-only builds have independent channels, installer identities and acceptance criteria. Do not download a historical M0 build expecting today's editor, and do not assume an unsigned QA installer is an approved release.
 
-## Developer-only: run the Windows desktop application
-On Windows 11 or supported Windows 10 x64 with Python 3.11+:
-1. Create and activate a virtual environment.
-2. Run: python -m pip install -e ".[desktop]"
-3. Run: python -m reportmaker
+A reviewed V2 test installer must pass hosted freeze/install/offline/uninstall gates **and then** separate native installed-Windows x64 manual tests, including all 33 cases in `docs/v2/M7_ACCEPTANCE_MATRIX.json`. Installer/build SHA-256, review outcome and real observations are required. Never publish or promote V2 solely because a CI workflow succeeded. See [Windows distribution](docs/WINDOWS_DISTRIBUTION.md), [V2 requirements](docs/v2/BRANCH_EDITOR_REQUIREMENTS.md), and the [audit playbook](docs/AUDIT_PLAYBOOK.md).
 
-On the M3 feature branch, the native editor shows the canonical module tree/derived Summary, report information, text/photo/table blocks and document preview. Use toolbar New/Open/Save/Save As for local editable `.rmproj` files. The **Customers / Sites / Machines** action manages local master data and the report's **Choose from database** action explicitly captures a frozen snapshot. Drag pane dividers, hide/show and maximize each pane as before. Browser login remains manual; copy/paste is plain text only. Word/PDF export is not yet implemented. See `docs/M3_VISUAL_EDITOR.md`.
+## Developer setup and tests
 
-## Verify the architecture/tests
-Run: python -m unittest discover -s tests -v
+Supported Python range and dependencies are declared in `pyproject.toml`. Use a disposable virtual environment for development and verification:
 
-Consult ARCHITECTURE.md, AGENTS.md, docs/M0_ACCEPTANCE.md and ROADMAP.md before changing functionality.
+```sh
+python -m pip install -e ".[desktop]"
+python -m unittest discover -s tests -v
+python -m compileall -q src
+```
 
-## Privacy
-Repository is PUBLIC. Do not commit real customer information, production photos, private reports, credentials, screenshots of logged-in pages, cookies, or browser profiles. The original reference documents remain outside this repository.
+Run `python -m reportmaker` for the V1 entry point. V2 is a **distinct** desktop entry point and packaging track; consult `src/reportmaker/v2` and V2 milestone docs before selecting its launch flow. For Linux, record the actual distribution, Qt display backend and installed dependencies; GUI observations must be made on a real rendered display, not inferred from offscreen tests. **Windows** packaging/real-PC acceptance cannot be completed on Linux.
+
+A security scanner or third-party test count does not certify the installed application. Follow `docs/AUDIT_PLAYBOOK.md` for a repeatable evidence-based audit.
+
+## Project privacy and governance
+
+This repository is **PUBLIC**. Never commit real customer data, production photos/reports, proprietary CAD, credentials, screenshots of authenticated sessions, cookies or browser profiles. Use synthetic fixtures. Follow `AGENTS.md`, architecture contracts and review gates; changes must be reviewed and pass exact-head checks. There is no owner-approved `LICENSE` file in the 2026-10-29 baseline; do not assume public code is open-source licensed.
