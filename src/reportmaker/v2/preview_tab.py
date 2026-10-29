@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from ..export import ExportError, ExportStyle, export_project, prepare_export
 from .localized_export import TranslationRequiredError, localized_project
+from .language_bundle import export_language_bundle
 from .pdf_proof import PdfProofPanel
 from .session import ReportSession
 from .visual_export import annotated_png
@@ -58,6 +59,27 @@ class PreviewTab(QWidget):
         buttons.addWidget(schematic)
         buttons.addStretch()
         outer.addLayout(buttons)
+        bundle_row = QHBoxLayout()
+        bundle_row.addWidget(QLabel("All selected output languages"))
+        self.bundle_formats = QComboBox(self)
+        self.bundle_formats.setObjectName("v2BundleFormats")
+        for caption, formats in (
+            ("DOCX and PDF", ("docx", "pdf")),
+            ("Editable DOCX only", ("docx",)),
+            ("PDF only", ("pdf",)),
+        ):
+            self.bundle_formats.addItem(caption, formats)
+        bundle_row.addWidget(self.bundle_formats)
+        bundle_button = QPushButton("Export language package (.zip)…", self)
+        bundle_button.setObjectName("v2ExportLanguageBundle")
+        bundle_button.setToolTip(
+            "Export every language selected in Report Information as separate "
+            "DOCX/PDF files. Incomplete or outdated translations block the "
+            "entire package; original report data is never changed.")
+        bundle_button.clicked.connect(self.export_bundle_dialog)
+        bundle_row.addWidget(bundle_button)
+        bundle_row.addStretch()
+        outer.addLayout(bundle_row)
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -246,6 +268,38 @@ class PreviewTab(QWidget):
             return False
         self.notice.setText(f"Exported {Path(path).name} from the applied canonical report")
         return True
+
+    def export_bundle_to(self, path: str | Path, formats=None) -> bool:
+        """One ZIP for all selected languages; never leave partial outputs."""
+        if formats is None:
+            formats = self.bundle_formats.currentData()
+        try:
+            self.session.require_clean_drafts()
+            export_language_bundle(
+                self.session.project_snapshot(), path, formats=formats,
+                style=self.style, visual_renderer=annotated_png)
+        except (OSError, ValueError, RuntimeError) as exc:
+            self.notice.setText(
+                "Language package rejected; existing ZIP left unchanged: " + str(exc))
+            return False
+        self.notice.setText(
+            f"Language package exported: {Path(path).name}. Each selected "
+            "language has its own document. Metadata labels remain English.")
+        return True
+
+    def export_bundle_dialog(self) -> bool:
+        if not self.session._draft_guard():
+            self.notice.setText("Apply or Revert pending edits before export")
+            return False
+        target, _ = QFileDialog.getSaveFileName(
+            self, "Export selected languages", "",
+            "ReportMaker language package (*.zip)")
+        if not target:
+            return False
+        path = Path(target)
+        if path.suffix.lower() != ".zip":
+            path = path.with_suffix(".zip")
+        return self.export_bundle_to(path)
 
     def export_dialog(self, format: str) -> bool:
         if format not in ("docx", "pdf"):
