@@ -30,7 +30,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q src
 ```
 
-Run `python -m reportmaker` for the V1 entry point. V2 is a **distinct** desktop entry point and packaging track; consult `src/reportmaker/v2` and V2 milestone docs before selecting its launch flow. For Linux, record the actual distribution, Qt display backend and installed dependencies; GUI observations must be made on a real rendered display, not inferred from offscreen tests. **Windows** packaging/real-PC acceptance cannot be completed on Linux.
+Run `python -m reportmaker` for the legacy V1 GUI, or **`python -m reportmaker.v2` for the V2 Branch Editor GUI**. `python -m reportmaker.v2 --offline-self-test` provides a synthetic nonvisual startup check; it does **not** replace inspecting and interacting with the actual window. V1 and V2 remain separate installation/packaging tracks. For Linux, record the actual distribution, Qt display backend and installed dependencies; GUI observations must be made on a real rendered display, not inferred from offscreen tests. **Windows** packaging/real-PC acceptance cannot be completed on Linux.
 
 A security scanner or third-party test count does not certify the installed application. Follow `docs/AUDIT_PLAYBOOK.md` for a repeatable evidence-based audit.
 
