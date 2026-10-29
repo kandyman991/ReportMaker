@@ -292,6 +292,8 @@ class ProjectLifecycleQtTests(unittest.TestCase):
         with patch.object(self.win, "_choose_save_path", return_value=upgraded):
             self.assertTrue(self.win.save_project())
         self.assertEqual(self.win.session.loaded_version, 5)
+        self.assertIn("schema v5", self.win.statusBar().currentMessage())
+        self.assertIn("V1", self.win.statusBar().currentMessage())
         self.assertEqual(self.win.session.path, upgraded)
         self.assertEqual(source.read_bytes(), original_bytes)
         self.assertEqual(load_project(upgraded).report.id,
