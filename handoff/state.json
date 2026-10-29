@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-29T08:02:51.863Z",
+  "generatedAt": "2026-10-29T11:48:36.504Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,11 +11,21 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "63e8d1a359087ddeb2849a17bb961f6c4d995dee",
-    "message": "V2 M5: navigation, focus, search and scalable branch rendering (#82)\n\n* feat(v2): M5 focus, canonical search, zoom and bounded branch navigation\n\n* fix(v2-m5): scale connectors and photo previews with workspace zoom\n\n* fix(v2-m5): restore horizontal focus context and valid first-window selection\n\n* test(v2-m5): cover first-window selection and horizontal focus restore\n\n* test(v2-m5): force a narrow viewport for horizontal pan regression\n\n* docs(v2-m5): record independent PR #82 review corrections\n\n* docs(v2-m5): record independent PR #82 review corrections\n\n* docs(v2-m5): record independent PR #82 review corrections",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/63e8d1a359087ddeb2849a17bb961f6c4d995dee"
+    "sha": "ec27693819a72afb72d24464e803b112ae6aec9a",
+    "message": "Merge PR #83: V2 M6.1–M6.4 integrated workspace foundation\n\nReview completed; linked customer snapshot identity guard corrected; local full regression and exact-head Windows CI green. M6.5–M6.7 remain separate.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/ec27693819a72afb72d24464e803b112ae6aec9a"
   },
   "openPullRequests": [
+    {
+      "number": 84,
+      "title": "V2 M6.5 — v5 metadata localization, manual approvals and multilingual export (review pending)",
+      "draft": true,
+      "head": "feature/v2-m6-5-metadata-localization",
+      "headSha": "223556cd01dfc7ac2fe7ca42dd24cf5a2651e83f",
+      "base": "feature/v2-m6-full-integration",
+      "updatedAt": "2026-10-29T11:30:50Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/84"
+    },
     {
       "number": 21,
       "title": "Windows v0.5.0 release candidate: installed acceptance and M0 historical fallback",
@@ -28,6 +38,24 @@
     }
   ],
   "openIssues": [
+    {
+      "number": 87,
+      "title": "M6.7 — End-to-end integration and Checkpoint C acceptance",
+      "updatedAt": "2026-10-29T09:58:14Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/87"
+    },
+    {
+      "number": 86,
+      "title": "M6.6 — Precise page Editor and Word/template fidelity",
+      "updatedAt": "2026-10-29T09:58:11Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/86"
+    },
+    {
+      "number": 85,
+      "title": "M6.5 — Complete metadata and customer-visible boilerplate localization",
+      "updatedAt": "2026-10-29T09:58:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/85"
+    },
     {
       "number": 64,
       "title": "[Bug][Windows][ChatGPT] Embedded browser Copy buttons and image download/copy do not work",
@@ -109,114 +137,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40839353599,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "63e8d1a359087ddeb2849a17bb961f6c4d995dee",
-      "event": "push",
-      "updatedAt": "2026-10-29T08:02:48Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40839353599"
-    },
-    {
-      "id": 40839353495,
+      "id": 40868226690,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "63e8d1a359087ddeb2849a17bb961f6c4d995dee",
+      "headSha": "ec27693819a72afb72d24464e803b112ae6aec9a",
       "event": "push",
-      "updatedAt": "2026-10-29T08:02:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40839353495"
+      "updatedAt": "2026-10-29T11:48:31Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40868226690"
     },
     {
-      "id": 40839353485,
+      "id": 40868226674,
       "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
+      "headSha": "ec27693819a72afb72d24464e803b112ae6aec9a",
+      "event": "push",
+      "updatedAt": "2026-10-29T11:48:35Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40868226674"
+    },
+    {
+      "id": 40868226642,
+      "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "63e8d1a359087ddeb2849a17bb961f6c4d995dee",
+      "headSha": "ec27693819a72afb72d24464e803b112ae6aec9a",
       "event": "push",
-      "updatedAt": "2026-10-29T08:02:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40839353485"
+      "updatedAt": "2026-10-29T11:48:31Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40868226642"
     },
     {
-      "id": 40838994949,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m5-navigation-scalability",
-      "headSha": "f0a0ae2bfcdc48584ea94f3cec290390f783e102",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T07:59:51Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40838994949"
-    },
-    {
-      "id": 40838994852,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m5-navigation-scalability",
-      "headSha": "f0a0ae2bfcdc48584ea94f3cec290390f783e102",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T08:02:09Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40838994852"
-    },
-    {
-      "id": 40838994812,
+      "id": 40867947260,
       "name": "V2 M1.2 session, commands and persistence",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m5-navigation-scalability",
-      "headSha": "f0a0ae2bfcdc48584ea94f3cec290390f783e102",
+      "branch": "feature/v2-m6-full-integration",
+      "headSha": "9a030bb4446ef658470ed93d18978d4443dd165c",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T08:00:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40838994812"
+      "updatedAt": "2026-10-29T11:46:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40867947260"
     },
     {
-      "id": 40838994799,
-      "name": "V2 M2 structural placement",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m5-navigation-scalability",
-      "headSha": "f0a0ae2bfcdc48584ea94f3cec290390f783e102",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T08:00:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40838994799"
-    },
-    {
-      "id": 40838994782,
-      "name": "V2 M1.4 project lifecycle and Checkpoint A",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m5-navigation-scalability",
-      "headSha": "f0a0ae2bfcdc48584ea94f3cec290390f783e102",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T08:00:23Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40838994782"
-    },
-    {
-      "id": 40838994781,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m5-navigation-scalability",
-      "headSha": "f0a0ae2bfcdc48584ea94f3cec290390f783e102",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T08:02:04Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40838994781"
-    },
-    {
-      "id": 40838994761,
+      "id": 40867947151,
       "name": "V2 M1.3 inline branch editing",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m5-navigation-scalability",
-      "headSha": "f0a0ae2bfcdc48584ea94f3cec290390f783e102",
+      "branch": "feature/v2-m6-full-integration",
+      "headSha": "9a030bb4446ef658470ed93d18978d4443dd165c",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T08:01:11Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40838994761"
+      "updatedAt": "2026-10-29T11:47:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40867947151"
+    },
+    {
+      "id": 40867947142,
+      "name": "V2 M2 structural placement",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-full-integration",
+      "headSha": "9a030bb4446ef658470ed93d18978d4443dd165c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T11:47:19Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40867947142"
+    },
+    {
+      "id": 40867947079,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-full-integration",
+      "headSha": "9a030bb4446ef658470ed93d18978d4443dd165c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T11:47:41Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40867947079"
+    },
+    {
+      "id": 40867947057,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-full-integration",
+      "headSha": "9a030bb4446ef658470ed93d18978d4443dd165c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T11:47:41Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40867947057"
+    },
+    {
+      "id": 40867947052,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-full-integration",
+      "headSha": "9a030bb4446ef658470ed93d18978d4443dd165c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T11:46:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40867947052"
+    },
+    {
+      "id": 40867947024,
+      "name": "V2 M1.4 project lifecycle and Checkpoint A",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-full-integration",
+      "headSha": "9a030bb4446ef658470ed93d18978d4443dd165c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T11:47:20Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40867947024"
     }
   ]
 }
