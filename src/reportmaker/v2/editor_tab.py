@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap
 
 from ..engine import module_outline
+from ..export import ExportStyle
 from ..model import HeadingBlock, ParagraphBlock, PhotoBlock, TableBlock
 from ..photo_editor import render_photo
 from .navigation import subtree_range, window_for
@@ -73,6 +74,7 @@ class DocumentEditorTab(QWidget):
         self.setObjectName("v2DocumentEditorTab")
         self.session, self.branch = session, branch
         self.port = branch.drafts.for_editor("page-editor")
+        self.style = ExportStyle()
         self._owned = set()
         self._module_id = None
         self._page = 0
@@ -107,6 +109,13 @@ class DocumentEditorTab(QWidget):
         self.scroll.setWidgetResizable(True)
         outer.addWidget(self.scroll, 1)
         self.session.subscribe(self._changed)
+        self.refresh()
+
+    def set_style(self, style: ExportStyle) -> None:
+        if self._owned:
+            raise RuntimeError("Apply or Revert document drafts before changing page geometry")
+        self.style = style
+        self._token = None
         self.refresh()
 
     def _changed(self, change):
@@ -211,11 +220,15 @@ class DocumentEditorTab(QWidget):
         root = QVBoxLayout(shell)
         page = QFrame(shell)
         page.setObjectName("v2DocumentPaper")
-        page.setMaximumWidth(850)
+        page.setMaximumWidth(max(500, min(1100, round(850 * self.style.page_width_cm / 21))))
         page.setStyleSheet("QFrame#v2DocumentPaper { background: white;"
                            " border: 1px solid #b1b8c1; }")
         flow = QVBoxLayout(page)
-        flow.setContentsMargins(35, 35, 35, 35)
+        flow.setContentsMargins(
+            max(18, round(35 * self.style.left_margin_cm / 2.1)),
+            max(18, round(35 * self.style.top_margin_cm / 3.0)),
+            max(18, round(35 * self.style.right_margin_cm / 2.1)),
+            max(18, round(35 * self.style.bottom_margin_cm / 2.5)))
         flow.setSpacing(8)
         self._editors = {}
         self._tables = {}
