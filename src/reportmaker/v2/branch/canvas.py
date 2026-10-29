@@ -8,6 +8,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from math import ceil
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -36,6 +37,7 @@ from ...model import (
 )
 
 from ..commands import CommandGateway, CommandIntent
+from ..navigation import search_report, subtree_range, window_for
 from ..drafts import DraftCoordinator
 from ..projections import NodeAddress, descendant_counts, find_node, project_branch
 from ..session import StaleIntentError, PendingDraftError, ReportSession
@@ -485,6 +487,17 @@ class BranchCanvas(QScrollArea):
         self._ribbons = {}
         self._selected_module_id = None
         self._collapsed: set[str] = set()
+        # Transient navigation only. Never enter the canonical report or export.
+        self._focus_id: str | None = None
+        self._focus_saved = None
+        self._page = 0
+        self._page_size = 120
+        self._page_count = 1
+        self._zoom_pct = 100
+        self._search_hits = ()
+        self._search_index = -1
+        self._search_target = None
+        self._search_query = ""
         self._restore = None
         self._drag_context = None
         self._native_drag_active = False
@@ -548,35 +561,13 @@ class BranchCanvas(QScrollArea):
         return True
 
     def reveal_module(self, module_id: str) -> bool:
-        """TOC jump reveals collapsed ancestors and scrolls to the stable ID."""
+        """TOC jump, including a hidden window or collapsed ancestor."""
         if self._session is None:
             return False
-        rows = project_branch(self._session.report_snapshot())
-        by_id = {row.stable_id: row for row in rows}
-        target = by_id.get(module_id)
-        if target is None or target.kind not in ("module", "conclusion"):
+        if not any(r.stable_id == module_id and r.kind in ("module", "conclusion")
+                   for r in project_branch(self._session.report_snapshot())):
             return False
-        to_expand = set()
-        ancestor = target.parent_module_id
-        while ancestor is not None:
-            to_expand.add(ancestor)
-            ancestor = by_id[ancestor].parent_module_id
-        if self._collapsed.intersection(to_expand):
-            try:
-                self._session.require_clean_drafts()
-            except PendingDraftError as exc:
-                self.feedback.emit(str(exc))
-                return False
-            self._collapsed.difference_update(to_expand)
-            self._restore = None
-            self._selected_module_id = module_id
-            self._refresh()
-            self.visibilityChanged.emit()
-        else:
-            self._selected_module_id = module_id
-            self.selectionChanged.emit()
-        QTimer.singleShot(0, lambda mid=module_id: self._scroll_to_module(mid))
-        return True
+        return self.reveal_node(module_id)
 
     def _scroll_to_module(self, module_id: str) -> None:
         if self._session is None:
@@ -586,6 +577,282 @@ class BranchCanvas(QScrollArea):
                 top = row.mapTo(self._host, QPoint(0, 0)).y()
                 self.verticalScrollBar().setValue(max(0, top - 28))
                 return
+
+    @property
+    def focus_module_id(self) -> str | None:
+        return self._focus_id
+
+    @property
+    def zoom_percent(self) -> int:
+        return self._zoom_pct
+
+    @property
+    def active_row_count(self) -> int:
+        return len(self._visible_nodes)
+
+    @property
+    def page_count(self) -> int:
+        return self._page_count
+
+    def focus_module(self, module_id: str | None = None) -> bool:
+        """Isolate a canonical subtree and remember the former canvas context."""
+        if self._session is None:
+            return False
+        rows = project_branch(self._session.report_snapshot())
+        module_id = module_id or self._selected_module_id
+        if not any(r.stable_id == module_id and r.kind in ("module", "conclusion")
+                   for r in rows):
+            return False
+        try:
+            self._session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.feedback.emit(str(exc))
+            return False
+        if self._focus_id is None:
+            self._focus_saved = (self._selected_module_id,
+                                 self.verticalScrollBar().value(), frozenset(self._collapsed),
+                                 self._page)
+        self._focus_id = module_id
+        by_id = {row.stable_id: row for row in rows}
+        ancestor = module_id
+        while ancestor is not None:
+            self._collapsed.discard(ancestor)
+            ancestor = by_id[ancestor].parent_module_id
+        self._selected_module_id = module_id
+        self._restore = None
+        self._page = 0
+        self._refresh()
+        self.verticalScrollBar().setValue(0)
+        self.visibilityChanged.emit()
+        return True
+
+    def exit_focus(self) -> bool:
+        if self._focus_id is None:
+            return False
+        try:
+            self._session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.feedback.emit(str(exc))
+            return False
+        selected, scroll, collapsed, page = self._focus_saved
+        self._focus_id = None
+        self._focus_saved = None
+        self._selected_module_id = selected
+        self._collapsed = set(collapsed)
+        self._page = page
+        self._restore = None
+        self._refresh()
+        self.verticalScrollBar().setValue(scroll)
+        generation = self._session.generation
+        QTimer.singleShot(0, lambda value=scroll, gen=generation:
+                          self.verticalScrollBar().setValue(value)
+                          if self._session.generation == gen else None)
+        self.visibilityChanged.emit()
+        return True
+
+    def change_page(self, direction: int) -> bool:
+        """Deterministic bounded-widget navigation, never dropping pending drafts."""
+        if direction not in (-1, 1) or not 0 <= self._page + direction < self._page_count:
+            return False
+        try:
+            self._session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.feedback.emit(str(exc))
+            return False
+        self._page += direction
+        self._restore = None
+        self._refresh()
+        self.verticalScrollBar().setValue(0)
+        return True
+
+    def set_zoom(self, percent: int) -> bool:
+        if type(percent) is not int or not 55 <= percent <= 160:
+            raise ValueError("Canvas zoom must be 55–160%")
+        if percent == self._zoom_pct:
+            return True
+        try:
+            self._session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.feedback.emit(str(exc))
+            return False
+        self._zoom_pct = percent
+        self._restore = None
+        self._refresh()
+        return True
+
+    def zoom_by(self, delta: int) -> bool:
+        return self.set_zoom(max(55, min(160, self._zoom_pct + delta)))
+
+    def pan_by(self, delta: int) -> None:
+        if type(delta) is not int:
+            raise ValueError("Invalid canvas pan distance")
+        scroll = self.horizontalScrollBar()
+        scroll.setValue(scroll.value() + delta)
+
+    def fit_to_screen(self) -> bool:
+        if self._session is None:
+            return False
+        report = self._session.report_snapshot()
+        rows = project_branch(report)
+        if self._focus_id is not None:
+            start, end = subtree_range(rows, self._focus_id)
+            rows = rows[start:end]
+        # Fit content width, not DOCX page dimensions or picture layer scale.
+        depth = max((row.depth - (rows[0].depth - 1 if self._focus_id else 0)
+                     for row in rows), default=1)
+        target = int(100 * max(200, self.viewport().width() - 50) /
+                     max(450, 470 + depth * _STEP))
+        return self.set_zoom(max(55, min(160, target)))
+
+    def search(self, query: str):
+        if self._session is None:
+            return ()
+        self._search_query = query
+        self._search_hits = search_report(self._session.report_snapshot(), query)
+        self._search_index = -1
+        self._search_target = None
+        if self._search_hits:
+            self.next_match()
+        return self._search_hits
+
+    def next_match(self) -> bool:
+        if not self._search_hits:
+            return False
+        next_index = (self._search_index + 1) % len(self._search_hits)
+        hit = self._search_hits[next_index]
+        if not self.reveal_node(hit.stable_id):
+            return False
+        self._search_index = next_index
+        self.feedback.emit(f"Match {next_index + 1} of {len(self._search_hits)}")
+        return True
+
+    def reveal_node(self, stable_id: str) -> bool:
+        """Reveal even a collapsed or windowed leaf, by stable canonical ID."""
+        if self._session is None:
+            return False
+        full = project_branch(self._session.report_snapshot())
+        by_id = {row.stable_id: row for row in full}
+        target = by_id.get(stable_id)
+        if target is None:
+            return False
+        # A simple TOC selection/scroll may safely move with an unapplied
+        # draft: it does not reconstruct, commit or delete the live editor.
+        if (stable_id in {row[0] for row in self._visible_nodes}
+                and target.kind in ("module", "conclusion")
+                and self.drafts is not None and self.drafts.pending):
+            self._selected_module_id = stable_id
+            self.selectionChanged.emit()
+            generation = self._session.generation
+            QTimer.singleShot(0, lambda ident=stable_id, gen=generation:
+                              self._scroll_to_node(ident)
+                              if self._session.generation == gen else None)
+            return True
+        try:
+            self._session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.feedback.emit(str(exc))
+            return False
+        if self._focus_id is not None:
+            start, end = subtree_range(full, self._focus_id)
+            if not start <= full.index(target) < end and not self.exit_focus():
+                return False
+        parent = target.parent_module_id
+        while parent is not None:
+            self._collapsed.discard(parent)
+            parent = by_id[parent].parent_module_id
+        self._selected_module_id = (
+            stable_id if target.kind in ("module", "conclusion")
+            else target.parent_module_id)
+        self._search_target = stable_id
+        expanded = frozenset(r.stable_id for r in full
+                             if r.kind in ("module", "conclusion")
+                             and r.stable_id not in self._collapsed)
+        visible = project_branch(self._session.report_snapshot(), expanded=expanded)
+        if self._focus_id is not None:
+            start, end = subtree_range(visible, self._focus_id)
+            visible = visible[start:end]
+        offset = next((i for i, row in enumerate(visible) if row.stable_id == stable_id), None)
+        if offset is None:
+            return False
+        self._page = offset // self._page_size
+        self._restore = None
+        self._refresh()
+        generation = self._session.generation
+        QTimer.singleShot(0, lambda ident=stable_id, gen=generation:
+                          self._scroll_to_node(ident) if self._session.generation == gen else None)
+        self.visibilityChanged.emit()
+        return True
+
+    def _scroll_to_node(self, stable_id: str) -> None:
+        for row in self._host.findChildren(DropRow):
+            if row.address.block_id == stable_id or row.address.module_id == stable_id:
+                top = row.mapTo(self._host, QPoint(0, 0)).y()
+                self.verticalScrollBar().setValue(max(0, top - 25))
+                return
+
+    def select_adjacent_module(self, direction: int) -> bool:
+        if direction not in (-1, 1) or self._session is None:
+            return False
+        rows = project_branch(self._session.report_snapshot())
+        if self._focus_id is not None:
+            start, end = subtree_range(rows, self._focus_id)
+            rows = rows[start:end]
+        ids = [r.stable_id for r in rows if r.kind in ("module", "conclusion")]
+        if not ids:
+            return False
+        here = ids.index(self._selected_module_id) if self._selected_module_id in ids else 0
+        new = here + direction
+        return 0 <= new < len(ids) and self.reveal_node(ids[new])
+
+    def wheelEvent(self, event):
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = 10 if event.angleDelta().y() > 0 else -10
+            if event.angleDelta().y() and self.zoom_by(delta):
+                event.accept()
+                return
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            scroll = self.horizontalScrollBar()
+            scroll.setValue(scroll.value() - event.angleDelta().y())
+            event.accept()
+            return
+        # Keep wheel/touchpad navigation useful across bounded row windows.
+        # This advances only at a viewport boundary, never during a draft or
+        # native drag, and never creates an unbounded set of live editors.
+        direction = event.pixelDelta().y() or event.angleDelta().y()
+        scroll = self.verticalScrollBar()
+        if (direction < 0 and self._page < self._page_count - 1
+                and scroll.value() >= scroll.maximum() - 1
+                and not self._native_drag_active and self.change_page(1)):
+            event.accept()
+            return
+        if (direction > 0 and self._page > 0 and scroll.value() == 0
+                and not self._native_drag_active and self.change_page(-1)):
+            generation = self._session.generation
+            QTimer.singleShot(0, lambda gen=generation:
+                              self.verticalScrollBar().setValue(
+                                  self.verticalScrollBar().maximum())
+                              if self._session.generation == gen else None)
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def _zoom_row(self, row: QWidget) -> None:
+        """Scale editor typography/labels while keeping report geometry untouched."""
+        if self._zoom_pct == 100:
+            return
+        factor = self._zoom_pct / 100
+        children = row.findChildren(QWidget)
+        for child in reversed(children):
+            css = child.styleSheet()
+            if css and "font-size:" in css:
+                child.setStyleSheet(re.sub(
+                    r"font-size:\s*(\d+)px",
+                    lambda m: f"font-size: {max(7, round(int(m.group(1)) * factor))}px", css))
+            if isinstance(child, (QLineEdit, QPlainTextEdit)):
+                font = child.font()
+                if font.pointSizeF() > 0:
+                    font.setPointSizeF(max(6, font.pointSizeF() * factor))
+                    child.setFont(font)
 
     def editor_for(self, address: NodeAddress):
         return self._editors.get(address)
@@ -605,12 +872,27 @@ class BranchCanvas(QScrollArea):
         # the previous report, even if a stale Qt redraw was queued.
         if change is None:
             self._collapsed.clear()
+            self._focus_id = None
+            self._focus_saved = None
+            self._page = 0
+            self._search_hits = ()
+            self._search_index = -1
+            self._search_target = None
+            self._search_query = ""
             self._selected_module_id = None
             self._restore = None
             self._drag_context = None
             self._external_drag = None
             self._external_mime = None
             self._clear_drop_preview()
+        elif self._search_query:
+            # A committed rename/delete invalidates stale results; the
+            # canonical report remains the only source of search content.
+            self._search_hits = search_report(
+                self._session.report_snapshot(), self._search_query)
+            self._search_index = -1
+            if self._search_target not in {h.stable_id for h in self._search_hits}:
+                self._search_target = None
         # Native Qt handlers must finish before rebuilding. UI commands may
         # already have performed a synchronous refresh; avoid a second rebuild
         # of the same revision (which loses the restored caret and selection).
@@ -636,6 +918,10 @@ class BranchCanvas(QScrollArea):
             module_ids = {row.stable_id for row in all_rows
                           if row.kind in ("module", "conclusion")}
             self._collapsed.intersection_update(module_ids)
+            if self._focus_id is not None and self._focus_id not in module_ids:
+                self._focus_id = None
+                self._focus_saved = None
+                self._page = 0
             if self._selected_module_id not in module_ids:
                 self._selected_module_id = report.modules[0].id if report.modules else None
             # Reparenting can move the selected module under a *collapsed*
@@ -1594,6 +1880,14 @@ class BranchCanvas(QScrollArea):
                 new_file = menu.addAction("Replace with local photo…")
                 new_file.triggered.connect(lambda: self.replace_photo_from_file(photo_address))
                 menu.addSeparator()
+        if address.block_id is None and address.module_id != self._session.report_snapshot().id:
+            focus = menu.addAction("Focus on this subtree")
+            focus.triggered.connect(lambda checked=False, mid=address.module_id:
+                                    self.focus_module(mid))
+            if self._focus_id is not None:
+                exit_action = menu.addAction("Exit focus")
+                exit_action.triggered.connect(self.exit_focus)
+            menu.addSeparator()
         insert_menu = menu.addMenu("Insert inside" if address.block_id is None
                                    else "Insert after")
         source_revision, source_generation = self._session.revision, self._session.generation
@@ -2124,6 +2418,26 @@ class BranchCanvas(QScrollArea):
         summaries = descendant_counts(report)
         if len(rows) != len(projection) or any(a[0] != b.stable_id for a, b in zip(rows, projection)):
             raise ValueError("Branch layout diverged from canonical projection")
+        if self._focus_id is not None:
+            start, end = subtree_range(projection, self._focus_id)
+            rows, projection = rows[start:end], projection[start:end]
+        _, page_count = window_for(projection, 0, size=self._page_size)
+        self._page_count = page_count
+        self._page = min(self._page, page_count - 1)
+        start = self._page * self._page_size
+        end = start + self._page_size
+        rows, projection = rows[start:end], projection[start:end]
+        # Never leave the toolbar operating on a different hidden window.
+        if projection:
+            shown_modules = {r.stable_id for r in projection
+                             if r.kind in ("module", "conclusion")}
+            shown_owners = shown_modules | {r.parent_module_id for r in projection
+                                             if r.parent_module_id is not None}
+            if self._selected_module_id not in shown_owners:
+                first = projection[0]
+                self._selected_module_id = (first.stable_id
+                                            if first.kind in ("module", "conclusion")
+                                            else first.parent_module_id)
         scroll = self.verticalScrollBar().value()
         self._editors.clear()
         self._draft_bars.clear()
@@ -2135,6 +2449,25 @@ class BranchCanvas(QScrollArea):
             if widget is not None:
                 widget.setParent(None)
                 widget.deleteLater()
+        if self._page_count > 1:
+            label = QLabel(f"Branch window {self._page + 1} of {self._page_count}"
+                           f" — {len(rows)} visible report nodes", self._host)
+            label.setObjectName("v2WindowStatus")
+            label.setAccessibleName("Current branch window")
+            self._body.addWidget(label)
+        if self._page_count > 1 and self._page > 0:
+            button = QPushButton(f"Previous branch window ({self._page} of {self._page_count})", self._host)
+            button.setObjectName("v2PreviousWindow")
+            button.clicked.connect(lambda: self.change_page(-1))
+            self._body.addWidget(button)
+        if projection and projection[0].parent_module_id is not None:
+            # A window can start halfway through a long module. Show its owner
+            # rather than letting insertion actions target an invisible context.
+            owner_id = projection[0].parent_module_id
+            owner_title = find_node(report, NodeAddress(report.id, owner_id)).title.original
+            owner = QLabel("Within module: " + owner_title, self._host)
+            owner.setObjectName("v2WindowOwner")
+            self._body.addWidget(owner)
         for (identifier, kind, caption, text, depth, ancestors, has_next), meta in zip(rows, projection):
             address = (NodeAddress(report.id, identifier)
                        if kind in ("root", "module", "conclusion")
@@ -2226,7 +2559,17 @@ class BranchCanvas(QScrollArea):
                 summary.setStyleSheet("color: #526c83; font-size: 11px;")
                 card_layout.addWidget(summary)
             line.addWidget(card, 1)
+            self._zoom_row(row)
+            if identifier == self._search_target:
+                card.setStyleSheet("QFrame#v2BranchCard { background: #fff5d1;"
+                                   " border: 2px solid #a36a00; border-radius: 8px; }")
             self._body.addWidget(row)
+        if self._page_count > 1 and self._page < self._page_count - 1:
+            button = QPushButton(
+                f"Next branch window ({self._page + 2} of {self._page_count})", self._host)
+            button.setObjectName("v2NextWindow")
+            button.clicked.connect(lambda: self.change_page(1))
+            self._body.addWidget(button)
         self._body.addStretch(1)
         active_table_ids = {r.stable_id for r in all_rows if r.kind == "table"}
         self._table_selected = {
