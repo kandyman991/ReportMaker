@@ -283,7 +283,8 @@ class CommandGateway:
                 return None
             if kind == "set_photo_visual" and current.visual == args["visual"]:
                 return None
-            if kind == "replace_photo" and current.asset_id == args["asset_id"]:
+            if (kind == "replace_photo" and current.asset_id == args["asset_id"]
+                    and current.visual == PhotoVisual()):
                 return None
             def edit_photo(report):
                 block = find_node(report, address)
