@@ -390,3 +390,8 @@ Next reproducible action:
 - Added V2 table regressions and a hosted Windows Python 3.11/3.12 CI gate. M3.4 cross-tab coordination, physical installed Windows DPI/accessibility, advanced table formatting and real exported document viewing remain follow-up acceptance.
 - Review/verify exact branch head and resolve findings before user-authorized merge. See `docs/v2/M3_3_INLINE_TABLES.md`.
 - Before opening M3.3 for independent approval, checked transient translation state against repeated keystrokes: corrected false-stale provenance on exact source reversion, including after row/column shifts. Added the 11th table regression; recheck final head on hosted Windows.
+
+## CP-V2-M3.3-R1 — Independent review (2026-10-29)
+- Reviewed PR #79 implementation head `618c77ee3ac5b72afc061dc6e93661deb4a63ded` and reproduced a high-priority stale table draft redraw crash under a simulated concurrent canonical table mutation: the queued Qt redraw could lose the user's visible Revert action. Fixed with a display-only, read-only staged preview and persistent Revert, while stale transactions still reject. Added Qt regression.
+- Reviewed empty-dimension table structure. Inserting a row into an existing zero-column table previously generated a ragged grid; now reject without normalizing source cells. Added pure regression.
+- Local V2 and exact-head Windows Python 3.11/3.12 checks must be recorded on the final correction commit before merge. No physical installed Windows, release or unrelated RC changes.

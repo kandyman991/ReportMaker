@@ -159,6 +159,21 @@ class DraftCoordinator:
             raise StaleIntentError("Table changed since editing began; draft preserved")
         return checked_rows(draft.rows)
 
+    def table_preview(self, address: NodeAddress) -> tuple[list, bool]:
+        """Render an obsolete draft for safe inspection/revert, never for commit.
+
+        A parallel editor may change canonical rows before a queued Qt refresh.
+        Rendering must not fail and hide the Revert action. Only table_rows()
+        and commit() enforce staleness for actual edits and transactions.
+        """
+        try:
+            return self.table_rows(address), False
+        except StaleIntentError:
+            draft = self._drafts.get(address)
+            if not isinstance(draft, TableDraft):
+                raise
+            return checked_rows(draft.rows), True
+
     @staticmethod
     def _origins(rows: list[list[LocalizedText]]) -> list[list[tuple[int, int] | None]]:
         return [[(i, j) for j in range(len(cells))]

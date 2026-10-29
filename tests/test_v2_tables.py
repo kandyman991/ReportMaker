@@ -170,6 +170,18 @@ class TableCommandTests(unittest.TestCase):
         self.assertTrue(self.gateway.undo(self.session.generation, self.session.revision))
         self.assertEqual(len(find_node(self.session.report_snapshot(), owner).blocks), 2)
 
+    def test_zero_column_table_does_not_become_ragged_on_row_insert(self):
+        existing = [[]]
+        with self.assertRaisesRegex(ValueError, "zero-column"):
+            change_grid(existing, "insert_row", 1, "en")
+        self.assertEqual(existing, [[]])
+        restored = change_grid(existing, "insert_column", 0, "en")
+        self.assertEqual(len(restored[0]), 1)
+        self.assertEqual([len(row) for row in change_grid(
+            restored, "insert_row", 1, "en")], [1, 1])
+        empty = change_grid([], "insert_row", 0, "en")
+        self.assertEqual([len(row) for row in empty], [1])
+
     def test_ragged_table_operation_rejected_without_silent_normalization(self):
         rows = [[LocalizedText("en", "A")], [LocalizedText("en", "B"), LocalizedText("en", "C")]]
         before = deepcopy(rows)
@@ -272,6 +284,42 @@ class InlineTableQtTests(unittest.TestCase):
         self.assertTrue(self.win.branch.apply_table_draft(self.address))
         self.assertEqual(len(find_node(self.win.session.report_snapshot(),
                                        self.address).rows), 3)
+
+    def test_stale_table_remains_visible_read_only_and_revertible(self):
+        from PySide6.QtWidgets import QLabel, QPushButton, QToolButton
+
+        cell = self.editor()
+        cell.setPlainText("Pending staged wording")
+        rows = deepcopy(find_node(self.win.session.report_snapshot(), self.address).rows)
+        rows[0][0].update_original("Other editor's wording")
+        # Exercise the same parallel-edit staleness simulated in the pure test.
+        self.win.branch.drafts._committing = True
+        try:
+            self.win.gateway.execute(CommandIntent(
+                "set_table_rows", self.address, {"rows": rows},
+                self.win.session.revision, self.win.session.generation))
+        finally:
+            self.win.branch.drafts._committing = False
+        with self.assertRaises(StaleIntentError):
+            self.win.branch.drafts.table_rows(self.address)
+        # Previously a queued refresh threw StaleIntentError and left the
+        # entire branch partly rebuilt with no way to reach Revert.
+        self.win.branch._refresh()
+        staged = self.win.branch.table_editor_for(self.address, 0, 0)
+        self.assertEqual(staged.toPlainText(), "Pending staged wording")
+        self.assertTrue(staged.isReadOnly())
+        self.assertIsNotNone(self.win.branch.findChild(
+            QLabel, "v2StaleTableDraftWarning"))
+        self.assertFalse(self.win.branch.findChild(
+            QPushButton, "v2ApplyTableDraft").isEnabled())
+        self.assertFalse(self.win.branch.findChild(
+            QToolButton, "v2TableInsertRow").isEnabled())
+        self.assertTrue(self.win.branch.drafts.pending)
+        self.assertFalse(self.win.branch.apply_table_draft(self.address))
+        self.win.branch.revert_table_draft(self.address)
+        self.assertEqual(self.win.branch.table_editor_for(
+            self.address, 0, 0).toPlainText(), "Other editor's wording")
+        self.assertFalse(self.win.branch.drafts.pending)
 
     def test_table_and_text_drafts_gate_undo_and_save(self):
         cell = self.editor()

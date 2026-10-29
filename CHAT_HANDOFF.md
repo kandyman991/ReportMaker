@@ -312,3 +312,7 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - Synthetic pure/Qt table tests and Windows 3.11/3.12 v2-inline workflow gate added. See `docs/v2/M3_3_INLINE_TABLES.md`. Exact final head and verification belong in draft PR. Installed Windows DPI/accessibility and direct real Word/PDF appearance are not yet validated. Preserve V1/schema v4/ChatGPT manual website-only scope.
 - Next: independent review M3.3 before merging; then M3.4 remaining insertion and cross-tab draft coordination.
 - Pre-review M3.3 correction: translating-cell drafts now retain transient original-cell coordinates across row/column changes, so typing and returning to exactly the original source cannot falsely stale an otherwise current translation. New targeted regression added (11 table tests). This mapping is ephemeral draft provenance, never serialized or an independent report model.
+
+## V2 M3.3 independent review corrections (2026-10-29)
+- PR #79 original review head `618c77ee3ac5b72afc061dc6e93661deb4a63ded`. Reproduced and corrected stale pending-table draft refresh failure: render the frozen draft read-only with conflict warning/available Revert; canonical Apply still rejects. Rejected row insertion into existing zero-column tables (which previously created ragged rows). Added Qt/pure regressions; see `docs/v2/M3_3_INLINE_TABLES.md` and `docs/CHECKPOINTS.md`.
+- Check final PR head and Windows 3.11/3.12 v2-inline test steps after committing; physical native Windows acceptance remains separate. Next planned V2 milestone M3.4.

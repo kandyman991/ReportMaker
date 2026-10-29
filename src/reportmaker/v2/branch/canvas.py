@@ -1429,7 +1429,15 @@ class BranchCanvas(QScrollArea):
             return False
 
     def _inline_table(self, card, address):
-        rows = self.drafts.table_rows(address)
+        rows, stale = self.drafts.table_preview(address)
+        if stale:
+            warning = QLabel(
+                "Table changed while your edits were pending. You can copy your staged "
+                "text, then Revert; Apply and further edits are blocked.", card)
+            warning.setTextFormat(Qt.TextFormat.PlainText)
+            warning.setWordWrap(True)
+            warning.setObjectName("v2StaleTableDraftWarning")
+            card.layout().addWidget(warning)
         surface = QWidget(card)
         surface.setObjectName("v2InlineTable")
         grid = QGridLayout(surface)
@@ -1446,6 +1454,7 @@ class BranchCanvas(QScrollArea):
                 editor.setObjectName("v2TableCell")
                 editor.setAccessibleName(f"Table row {i + 1}, column {j + 1}")
                 editor.setPlainText(cell.original)
+                editor.setReadOnly(stale)
                 editor.setStyleSheet(
                     "color: #182b3a; background: #f9fbff;"
                     "border: 1px solid #aabbd0; border-radius: 3px;"
@@ -1485,12 +1494,12 @@ class BranchCanvas(QScrollArea):
             button.setToolTip(tooltip)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             enabled = rectangular and {
-                "insert_row": True,
+                "insert_row": not rows or width > 0,
                 "delete_row": len(rows) > 1,
                 "insert_column": bool(rows),
                 "delete_column": width > 1,
             }[operation]
-            button.setEnabled(enabled)
+            button.setEnabled(enabled and not stale)
             if not rectangular:
                 button.setToolTip("Ragged tables permit cell edits only")
             button.clicked.connect(
@@ -1504,6 +1513,7 @@ class BranchCanvas(QScrollArea):
         buttons.setContentsMargins(0, 3, 0, 0)
         apply = QPushButton("Apply table", bar)
         apply.setObjectName("v2ApplyTableDraft")
+        apply.setEnabled(not stale)
         revert = QPushButton("Revert table", bar)
         revert.setObjectName("v2RevertTableDraft")
         apply.clicked.connect(lambda checked=False, a=address: self.apply_table_draft(a))

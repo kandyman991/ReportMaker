@@ -18,3 +18,9 @@
 - M3.3 does not add table-cell rich formatting, merged cells or advanced column width/print controls. No parallel table store or schema migration is introduced.
 
 **Next:** independent PR review and corrections; do not merge without explicit user authorization. Then M3.4 — Remaining Block Insertion and Cross-Tab Draft Coordination.
+
+## Independent review corrections — 2026-10-29
+
+- Reviewed original PR head `618c77ee3ac5b72afc061dc6e93661deb4a63ded`. Reproduced a Qt redraw failure after a pending table draft became stale due to a concurrent canonical table edit. A fresh display-only preview now retains the staged text in read-only cells with a visible conflict warning and usable Revert; editing/Apply remain fail-closed until the draft is resolved. No draft is silently overwritten.
+- Reject an insert-row operation on an existing zero-column table: previously it could create a ragged grid by accident. Insert-column remains available to establish a width; an entirely empty table can still start with one row.
+- Added a Qt stale-refresh/revert regression and a pure empty-dimension regression. Reverify the dedicated hosted Windows Python 3.11/3.12 workflow on the **corrected final commit**, not the previous successful run; installed physical Windows and M3.4 cross-tab acceptance remain pending.

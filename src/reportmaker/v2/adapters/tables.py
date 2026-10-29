@@ -41,6 +41,8 @@ def change_grid(rows: list[list[LocalizedText]], operation: str, index: int,
     if operation == "insert_row":
         if index > len(copy):
             raise ValueError("Row position exceeds the table")
+        if copy and width == 0:
+            raise ValueError("Add a column before inserting rows into a zero-column table")
         copy.insert(index, [LocalizedText(language, "") for _ in range(max(1, width))])
     elif operation == "delete_row":
         if not 0 <= index < len(copy) or len(copy) <= 1:
