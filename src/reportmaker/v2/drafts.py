@@ -1,7 +1,8 @@
 """Uncommitted inline text lives outside the canonical report.
 
 The only way to persist a draft is through M1.2's validated CommandGateway.
-Unresolved drafts block ordinary commands, Undo/Redo, Save and project switches.
+Unresolved drafts block ordinary commands and Undo/Redo. Save, Save As, New, Open and
+Close apply them first as one change, or refuse and keep them (docs/adr/0009).
 Separate fields may be drafted concurrently, but a commit checks that the
 specific canonical source field has not changed since its draft began.
 """
@@ -346,18 +347,35 @@ class DraftCoordinator:
         self._clear(address)
         return self.table_rows(address) if address.field == "table" else self.text(address)
 
-    def commit_batch(self, addresses, *, owner: str):
+    def apply_all(self):
+        """Apply every pending draft, from any editor, as ONE undo step.
+
+        This is the explicit "keep my typing" path used when the user chooses
+        Save, Save As, New, Open or closes the window. Every baseline is
+        inspected before anything executes, so a draft that cannot be applied
+        leaves ALL drafts and the canonical report untouched. Returns the
+        change record, or None when nothing was pending.
+        """
+        keys = tuple(self._drafts)
+        if not keys:
+            return None
+        return self.commit_batch(keys, owner=None)
+
+    def commit_batch(self, addresses, *, owner: str | None):
         """Atomically apply a document editor's draft fields as ONE undo step.
 
         Inspect every baseline and owner before executing anything. A failed
         validation/commit retains all original drafts and canonical content.
+        ``owner=None`` is reserved for :meth:`apply_all`, which applies drafts
+        owned by every editor; named editors must still own all their fields.
         """
         keys = tuple(addresses)
         if not keys or len(set(keys)) != len(keys):
             raise ValueError("Editor batch must have distinct pending fields")
         edits = []
         for address in keys:
-            self._check_owner(address, owner)
+            if owner is not None:
+                self._check_owner(address, owner)
             draft = self._drafts.get(address)
             if draft is None or draft.generation != self.session.generation:
                 raise StaleIntentError("Editor batch has a missing or obsolete draft")

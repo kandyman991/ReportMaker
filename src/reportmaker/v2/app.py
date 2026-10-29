@@ -264,8 +264,8 @@ class V2MainWindow(QMainWindow):
         self._restore_presentation()
         self._update_caption()
         self.statusBar().showMessage(
-            "Edit inline, Apply or Revert drafts before Save/Open; "
-            "New/Open/Save/Save As use portable .rmproj files."
+            "Edit inline; Save applies pending edits for you (Ctrl+Enter applies one, "
+            "Esc reverts it). New/Open/Save/Save As use portable .rmproj files."
         )
 
     def _workspace_changed(self, change) -> None:
@@ -512,25 +512,33 @@ class V2MainWindow(QMainWindow):
         self.presentation.write(key, selected, scroll, collapsed=collapsed)
 
     def _drafts_clean(self) -> bool:
-        if self.branch.drafts.pending:
-            own = self.branch.drafts.pending_addresses(owner="branch")
-            if own:
-                self.tabs.setCurrentWidget(self.branch)
-                self.branch.verticalScrollBar().setValue(0)
-                instruction = (
-                    "There are unapplied edits in Modules. Use the yellow "
-                    "UNAPPLIED EDITS panel at the top: click 'Apply all edits' "
-                    "to keep them, or 'Discard edits…' to revert with confirmation. "
-                    "Then retry Save or switch projects."
-                )
-            else:
-                instruction = (
-                    "There are unapplied edits in Editor. Return to Editor "
-                    "and explicitly Apply or Revert them before continuing."
-                )
-            QMessageBox.warning(self, "Unapplied edits", instruction)
-            return False
-        return True
+        """Apply pending inline edits when the user saves, switches or closes.
+
+        Save, Save As, New, Open and closing are explicit user actions, so any
+        unapplied edit (from Modules and the page Editor together) is applied
+        first as ONE undoable change, then the action continues. Insert, move
+        and drag stay paused behind the yellow recovery panel (unchanged).
+        If a draft cannot be applied (for example its source changed), nothing
+        is saved or closed and every draft is kept, with the reason shown.
+        See docs/adr/0009-save-applies-pending-edits.md.
+        """
+        if not self.branch.drafts.pending:
+            return True
+        problem = self.branch.apply_all_drafts()
+        if problem is None:
+            return True
+        if self.branch.drafts.pending_addresses(owner="branch"):
+            self.tabs.setCurrentWidget(self.branch)
+            self.branch.verticalScrollBar().setValue(0)
+            where = ("Use the yellow UNAPPLIED EDITS panel at the top of Modules "
+                     "to correct, apply or discard them.")
+        else:
+            where = "Return to Editor to correct, apply or revert them."
+        QMessageBox.warning(
+            self, "Unapplied edits",
+            "Your pending edits could not be applied, so nothing was saved or "
+            "closed:\n\n" + problem + "\n\n" + where)
+        return False
 
     def _confirm_transition(self) -> bool | None:
         """Return whether to discard committed changes, or None to cancel.

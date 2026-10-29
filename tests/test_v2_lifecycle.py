@@ -199,27 +199,80 @@ class ProjectLifecycleQtTests(unittest.TestCase):
         self.assertEqual(target.read_bytes(), original_bytes)
         self.assertEqual(self.win.session.path, target)
 
-    def test_pending_drafts_block_new_open_save_close_without_discard(self):
-        from PySide6.QtWidgets import QMessageBox
-        existing = self.folder / "existing.rmproj"
-        save_project(ReportProject(blank_report("Other synthetic customer")), existing)
+    def _stage_title_draft(self, text="Typed but not applied"):
         original = self.win.session.report_snapshot()
         address = NodeAddress(original.id, original.modules[0].id)
         editor = self.win.branch.editor_for(address)
-        editor.setText("Uncommitted title")
+        editor.setText(text)
         editor.textEdited.emit(editor.text())
         self.assertTrue(self.win.branch.drafts.pending)
-        generation = self.win.session.generation
+        return original, address
+
+    def test_save_applies_pending_drafts_instead_of_refusing(self):
+        from PySide6.QtWidgets import QMessageBox
+        original, address = self._stage_title_draft()
+        target = self.folder / "autosaved.rmproj"
         with patch.object(QMessageBox, "warning") as warn:
+            self.assertTrue(self.win.save_project(target))
+            warn.assert_not_called()
+        self.assertFalse(self.win.branch.drafts.pending)
+        saved = load_project(target).report
+        self.assertEqual(saved.modules[0].title.original, "Typed but not applied")
+        self.assertEqual(self.win.session.report_snapshot().modules[0].title.original,
+                         "Typed but not applied")
+        # The applied text is one ordinary undoable step.
+        self.assertTrue(self.win.branch.undo())
+        self.assertEqual(self.win.session.report_snapshot().modules[0].title.original,
+                         original.modules[0].title.original)
+
+    def test_save_as_also_applies_pending_drafts(self):
+        self._stage_title_draft("Applied by Save As")
+        target = self.folder / "saveas.rmproj"
+        self.assertTrue(self.win.save_project_as(target))
+        self.assertEqual(load_project(target).report.modules[0].title.original,
+                         "Applied by Save As")
+
+    def test_new_open_and_close_apply_drafts_then_ask_before_discarding(self):
+        from PySide6.QtWidgets import QMessageBox
+        existing = self.folder / "existing.rmproj"
+        save_project(ReportProject(blank_report("Other synthetic customer")), existing)
+        original, address = self._stage_title_draft()
+        generation = self.win.session.generation
+        cancel = QMessageBox.StandardButton.Cancel
+        with patch.object(QMessageBox, "warning") as warn, \
+                patch.object(QMessageBox, "question", return_value=cancel) as ask:
+            self.assertFalse(self.win.open_project(existing))
+            self.assertFalse(self.win.new_project("Different customer"))
+            self.assertFalse(self.win.close())
+            warn.assert_not_called()
+            # The edit was applied, so the usual Save/Discard/Cancel question
+            # protects it; cancelling keeps the project and the typed text.
+            self.assertGreaterEqual(ask.call_count, 3)
+        self.assertFalse(self.win.branch.drafts.pending)
+        self.assertEqual(self.win.session.generation, generation)
+        self.assertEqual(self.win.session.report_snapshot().modules[0].title.original,
+                         "Typed but not applied")
+
+    def test_unappliable_draft_refuses_everything_and_is_kept(self):
+        from PySide6.QtWidgets import QMessageBox
+        from reportmaker.v2.session import StaleIntentError
+        existing = self.folder / "existing.rmproj"
+        save_project(ReportProject(blank_report("Other synthetic customer")), existing)
+        original, address = self._stage_title_draft()
+        generation = self.win.session.generation
+        failure = StaleIntentError("Source changed since editing began; draft preserved")
+        with patch.object(self.win.branch.drafts, "apply_all", side_effect=failure), \
+                patch.object(QMessageBox, "warning") as warn:
             self.assertFalse(self.win.save_project(self.folder / "should-not-save.rmproj"))
             self.assertFalse(self.win.open_project(existing))
             self.assertFalse(self.win.new_project("Different customer"))
             self.assertFalse(self.win.close())
             self.assertGreaterEqual(warn.call_count, 4)
+            self.assertIn("Source changed", warn.call_args.args[2])
         self.assertFalse((self.folder / "should-not-save.rmproj").exists())
         self.assertEqual(self.win.session.report_snapshot(), original)
         self.assertEqual(self.win.session.generation, generation)
-        self.assertEqual(self.win.branch.drafts.text(address), "Uncommitted title")
+        self.assertEqual(self.win.branch.drafts.text(address), "Typed but not applied")
 
     def test_open_cancel_discard_and_invalid_archive_keep_canonical_project(self):
         from PySide6.QtWidgets import QMessageBox
