@@ -6,6 +6,8 @@ Report Information dialog explicitly applies a validated canonical command.
 """
 from __future__ import annotations
 
+import sqlite3
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
@@ -78,7 +80,7 @@ class CustomerReferencePicker(QDialog):
     def refresh(self, *_args):
         try:
             customers, sites, machines = self.store.list_hierarchy(self.search.text())
-        except (OSError, RuntimeError, ValueError) as exc:
+        except (OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
             # Keep the visible selection; never silently select another record.
             self.status.setText("Cannot read local database: " + str(exc))
             return False
@@ -111,7 +113,7 @@ class CustomerReferencePicker(QDialog):
             customer, site, machine = chosen_ids(self.tree.currentItem())
             snapshot = self.store.capture_snapshot(
                 customer, site_id=site, machine_id=machine)
-        except (OSError, RuntimeError, ValueError, LookupError) as exc:
+        except (OSError, RuntimeError, ValueError, LookupError, sqlite3.Error) as exc:
             self.status.setText("Selection rejected: " + str(exc))
             return False
         self.snapshot = snapshot
