@@ -525,3 +525,15 @@ Next reproducible action:
 - Reconciled draft M7.1 PR #92 with merged CI hygiene PR #93, preserving its M0 pull-request/main-push/dispatch coverage, `AGENTS.md` batching rule, and trigger tests. Main tip before reconciliation: `e3cb921b6ebff6632fa5c100e77c189a7c7506c1`, original M7.1 implementation head: `b1af79efbce8a561f255d277895e5aad28dbdf5e`.
 - Verified prior M7.1 head's hosted Windows packaging job success (40895087991), M0 (40895088076), M1 (40895087976), and continuity (40895087981). All source smoke, static tests, frozen V2 launch, Inno local build, installed offline smoke and uninstall steps passed. No physical/manual Windows evidence.
 - Fixed F03: add full frozen payload SHA-256 comparison to the installed tree, detecting missing/modified libraries, Qt assets or resources beyond the launcher exe. Fixed F04: packaging workflow PR path filter now watches all `src/reportmaker/**` runtime changes, Windows packaging inputs and V2 test modules. Static regressions added. Final updated-head Windows CI, regression and separate merge approval remain REQUIRED. No release upload or default promotion.
+
+## CP-V2-M72-START — 2026-10-29
+
+- User authorized M7.1 merge and M7.2 start. M7.1 PR #92 merged into main at `83ef81ab798c100f521a84c745796e895d411206` after final-head hosted M0/M1/continuity and M7.1 installer preflight green (40899326370). No V2 publishing or V1 replacement.
+- M7.2 issue #94, parent #90; isolated feature branch `feature/v2-m7-2-migration-acceptance` from main `b84c6cb16973b35af8ed7e10ca038812e15a5b80`. Added synthetic v1–v5 project schema/Save As byte-preservation matrix, report IDs/snapshots/media/translation validations, rejected malformed/future ZIP records, rollback of active session/target on error and V1 installer identity guard; dedicated Windows 3.11/3.12 CI alongside existing regression suites.
+- This is implementation in progress, not independent acceptance: verify exact head Windows CI and review migration/security/compatibility, correct all findings, then seek separate explicit merge authorization. Native PC features, Word visual, real ChatGPT browser login, public installer and default promotion remain outside M7.2.
+
+## CP-V2-M72-REVIEW — 2026-10-29
+- Independently inspected M7.2 PR #95 against AGENTS.md, V2 architecture, v1–v5 ZIP serializer, canonical ReportSession, and M7.2 issue #94. No production model replacement or new browser/network channel.
+- Original PR head `3e2ac2d071a2f3869ad6f4beaba6957f831203e1` completed M0 (40902786794), M1 (40902786639), continuity (40902786784), M7.2 synthetic Windows 3.11/3.12 (40902787315), and M7.1 Windows frozen/installer/offline smoke (40902786864); M6.5/M6.6 conditionally skipped.
+- Review F01/F02/F03 corrected as targeted assertions and negative tests: non-default rich formatting for v4-v5 vs legacy defaults; v5 approved translation/provenance; dangerous ZIP member/compression and invalid-session rollback.
+- No physical native 33-case RM-BE signoff, live browser/Word compatibility or V2 publication. Exact **corrected** PR-head green CI still required before accepting merge. User explicitly requested this M7.2 review/fix/merge gate.
