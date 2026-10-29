@@ -6,11 +6,13 @@ manually entered snapshots remain detached, portable and project-local.
 from __future__ import annotations
 
 from dataclasses import replace
+import sqlite3
+from pathlib import Path
 
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
-    QLabel, QLineEdit, QVBoxLayout,
+    QLabel, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout,
 )
 
 from ..reference import manual_snapshot
@@ -25,11 +27,12 @@ _TYPES = (
 
 
 class ReportInfoDialog(QDialog):
-    def __init__(self, session, gateway, parent=None):
+    def __init__(self, session, gateway, parent=None, *, database_path: Path | None = None):
         super().__init__(parent)
         self.setObjectName("v2ReportInfo")
         self.setWindowTitle("Report information")
         self.session, self.gateway = session, gateway
+        self.database_path = database_path
         report = session.report_snapshot()
         self._revision, self._generation = session.revision, session.generation
         self._snapshot = report.customer_snapshot
@@ -80,6 +83,16 @@ class ReportInfoDialog(QDialog):
             form.addRow("Intervention type", control)
             self.types[key] = control
         layout.addLayout(form)
+        reference_buttons = QHBoxLayout()
+        choose_db = QPushButton("Choose from local database…", self)
+        choose_db.setObjectName("v2ChooseCustomerDatabase")
+        choose_db.clicked.connect(self.choose_database)
+        reference_buttons.addWidget(choose_db)
+        choose_manual = QPushButton("Use one-off manual details", self)
+        choose_manual.setObjectName("v2ChooseManualCustomer")
+        choose_manual.clicked.connect(self.use_manual)
+        reference_buttons.addWidget(choose_manual)
+        layout.addLayout(reference_buttons)
         self.status = QLabel("")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -89,6 +102,33 @@ class ReportInfoDialog(QDialog):
         buttons.accepted.connect(self.apply_changes)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def choose_database(self):
+        """Stage a frozen reference; only Apply changes the report project."""
+        from ..storage import CustomerStore
+        from .reference_picker import CustomerReferencePicker
+        try:
+            with CustomerStore(self.database_path) as store:
+                picker = CustomerReferencePicker(store, self)
+                if picker.exec() != QDialog.DialogCode.Accepted or picker.snapshot is None:
+                    return False
+                selected = picker.snapshot
+        except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
+            self.status.setText("Local customer database unavailable: " + str(exc))
+            return False
+        self._snapshot = selected
+        for key in ("customer_name", "site_name", "machine_name", "machine_serial"):
+            self.fields[key].setText(getattr(selected, key))
+        self.status.setText("Detached database snapshot staged. Apply to save it in this report.")
+        return True
+
+    def use_manual(self):
+        # Only remove master linkage inside this dialog; master data is untouched.
+        self._snapshot = None
+        self.status.setText(
+            "Manual customer mode staged. The current field text will be saved "
+            "without database identifiers only after Apply.")
+        return True
 
     def _build_args(self):
         get = lambda key: self.fields[key].text().strip()
@@ -115,6 +155,7 @@ class ReportInfoDialog(QDialog):
                                    if control.isChecked()],
             "other_intervention_detail": get("other_intervention_detail"),
             "customer_snapshot": snapshot,
+            "customer_id": snapshot.customer_id,
             "primary_language": get("primary_language"),
             "output_languages": [value.strip() for value in get("output_languages").split(",")
                                  if value.strip()],
