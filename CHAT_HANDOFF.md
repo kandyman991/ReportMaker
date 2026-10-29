@@ -409,3 +409,9 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - The supplied JSON reports **3 pages before and after field update**, **4 PAGEREF fields**, **0 unresolved references**. No approved Word baseline (`expected_word_pages=0`) or Word/PDF equality assertion was requested; native Word build, Windows edition, DPI/fonts not captured. Evidence and residual scope are documented in `docs/v2/M6_6_WORD_ACCEPTANCE.md`.
 - PR #88 received independent review with three corrections; Linux/offscreen 441 tests and **9/9 applicable exact-code-head GitHub workflows** passed. User gave explicit authorization to review/fix/merge #88; check documentation-final HEAD CI, then merge if unchanged review/technical scope and green.
 - Still outside this gate: extensive native layout/template matrix, installed V2 app DPI/device checks, M6.7 Checkpoint C, V2-default promotion and public installer/release. Do not call those complete.
+
+## 2026-10-29 — M6.7 integration started after M6.6 accepted/merged
+
+- Verified M6.6 [PR #88](https://github.com/kandyman991/ReportMaker/pull/88) merged with native synthetic Word 16.0 evidence. Post-merge main base `e2a44f78ade51cf5879481c23b7377bb57770195`. Created isolated `feature/v2-m6-7-checkpoint-c` for final M6 Checkpoint C, issue #87.
+- New full report synthetic Qt user-path gate covers shared Modules/Editor/Gallery/Preview state, manual snapshot, approvals, annotations, save/reopen, derived TOC, DOCX/PDF proof and ZIP, with unsaved/stale/failed-export rollback and browser data exclusion. Corrected draft-state window title updates for page/branch drafts, with no report model or schema change.
+- Added dedicated Windows Python 3.11/3.12 workflow plus full V2 CI step. Full tests, final-head hosted CI and independent acceptance review are required before requesting separate approval to merge. No V2 installer, default promotion, browser automation or M7 acceptance.

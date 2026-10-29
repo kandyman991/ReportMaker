@@ -117,6 +117,9 @@ class V2MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self.session.subscribe(self._workspace_changed)
         self.session.subscribe(lambda _: self._update_caption())
+        # Staging a draft does not publish a canonical revision; separately
+        # reflect unapplied changes in the window's unsaved marker immediately.
+        self.branch.drafts.subscribe_pending(lambda _pending: self._update_caption())
 
         toolbar = self.addToolBar("Project and branch actions")
         toolbar.setObjectName("v2BranchActions")
