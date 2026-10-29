@@ -20,6 +20,7 @@ from ..export import ExportError, ExportStyle, export_project
 from ..model import PhotoVisual, validate_language_tag
 from ..project_io import ReportProject
 from .localized_export import localized_project
+from .metadata_locale import resolve_export_metadata
 
 
 def export_language_bundle(
@@ -35,8 +36,8 @@ def export_language_bundle(
 
     Language tags are the exact BCP-47-style choices stored in the report;
     language-specific source content is checked field-by-field with no fallback.
-    Boilerplate labels and plain metadata are still English/source-only pending
-    the separately scoped metadata-localization architecture.
+    M6.5 requires explicit approved metadata/boilerplate translations for
+    each target language; an incomplete member aborts the whole archive.
     """
     if not isinstance(project, ReportProject):
         raise ExportError("An editable ReportMaker project is required")
@@ -71,6 +72,7 @@ def export_language_bundle(
         root = Path(temp)
         members = []
         for language in selected:
+            labels = resolve_export_metadata(project.report, language, style=style)
             translated = localized_project(project, language)
             for fmt in formats:
                 # Language syntax allows only ASCII letters, digits and '-',
@@ -83,14 +85,14 @@ def export_language_bundle(
                 name = f"report_{safe}.{fmt}"
                 export_project(
                     translated, root / name, format=fmt, style=style,
-                    visual_renderer=visual_renderer)
+                    visual_renderer=visual_renderer, locale_labels=labels)
                 members.append({"language": language, "format": fmt, "file": name})
         manifest = {
             "schema": "reportmaker-v2-language-bundle-1",
             "source_language": project.report.primary_language,
             "languages": selected,
             "files": members,
-            "metadata_localization": "Labels are English; metadata values remain as stored.",
+            "metadata_localization": "Strict approved per-language labels, intervention types and other details; proper names and identifiers remain canonical.",
         }
         handle, scratch = tempfile.mkstemp(
             prefix=".reportmaker-language-bundle-", suffix=".zip",
