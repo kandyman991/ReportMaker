@@ -157,4 +157,4 @@ Deliverables:
 - Invariants and module/service boundaries: [V2 architecture](ARCHITECTURE.md)
 - V1 source of truth stays [root architecture contract](../../ARCHITECTURE.md), [report composition](../REPORT_COMPOSITION_CONTRACT.md) and [existing roadmap](../../ROADMAP.md).
 
-**Current next action (2026-10-29):** Complete the dedicated [M6.7 end-to-end Checkpoint C](M6_7_PROGRESS.md) after merged PR #83, #84 and #88. Verify full hosted Windows 3.11/3.12 CI, independently review the synthetic round-trip and remaining risks, then seek user authorization to merge. M7 installer and default-V2 promotion remain separate.
+**Current next action (2026-10-29):** M6.7 [PR #89](https://github.com/kandyman991/ReportMaker/pull/89) is independently reviewed and merged (commit `6cd9565a1514e84c1ee2a21543174dafef4c911e`), completing synthetic Checkpoint C. Begin [M7.1](M7_PLAN.md) on an isolated draft branch: build a **V2-specific** Windows installer with distinct V1 identity and safe installed-offline CI smoke, then separately review. All 33 physical Windows acceptance cases remain pending; do not release V2 or change the default without separate user authorization.
