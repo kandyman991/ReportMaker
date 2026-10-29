@@ -73,6 +73,213 @@ class WordPrintGeometryTests(unittest.TestCase):
             self.assertAlmostEqual(float(pages[0].mediabox.height), Cm(25).pt, delta=1)
 
 
+class RichWordFidelityTests(unittest.TestCase):
+    def test_alpha_decimal_bullets_continue_and_restart_in_editable_word_numbering(self):
+        from docx.oxml.ns import qn
+        from reportmaker.model import ParagraphBlock, LocalizedText
+        from reportmaker.rich_text import RichFormatting, ParagraphStyle
+
+        project = synthetic_project()
+        sequence = [
+            ("Decimal one", "decimal"),
+            ("Decimal two", "decimal"),
+            ("Plain separator", "none"),
+            ("Restart decimal", "decimal"),
+            ("Lower one", "lower-alpha"),
+            ("Lower two", "lower-alpha"),
+            ("Upper one", "upper-alpha"),
+            ("Upper two", "upper-alpha"),
+            ("Bullet one", "bullet"),
+            ("Bullet two", "bullet"),
+        ]
+        text = "\n".join(label for label, _ in sequence)
+        specs = []
+        index = 0
+        for label, kind in sequence:
+            if kind != "none":
+                specs.append(ParagraphStyle(index, list_kind=kind))
+            index += len(label) + 1
+        module = project.report.modules[0]
+        module.blocks[0] = ParagraphBlock(
+            LocalizedText("it", text), rich=RichFormatting(paragraphs=specs))
+        module.blocks.insert(1, ParagraphBlock(
+            LocalizedText("it", "Bullet three\nOrdinary ending"),
+            rich=RichFormatting(paragraphs=[ParagraphStyle(0, list_kind="bullet")])))
+        original = deepcopy(project)
+        with TemporaryDirectory() as directory:
+            dest = Path(directory) / "lists.docx"
+            export_project(project, dest, format="docx")
+            doc = Document(dest)
+            expected = sequence + [("Bullet three", "bullet"),
+                                   ("Ordinary ending", "none")]
+            found = {paragraph.text: paragraph for paragraph in doc.paragraphs
+                     if paragraph.text in dict(expected)}
+            self.assertEqual(set(found), {text for text, _ in expected})
+            root = doc.part.numbering_part.element
+            numbering = {int(num.get(qn("w:numId"))):
+                         int(num.xpath("./w:abstractNumId")[0].get(qn("w:val")))
+                         for num in root.xpath("./w:num")}
+            formats = {int(abst.get(qn("w:abstractNumId"))):
+                       abst.find(qn("w:lvl")).find(qn("w:numFmt")).get(qn("w:val"))
+                       for abst in root.xpath("./w:abstractNum")}
+            groups = []
+            for label, kind in expected:
+                numpr = found[label]._p.pPr.numPr
+                if kind == "none":
+                    self.assertIsNone(numpr, label)
+                    groups.append(None)
+                    continue
+                self.assertIsNotNone(numpr, label)
+                number = int(numpr.numId.val)
+                self.assertEqual(formats[numbering[number]], {
+                    "decimal": "decimal", "lower-alpha": "lowerLetter",
+                    "upper-alpha": "upperLetter", "bullet": "bullet"}[kind])
+                groups.append(number)
+            self.assertEqual(groups[0], groups[1])
+            self.assertNotEqual(groups[0], groups[3])  # reset after plain
+            self.assertNotEqual(groups[3], groups[4])  # kind change
+            self.assertEqual(groups[4], groups[5])
+            self.assertNotEqual(groups[5], groups[6])
+            self.assertEqual(groups[6], groups[7])
+            self.assertEqual(groups[8], groups[9])
+            self.assertEqual(groups[9], groups[10])  # next canonical block
+            self.assertIsNone(groups[-1])
+        self.assertEqual(project, original)
+
+    def test_run_size_line_pitch_heading_flow_and_manual_page_break(self):
+        from docx.shared import Pt
+        from reportmaker.model import ParagraphBlock, HeadingBlock, LocalizedText
+        from reportmaker.rich_text import RichFormatting, TextRun, ParagraphStyle
+        project = synthetic_project()
+        module = project.report.modules[0]
+        module.blocks[0] = ParagraphBlock(
+            LocalizedText("it", "Large text normal text"),
+            rich=RichFormatting(
+                runs=[TextRun(0, 10, size=28, bold=True, color="#336699")],
+                paragraphs=[ParagraphStyle(0, align="justify", line_height=1.5)]))
+        child = module.blocks[1].module
+        child.blocks[-1] = HeadingBlock(
+            LocalizedText("it", "Rich heading"), level=2,
+            rich=RichFormatting(paragraphs=[ParagraphStyle(0, line_height=1.25)]))
+        style = ExportStyle(heading_font="Cambria", heading_size_pt=24,
+                            normal_font="Calibri", normal_size_pt=12)
+        before = deepcopy(project)
+        with TemporaryDirectory() as directory:
+            word = Path(directory) / "rich.docx"
+            pdf = Path(directory) / "rich.pdf"
+            export_project(project, word, format="docx", style=style)
+            export_project(project, pdf, format="pdf", style=style)
+            doc = Document(word)
+            large = next(p for p in doc.paragraphs
+                         if p.text == "Large text normal text")
+            self.assertAlmostEqual(large.paragraph_format.line_spacing.pt,
+                                   28 * 1.4 * 1.5, delta=.1)
+            self.assertEqual(large.paragraph_format.alignment, 3)  # JUSTIFY
+            self.assertEqual(large.runs[0].font.size.pt, 28)
+            rich = next(p for p in doc.paragraphs if p.text == "Rich heading")
+            self.assertTrue(rich.paragraph_format.keep_with_next)
+            self.assertEqual(rich.runs[0].font.size.pt, 24 - 2)
+            self.assertEqual(rich.runs[0].font.name, "Cambria")
+            self.assertEqual(doc.styles["Heading 1"].font.size.pt, 24)
+            self.assertEqual(doc.styles["Heading 2"].font.size.pt, 23)
+            self.assertEqual(doc.styles["Heading 3"].font.size.pt, 22)
+            self.assertEqual(doc.styles["Heading 3"].font.name, "Cambria")
+            self.assertAlmostEqual(rich.paragraph_format.line_spacing.pt,
+                                   22 * 1.4 * 1.25, delta=.1)
+            module_heading = next(p for p in doc.paragraphs
+                                  if p.text == "1 Verifica linea")
+            self.assertTrue(module_heading.paragraph_format.keep_with_next)
+            self.assertEqual(len(PdfReader(pdf).pages) >= 3, True)
+            self.assertIn("Rich heading", "\n".join(
+                page.extract_text() for page in PdfReader(pdf).pages))
+        self.assertEqual(project, before)
+
+    def test_annotated_photo_and_page_break_are_retained_in_both_outputs(self):
+        from reportmaker.model import PhotoMark, PhotoVisual
+        from reportmaker.v2.visual_export import annotated_png
+        project = synthetic_project()
+        child = project.report.modules[0].blocks[1].module
+        photo = child.blocks[1]
+        photo.visual = PhotoVisual(
+            width_pct=80, alignment="center",
+            marks=[PhotoMark("arrow", .1, .2, .8, .75, color="#dd2233")])
+        before = deepcopy(project)
+        style = ExportStyle(page_width_cm=17, page_height_cm=24,
+                            left_margin_cm=1.6, right_margin_cm=1.6,
+                            top_margin_cm=2, bottom_margin_cm=1.8)
+        with TemporaryDirectory() as directory:
+            word = Path(directory) / "annotated.docx"
+            pdf = Path(directory) / "annotated.pdf"
+            for fmt, target in (("docx", word), ("pdf", pdf)):
+                export_project(project, target, format=fmt, style=style,
+                               visual_renderer=annotated_png)
+            doc = Document(word)
+            self.assertEqual(len(doc.inline_shapes), 1)
+            self.assertTrue(any("w:type=\"page\"" in p._p.xml or
+                                "<w:br w:type=\"page\"" in p._p.xml
+                                for p in doc.paragraphs))
+            text = "\n".join(page.extract_text() for page in PdfReader(pdf).pages)
+            self.assertIn("Dettagli", text)
+            self.assertIn("Foto dimostrativa", text)
+        self.assertEqual(project, before)
+
+
+class DeepReportFidelityTests(unittest.TestCase):
+    def test_deep_ordered_modules_and_multiline_tables_export_without_mutation(self):
+        from reportmaker.model import Module, NestedModuleBlock, ParagraphBlock
+        project = synthetic_project()
+        parent = project.report.modules[-1]
+        for level in range(18):
+            child = Module(
+                LocalizedText("it", "Nested fidelity level " + str(level)),
+                [ParagraphBlock(LocalizedText(
+                    "it", ("Unicode inspection café 日本語 " * 5) + str(level)))])
+            if level % 4 == 0:
+                child.blocks.append(TableBlock([[
+                    LocalizedText("it", f"Value {level}"),
+                    LocalizedText("it", "Multiple readings\nVerified status"),
+                ]]))
+            parent.blocks.append(NestedModuleBlock(child))
+            parent = child
+        original = deepcopy(project)
+        with TemporaryDirectory() as directory:
+            docx = Path(directory) / "nested.docx"
+            pdf = Path(directory) / "nested.pdf"
+            for fmt, dest in (("docx", docx), ("pdf", pdf)):
+                export_project(project, dest, format=fmt)
+            headings = [p.text for p in Document(docx).paragraphs]
+            body = "\n".join(p.extract_text() for p in PdfReader(pdf).pages)
+            for level in range(18):
+                title = "Nested fidelity level " + str(level)
+                self.assertTrue(any(title in h for h in headings), title)
+                self.assertIn(title, body)
+            body_start = headings.index("2 Prova")
+            first_child = next(i for i, heading in enumerate(headings)
+                               if i > body_start and "Nested fidelity level 0" in heading)
+            last_child = next(i for i, heading in enumerate(headings)
+                              if i > body_start and "Nested fidelity level 17" in heading)
+            self.assertLess(body_start, first_child)
+            self.assertLess(first_child, last_child)
+            self.assertLess(last_child, headings.index("Conclusioni"))
+        self.assertEqual(project, original)
+
+    def test_tight_template_pdf_overflow_preserves_existing_customer_file(self):
+        from reportmaker.export import ExportError
+        project = synthetic_project()
+        project.report.modules[0].blocks.append(TableBlock([[
+            LocalizedText("it", "Synthetic oversized row\n" * 340)]]))
+        style = ExportStyle(page_width_cm=15, page_height_cm=20,
+                            left_margin_cm=2, right_margin_cm=2,
+                            top_margin_cm=2.5, bottom_margin_cm=1.8)
+        with TemporaryDirectory() as directory:
+            pdf = Path(directory) / "user-existing.pdf"
+            pdf.write_bytes(b"EXISTING CUSTOMER FILE")
+            with self.assertRaisesRegex(ExportError, "does not fit"):
+                export_project(project, pdf, format="pdf", style=style)
+            self.assertEqual(pdf.read_bytes(), b"EXISTING CUSTOMER FILE")
+            self.assertFalse(list(Path(directory).glob(".reportmaker-export-*")))
+
+
 @unittest.skipUnless(os.environ.get("QT_QPA_PLATFORM") == "offscreen",
                      "Offscreen Qt geometry; real Windows DPI acceptance separate")
 class NaturalPageFidelityTests(unittest.TestCase):
