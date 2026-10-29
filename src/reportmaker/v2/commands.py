@@ -50,6 +50,7 @@ _KINDS = {
     "add_photo": ({"asset_id"}, {"index"}),
     "import_photo": ({"image_bytes", "name"}, {"index"}),
     "import_photos": ({"photos"}, {"index"}),
+    "import_library_photos": ({"photos"}, set()),
     "replace_photo_import": ({"image_bytes", "name"}, set()),
     "replace_photo": ({"asset_id"}, set()),
     "set_photo_caption": ({"text"}, set()),
@@ -110,7 +111,7 @@ class CommandGateway:
             if (not isinstance(intent.args["image_bytes"], bytes)
                     or not isinstance(intent.args["name"], str)):
                 raise ValueError("Import requires detached image bytes and a label")
-        if intent.kind == "import_photos":
+        if intent.kind in ("import_photos", "import_library_photos"):
             from ..media_import import MAX_IMPORT_BATCH
             photos = intent.args["photos"]
             if (not isinstance(photos, (list, tuple))
@@ -119,6 +120,10 @@ class CommandGateway:
                            or not isinstance(photo[0], str)
                            or not isinstance(photo[1], bytes) for photo in photos)):
                 raise ValueError("Import batch must contain validated (name, bytes) pairs")
+        if intent.kind == "import_library_photos":
+            if intent.target is not None:
+                raise ValueError("Library import cannot carry a report placement")
+            return
         if intent.kind == "set_photo_visual":
             validate_photo_visual(intent.args["visual"])
         value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich", "set_photo_caption") else "title"
@@ -234,11 +239,11 @@ class CommandGateway:
                                frozenset({address.block_id}))
             self._session._publish(change)
             return change
-        if kind in ("import_photo", "import_photos", "replace_photo_import"):
+        if kind in ("import_photo", "import_photos", "import_library_photos", "replace_photo_import"):
             from ..project_io import ReportProject, _assets_checked
             staged = ReportProject(deepcopy(editor.report),
                                    dict(self._session.assets), dict(self._session.media_library))
-            photos = (args["photos"] if kind == "import_photos"
+            photos = (args["photos"] if kind in ("import_photos", "import_library_photos")
                       else [(args["name"], args["image_bytes"])])
             imports = [
                 StagedPicture(name, ImportedPicture(
@@ -250,7 +255,14 @@ class CommandGateway:
                 PhotoBlock(asset_id, LocalizedText(editor.report.primary_language, ""))
                 for asset_id in asset_ids
             ]
-            if kind in ("import_photo", "import_photos"):
+            if kind == "import_library_photos":
+                def edit(report):
+                    # A single canonical editor history step keeps asset-only
+                    # transactions aligned with session media undo/redo.
+                    return None
+                changed_ids = frozenset(asset_ids)
+                structure = False
+            elif kind in ("import_photo", "import_photos"):
                 def edit(report):
                     module = find_node(report, address)
                     at = args.get("index", len(module.blocks))
