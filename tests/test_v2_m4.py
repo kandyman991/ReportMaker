@@ -143,6 +143,35 @@ class PhotoCoreTests(unittest.TestCase):
         self.assertNotIn(new_asset, self.session.assets)
         self.assertEqual(self.block(photo_id).asset_id, asset)
 
+    def test_replacing_with_same_asset_resets_layers_and_preserves_undo(self):
+        photo_id = next(iter(self.command(
+            "import_photo", image_bytes=png(), name="Reusable").changed_ids))
+        photo_addr = NodeAddress(self.para.report_id, self.para.module_id, photo_id, "photo")
+        asset_id = self.block(photo_id).asset_id
+        visual = PhotoVisual(rotation=90, width_pct=65, flip_h=True)
+        self.command("set_photo_visual", photo_addr, visual=visual)
+        original_bytes = self.session.assets[asset_id]
+        before_revision = self.session.revision
+
+        # Explicitly replacing an edited placement with its *same* project
+        # image must clear its layers, not silently treat the action as a no-op.
+        change = self.command("replace_photo", photo_addr, asset_id=asset_id)
+        self.assertIsNotNone(change)
+        self.assertTrue(change.assets_changed)
+        self.assertEqual(self.session.revision, before_revision + 1)
+        self.assertEqual(self.block(photo_id).asset_id, asset_id)
+        self.assertEqual(self.block(photo_id).visual, PhotoVisual())
+        self.assertEqual(self.session.assets[asset_id], original_bytes)
+        self.gateway.undo(self.session.generation, self.session.revision)
+        self.assertEqual(self.block(photo_id).visual, visual)
+        self.gateway.redo(self.session.generation, self.session.revision)
+        self.assertEqual(self.block(photo_id).visual, PhotoVisual())
+
+        # The same replacement without edits remains a genuine no-op.
+        before_revision = self.session.revision
+        self.assertIsNone(self.command("replace_photo", photo_addr, asset_id=asset_id))
+        self.assertEqual(self.session.revision, before_revision)
+
     def test_caption_changes_translation_provenance_and_draft_ownership(self):
         photo_id = next(iter(self.command(
             "import_photo", image_bytes=png(), name="Caption").changed_ids))
