@@ -13,7 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRect, QSize, Qt, QTimer, Signal, QUrl
-from PySide6.QtGui import QColor, QDrag, QImage, QPixmap, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
+from PySide6.QtGui import QColor, QDrag, QImage, QPalette, QPixmap, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QInputDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit,
     QPlainTextEdit, QDialog, QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
@@ -30,6 +30,7 @@ from ...rich_text import RichFormatting, style_at
 from ..adapters.formatting import (
     paragraph_uniform, selection_uniform, to_codepoint,
 )
+from ..contrast import BUTTON_CHROME, FIELD_CHROME
 from .rich_preview import paint_rich
 from ...model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock,
@@ -1435,6 +1436,7 @@ class BranchCanvas(QScrollArea):
         ):
             button = QPushButton(caption, card)
             button.setObjectName(name)
+            button.setToolTip(caption + " (the pending edits must be applied first)")
             button.clicked.connect(lambda checked=False, cb=callback: cb())
             toolbar.addWidget(button)
         toolbar.addStretch(1)
@@ -1444,6 +1446,11 @@ class BranchCanvas(QScrollArea):
         caption_editor = InlineParagraph(card)
         caption_editor.setObjectName("v2PhotoCaption")
         caption_editor.setPlaceholderText("Photo caption (optional)")
+        # Native dark themes otherwise use a faint white placeholder on the
+        # white branch/photo card. Keep a readable subdued dark hint.
+        palette = caption_editor.palette()
+        palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#536375"))
+        caption_editor.setPalette(palette)
         caption_editor.setPlainText(self.drafts.text(caption_addr))
         stale = self.drafts.text_stale(caption_addr)
         external = self.drafts.draft_owner(caption_addr) not in (None, "branch")
@@ -2624,7 +2631,10 @@ class BranchCanvas(QScrollArea):
                                            zoom_pct=self._zoom_pct))
             card = QFrame(row)
             card.setObjectName("v2BranchCard")
-            card.setStyleSheet("QFrame#v2BranchCard { background: white; border: 1px solid #cbd5e1; border-radius: 8px; }")
+            card.setStyleSheet(
+                "QFrame#v2BranchCard { background: #ffffff;"
+                " border: 1px solid #cbd5e1; border-radius: 8px; }"
+                + BUTTON_CHROME + FIELD_CHROME)
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(15, 9, 15, 10)
             card_layout.setSpacing(3)
@@ -2707,7 +2717,8 @@ class BranchCanvas(QScrollArea):
             self._zoom_row(row)
             if identifier == self._search_target:
                 card.setStyleSheet("QFrame#v2BranchCard { background: #fff5d1;"
-                                   " border: 2px solid #a36a00; border-radius: 8px; }")
+                                   " border: 2px solid #a36a00; border-radius: 8px; }"
+                                   + BUTTON_CHROME + FIELD_CHROME)
             self._body.addWidget(row)
         if self._page_count > 1 and self._page < self._page_count - 1:
             button = QPushButton(

@@ -90,6 +90,7 @@ class M7PackageContractTests(unittest.TestCase):
             "ReportMaker-V2-M7.iss", "Start-Process", "/VERYSILENT",
             "Get-FileHash", "unins000.exe", "persist-credentials: false",
             "test_v2_m73_native_draft_recovery.py",
+            "test_v2_m73_photo_contrast.py",
         ):
             self.assertIn(marker, workflow)
         for forbidden in (

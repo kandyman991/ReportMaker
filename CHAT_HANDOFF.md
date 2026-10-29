@@ -458,3 +458,9 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - User installed/launched unsigned V2 QA installer from workflow run 40911125858 on a real Windows PC; build source `9315a93ddce28277bb7c0ea7a1d6d5ab5ebec94a`, setup SHA-256 `48a305aa4a3869a3803592446475c64f9112490f0d387f8efbf8bb187ecaa8c1`. **Install/open smoke succeeds.** BE-L01 is **blocked, 0/33 accepted**.
 - Native screenshot and user report: typing/rich formatting works but subsequent add module, paragraph, photo, drag and Save appear blocked. Save's Unapplied edits modal is shown; Apply/Revert on cards are nearly invisible. Logged as issue #98, linked to M7.3 #96 and draft PR #97.
 - Code trace shows intentional pending-draft command guard with poor user-visible recovery. A correction is being developed on PR #97 with high-contrast, explicit atomic Apply all / confirmed Discard banner; no implicit auto-commit or V1 change. Must independently review, pass exact-head Windows CI, rebuild short-lived QA installer and retest physically before treating BE-L01 as passed.
+
+## 2026-10-29 — M7.3 photo-control readability feedback
+
+- Physical Windows screenshot of V2 Picture Editor shows pale-on-pale annotation tools and low-contrast photo-card controls; tracked as issue #99. Do not include user's supplied mechanical photo in public GitHub issue.
+- Fix on draft PR #97 is V2-scoped explicit Qt button/input colors under dark/light palettes and separate photo tool/action rows. Synthetic palette/contrast test is added to hosted Windows M7.1 packaging preflight; physical Windows retest and 33-case signoff remain open.
+- Issue #98 pending-edit recovery was previously corrected on PR #97 at `f7081a2d37da3de7b56fe977162dbf20ec7c7f11`, QA installer run 40916784586. After the photo styling change, **use only the newer exact-head QA build** for future evidence; any previous QA installer is superseded. Do not merge M7.3, publish V2 or remove V1 fallback.

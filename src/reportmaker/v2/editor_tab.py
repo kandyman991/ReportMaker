@@ -20,6 +20,7 @@ from ..engine import module_outline
 from ..export import ExportStyle
 from ..model import HeadingBlock, ParagraphBlock, PhotoBlock, TableBlock
 from ..photo_editor import render_photo
+from .contrast import BUTTON_CHROME
 from .navigation import subtree_range, window_for
 from .projections import NodeAddress, find_node, project_branch
 
@@ -196,6 +197,9 @@ class DocumentEditorTab(QWidget):
     def __init__(self, session, branch, parent=None):
         super().__init__(parent)
         self.setObjectName("v2DocumentEditorTab")
+        # Explicit button foreground/background only; document typography
+        # and printable paper colors stay owned by the editor projection.
+        self.setStyleSheet(BUTTON_CHROME)
         self.session, self.branch = session, branch
         self.port = branch.drafts.for_editor("page-editor")
         self.style = ExportStyle()

@@ -14,6 +14,7 @@ from ..media_import import (
     INPUT_SUFFIXES, PictureImportError, convert_picture_bytes, stage_pictures,
 )
 from ..photo_gallery import ProjectPictureList, clipboard_image_png, local_picture_paths
+from .contrast import BUTTON_CHROME, FIELD_CHROME
 from .commands import CommandGateway, CommandIntent
 from .session import ReportSession
 
@@ -24,6 +25,7 @@ class GalleryTab(QWidget):
     def __init__(self, session: ReportSession, gateway: CommandGateway, branch, parent=None):
         super().__init__(parent)
         self.setObjectName("v2GalleryTab")
+        self.setStyleSheet(BUTTON_CHROME + FIELD_CHROME)
         self.session, self.gateway, self.branch = session, gateway, branch
         self.on_inserted = None
         layout = QVBoxLayout(self)
