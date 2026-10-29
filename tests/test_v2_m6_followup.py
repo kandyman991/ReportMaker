@@ -258,6 +258,24 @@ class ReferenceAndTranslationQtTests(unittest.TestCase):
                         "set_translation", None,
                         {"language": "de", "key": key, "text": "DE · " + field.original},
                         self.win.session.revision, self.win.session.generation))
+            # M6.5 additionally requires customer-visible metadata and
+            # generated labels to be manually approved (no English fallback).
+            from reportmaker.v2.metadata_locale import (
+                MetadataLocale, source_digest, visible_metadata_keys,
+            )
+            report = self.win.session.report_snapshot()
+            locale = MetadataLocale(report)
+            for key in visible_metadata_keys(report):
+                source, source_language = locale.source(key)
+                if source_language.casefold() == "de" or not source.strip():
+                    continue
+                self.win.gateway.execute(CommandIntent(
+                    "set_metadata_translation", None,
+                    {"language": "de", "key": key,
+                     "text": "DE · " + source,
+                     "expected_source_sha256": source_digest(
+                         key, source_language, source)},
+                    self.win.session.revision, self.win.session.generation))
             self.assertTrue(preview.export_to(output, "docx"))
             document = Document(output)
             self.assertTrue(any("DE · " in paragraph.text
