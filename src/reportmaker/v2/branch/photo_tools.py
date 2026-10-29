@@ -47,6 +47,17 @@ class V2PictureEditorDialog(PictureEditorDialog):
             else:
                 actions.addItem(item)
         self.layout().insertLayout(1, actions)
+        # The inherited eight-control photo properties row still forces a
+        # >950px minimum width with Windows font metrics and display scaling.
+        # Keep width/alignment/straighten together; move rotation/flip/reset
+        # into a second row instead of clipping buttons off screen.
+        properties = self.layout().itemAt(3).layout()
+        if properties is None or properties.count() != 8:
+            raise RuntimeError("Photo editor properties layout changed")
+        transforms = QHBoxLayout()
+        while properties.count() > 4:
+            transforms.addItem(properties.takeAt(4))
+        self.layout().insertLayout(4, transforms)
         self.tool_buttons = QButtonGroup(self)
         self.tool_buttons.setExclusive(True)
         for index, kind in enumerate(TOOLS):

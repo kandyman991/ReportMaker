@@ -146,6 +146,10 @@ class V2ControlContrastTests(unittest.TestCase):
                     self.assertEqual(dlg.layout().itemAt(0).layout().count(), 11)
                     action_row = dlg.layout().itemAt(1).layout()
                     self.assertGreaterEqual(action_row.count(), 7)
+                    self.assertEqual(dlg.layout().itemAt(3).layout().count(), 4)
+                    self.assertEqual(dlg.layout().itemAt(4).layout().count(), 4)
+                    # All three shorter rows must fit the native 950px dialog
+                    # even when Windows fonts are wider than Linux fonts.
                     self.assertLessEqual(dlg.geometry().width(), 950)
                     buttons = dlg.findChildren(QPushButton)
                     self.assertTrue(any(b.text() == "Color" for b in buttons))
