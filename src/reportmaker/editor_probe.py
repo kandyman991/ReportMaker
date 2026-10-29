@@ -333,6 +333,7 @@ def run() -> int:
                 blobs = {name: bundle.read(name) for name in bundle.namelist()
                          if name.startswith("assets/")}
             original_manifest["version"] = 1
+            original_manifest["report"].pop("localization_ledger")
             original_manifest.pop("media_library")
             # Simulate a historical v1 file accurately, removing all v3
             # visual-layer keys rather than only changing the version tag.
@@ -360,7 +361,7 @@ def run() -> int:
             upgraded = root / "independent-upgraded-copy.rmproj"
             assert doc.save_to_path(upgraded)
             assert legacy.read_bytes() == original_v1
-            assert load_project(upgraded).loaded_version == 4
+            assert load_project(upgraded).loaded_version == 5
         finally:
             unforeseen_question.stop()
             unforeseen_warning.stop()
