@@ -21,7 +21,7 @@ from reportmaker.export import (
     _photo_dimensions, export_project,
 )
 from reportmaker.media_import import (
-    PictureImportError, _convert_picture_data, convert_picture,
+    MAX_ICC_BYTES, PictureImportError, _convert_picture_data, convert_picture,
 )
 from reportmaker.project_io import _image_signature, load_project, save_project
 from test_m4_export import synthetic_project
@@ -86,7 +86,7 @@ class Issue104ImageSecurityTests(unittest.TestCase):
                     lambda: _convert_picture_data(
                         encoded(fmt), preset="balanced", output_format="png"))
                 self.assertEqual(photo.format, "png")
-                self.assertTrue(photo.data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+                self.assertTrue(photo.data.startswith(bytes.fromhex("89504e470d0a1a0a")))
         for fmt in ("GIF", "TIFF"):
             with self.subTest(disallowed=fmt):
                 with self.assertRaises((PictureImportError, UnidentifiedImageError)):
@@ -126,6 +126,19 @@ class Issue104ImageSecurityTests(unittest.TestCase):
                                         Image.DecompressionBombError)):
                     _convert_picture_data(raw, preset="balanced",
                                           output_format="png")
+
+    def test_oversized_icc_is_rejected_before_transform(self):
+        original_open = Image.open
+
+        def oversized_icc(fp, *args, **kwargs):
+            image = original_open(fp, *args, **kwargs)
+            image.info["icc_profile"] = b"X" * (MAX_ICC_BYTES + 1)
+            return image
+
+        with patch.object(Image, "open", side_effect=oversized_icc):
+            with self.assertRaisesRegex(PictureImportError, "color profile"):
+                _convert_picture_data(encoded("PNG"), preset="balanced",
+                                      output_format="png")
 
     def test_heif_plugin_can_decode_with_pillow_13_when_available(self):
         try:
