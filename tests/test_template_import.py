@@ -10,7 +10,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 import unittest
 
 from docx import Document
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, RGBColor
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from PIL import Image
@@ -110,6 +110,75 @@ class TemplateImportTests(unittest.TestCase):
             self.assertAlmostEqual(float(pdf_pages[0].mediabox.width), 18*72/2.54, delta=2)
             self.assertAlmostEqual(float(pdf_pages[0].mediabox.height), 25*72/2.54, delta=2)
             self.assertIn("Lab use only", pdf_pages[0].extract_text())
+
+    def test_complex_word_layout_import_warns_instead_of_claiming_fidelity(self):
+        from docx.enum.section import WD_SECTION_START
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "complex-word.docx"
+            create_sample(path)
+            doc = Document(path)
+            first = doc.sections[0]._sectPr
+            cols = first.find(qn("w:cols"))
+            self.assertIsNotNone(cols)
+            cols.set(qn("w:num"), "2")
+            borders = OxmlElement("w:pgBorders")
+            first.append(borders)
+            page_number = OxmlElement("w:pgNumType")
+            page_number.set(qn("w:start"), "11")
+            first.append(page_number)
+            line_numbers = OxmlElement("w:lnNumType")
+            first.append(line_numbers)
+            sec = doc.add_section(WD_SECTION_START.NEW_PAGE)
+            sec.different_first_page_header_footer = True
+            mirrored = OxmlElement("w:mirrorMargins")
+            doc.settings.element.append(mirrored)
+            doc.styles["Normal"].paragraph_format.space_after = Pt(13)
+            doc.styles["Normal"].font.color.rgb = RGBColor(100, 22, 120)
+            sec.header.is_linked_to_previous = False
+            sec.header.paragraphs[0].text = "SECOND SECTION PRIVATE"
+            table = doc.sections[0].header.add_table(
+                rows=1, cols=1, width=Cm(5))
+            table.cell(0, 0).text = "PRIVATE TABLE LAYOUT"
+            doc.save(path)
+            source_bytes = path.read_bytes()
+
+            imported = import_word_template(path)
+            self.assertEqual(path.read_bytes(), source_bytes)
+            # First section is the only projected layout profile.
+            self.assertEqual(imported.template.page_width_cm, 18)
+            self.assertIn("SYNTHETIC COMPANY", imported.template.header_text)
+            self.assertNotIn("PRIVATE TABLE LAYOUT", imported.template.header_text)
+            self.assertNotIn("SECOND SECTION PRIVATE", imported.template.header_text)
+            warnings = " / ".join(imported.warnings)
+            for feature in ("first section", "first-page", "Multi-column",
+                            "page borders", "page-number restart", "line numbering",
+                            "mirrored", "Header/footer tables", "paragraph spacing"):
+                with self.subTest(feature=feature):
+                    self.assertIn(feature.lower(), warnings.lower())
+            saved = root / "profile.rmtemplate"
+            save_template(imported.template, saved)
+            self.assertEqual(load_template(saved), imported.template)
+            # The generated report must not carry source layout/table content.
+            from reportmaker.v2.layout_template import style_from_template
+            result = root / "report.docx"
+            export_project(synthetic_project(), result, format="docx",
+                           style=style_from_template(imported.template))
+            output = Document(result)
+            self.assertEqual(len(output.sections), 1)
+            all_text = " ".join(p.text for p in output.paragraphs)
+            self.assertNotIn("PRIVATE", all_text)
+
+    def test_complex_column_attribute_does_not_raise_untrusted_value_error(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "malformed-columns.docx"
+            create_sample(path)
+            doc = Document(path)
+            doc.sections[0]._sectPr.find(qn("w:cols")).set(
+                qn("w:num"), "untrusted")
+            doc.save(path)
+            imported = import_word_template(path)
+            self.assertTrue(any("Multi-column" in x for x in imported.warnings))
 
     def test_imported_word_logo_is_scaled_inside_pdf_header(self):
         # A real import path must preserve the embedded logo and header/footer

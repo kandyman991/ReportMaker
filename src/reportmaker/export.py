@@ -505,6 +505,23 @@ def _pdf_number_marker(kind: str, ordinal: int) -> str:
     return (label.upper() if kind == "upper-alpha" else label) + ". "
 
 
+def _word_font_family(font, family: str) -> None:
+    """Apply an explicit font to Word's Latin, East Asian and complex scripts.
+
+    python-docx Font.name alone writes ascii/hAnsi; Word then guesses the
+    East Asian and complex-script face even when users chose one explicitly.
+    Installed glyph coverage and substitution still require native acceptance.
+    """
+    from docx.oxml.ns import qn
+
+    if not family:
+        return
+    font.name = family
+    fonts = font._element.get_or_add_rPr().get_or_add_rFonts()
+    fonts.set(qn("w:eastAsia"), family)
+    fonts.set(qn("w:cs"), family)
+
+
 def _word_fixed_table(table, widths_cm: tuple[float, ...]) -> None:
     """Set *both* Word table grid and cell widths to the printable area.
 
@@ -545,16 +562,14 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
     sec.header_distance = Cm(style.header_distance_cm)
     sec.footer_distance = Cm(style.footer_distance_cm)
     normal = document.styles["Normal"]
-    if style.normal_font:
-        normal.font.name = style.normal_font
+    _word_font_family(normal.font, style.normal_font)
     normal.font.size = Pt(style.normal_size_pt)
     # Nested module headings use Heading 1..9. A Word layout profile must
     # govern every supported depth, not merely Heading 1 while descendants
     # silently fall back to machine/default Word styles.
     for level in range(1, 10):
         heading_style = document.styles["Heading " + str(level)]
-        if style.heading_font:
-            heading_style.font.name = style.heading_font
+        _word_font_family(heading_style.font, style.heading_font)
         heading_style.font.size = Pt(max(10, style.heading_size_pt - (level - 1)))
     printable_width = style.page_width_cm - style.left_margin_cm - style.right_margin_cm
     # Repeated Word header/footer, with a live PAGE field.
@@ -656,11 +671,9 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
                     if item.kind == "heading":
                         run.bold = True
                         run.font.size = Pt(max(10, style.heading_size_pt - item.depth))
-                        if style.heading_font:
-                            run.font.name = style.heading_font
+                        _word_font_family(run.font, style.heading_font)
                     if info is not None:
-                        if info.family:
-                            run.font.name = info.family
+                        _word_font_family(run.font, info.family)
                         if info.size:
                             run.font.size = Pt(info.size)
                         run.bold = info.bold or item.kind == "heading"

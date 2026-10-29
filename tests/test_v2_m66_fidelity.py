@@ -13,6 +13,7 @@ from docx.shared import Cm
 from pypdf import PdfReader
 
 from reportmaker.export import ExportStyle, export_project
+from reportmaker.engine import module_outline
 from reportmaker.model import LocalizedText, TableBlock
 from test_m4_export import synthetic_project
 
@@ -192,6 +193,68 @@ class RichWordFidelityTests(unittest.TestCase):
             self.assertEqual(len(PdfReader(pdf).pages) >= 3, True)
             self.assertIn("Rich heading", "\n".join(
                 page.extract_text() for page in PdfReader(pdf).pages))
+        self.assertEqual(project, before)
+
+    def test_word_page_fields_and_bookmarks_are_ready_for_native_repagination(self):
+        from zipfile import ZipFile
+        from xml.etree import ElementTree as ET
+        from docx.oxml.ns import qn
+        project = synthetic_project()
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "fields.docx"
+            export_project(project, target, format="docx")
+            with ZipFile(target) as archive:
+                settings = ET.fromstring(archive.read("word/settings.xml"))
+                body = ET.fromstring(archive.read("word/document.xml"))
+                footer_names = [name for name in archive.namelist()
+                                if name.startswith("word/footer") and
+                                name.endswith(".xml")]
+                self.assertTrue(footer_names)
+                footers = [ET.fromstring(archive.read(name)) for name in footer_names]
+            update_fields = settings.find(".//" + qn("w:updateFields"))
+            self.assertIsNotNone(update_fields)
+            self.assertEqual(update_fields.get(qn("w:val")), "true")
+            refs = [node.text or "" for node in body.iter(qn("w:instrText"))
+                    if "PAGEREF" in (node.text or "")]
+            self.assertEqual(len(refs), len(module_outline(project.report)))
+            bookmarks = {element.get(qn("w:name"))
+                         for element in body.iter(qn("w:bookmarkStart"))}
+            self.assertTrue(bookmarks)
+            for instruction in refs:
+                bookmark = instruction.split("PAGEREF", 1)[1].strip().split()[0]
+                self.assertIn(bookmark, bookmarks)
+            footer_fields = [node.text or "" for footer in footers
+                             for node in footer.iter(qn("w:instrText"))]
+            self.assertTrue(any(text.strip() == "PAGE" for text in footer_fields))
+            # A "?": Word's PAGEREF placeholder before Word paginates, not
+            # a fabricated page number or evidence of Word page rendering.
+
+    def test_explicit_word_fonts_cover_east_asian_and_complex_script_runs(self):
+        from reportmaker.model import ParagraphBlock, LocalizedText
+        from reportmaker.rich_text import RichFormatting, TextRun
+        from docx.oxml.ns import qn
+
+        project = synthetic_project()
+        source = "日本語測定 — valve"
+        project.report.modules[0].blocks[0] = ParagraphBlock(
+            LocalizedText("it", source), rich=RichFormatting(
+                runs=[TextRun(0, 5, family="Cambria", bold=True)]))
+        before = deepcopy(project)
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "fonts.docx"
+            export_project(project, target, format="docx",
+                           style=ExportStyle(normal_font="DejaVu Sans",
+                                             heading_font="Cambria"))
+            word = Document(target)
+            normal_fonts = word.styles["Normal"]._element.rPr.rFonts
+            for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
+                self.assertEqual(normal_fonts.get(qn("w:" + attr)),
+                                 "DejaVu Sans")
+            text = next(p for p in word.paragraphs if p.text == source)
+            runfonts = text.runs[0]._r.rPr.rFonts
+            for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
+                self.assertEqual(runfonts.get(qn("w:" + attr)), "Cambria")
+            self.assertEqual(text.text, source)
         self.assertEqual(project, before)
 
     def test_annotated_photo_and_page_break_are_retained_in_both_outputs(self):
