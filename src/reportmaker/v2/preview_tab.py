@@ -42,6 +42,8 @@ class PreviewTab(QWidget):
         outer.addLayout(buttons)
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setObjectName("v2PrintPreviewScroll")
         outer.addWidget(self.scroll, 1)
         self.refresh()
