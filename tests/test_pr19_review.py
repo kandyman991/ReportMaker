@@ -53,6 +53,7 @@ class SchemaRegression(unittest.TestCase):
             save_project(synthetic_project(), path)
             def downgrade(m):
                 m["version"] = 2
+                m["report"].pop("localization_ledger")
                 def remove_rich(module):
                     for block in module["blocks"]:
                         if block["kind"] in ("paragraph", "heading"):
