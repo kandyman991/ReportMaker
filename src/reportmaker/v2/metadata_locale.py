@@ -327,3 +327,27 @@ def validate_ledger(report: Report) -> None:
                 and entry.source_sha256 == source_digest(entry.key, language, source)
                 and _has_visible_text(entry.text)):
             raise ValueError("Fabricated target-only metadata translation")
+
+
+def resolve_export_metadata(report: Report, language: str, *, style=None,
+                            preview: bool = False) -> dict[str, str]:
+    """Resolve every customer-visible key against the ORIGINAL report.
+
+    Run before localized_project changes the detached text originals, or the
+    metadata.other_intervention_detail source digest would no longer match.
+    The returned context is export-only and never placed into the project.
+    """
+    validate_language_tag(language)
+    footer = getattr(style, "footer_note", "") if style is not None else ""
+    footer_language = (getattr(style, "footer_source_language", None)
+                       if style is not None else None)
+    footer_approvals = (getattr(style, "footer_locale_approvals", ())
+                        if style is not None else ())
+    if not isinstance(footer_approvals, tuple):
+        raise ValueError("Invalid transient footer localization approvals")
+    report_approvals = ledger_approvals(report.localization_ledger)
+    locale = MetadataLocale(
+        report, report_approvals + list(footer_approvals),
+        footer_note=footer, footer_source_language=footer_language)
+    keys = visible_metadata_keys(report, preview=preview, footer_note=footer)
+    return locale.resolve_many(keys, language)
