@@ -1,6 +1,6 @@
 # M6.6 — Precise Page Editor and Word/template fidelity
 
-**Status:** Started in [draft PR #88](https://github.com/kandyman991/ReportMaker/pull/88) on isolated branch `feature/v2-m6-6-page-word-fidelity`; **not independently accepted or merged**. Baseline is post-M6.5 `main` at `e2b19d0a5fea6db6d211d1f306c657969dcc177f`. Follow-up to [issue #86](https://github.com/kandyman991/ReportMaker/issues/86) and the [formal M6 contract](M6_SUBMILESTONES.md).
+**Status (2026-10-29):** M6.6 implementation independently reviewed and three findings corrected in [PR #88](https://github.com/kandyman991/ReportMaker/pull/88); a user-reported synthetic Word/PDF visual comparison and native Word 16.0 pagination verifier have now **passed**. Final exact-head CI and merge must still be confirmed; the separate M6.7/Windows installed-app release gates remain open. Baseline is post-M6.5 `main` at `e2b19d0a5fea6db6d211d1f306c657969dcc177f`. Follow-up to [issue #86](https://github.com/kandyman991/ReportMaker/issues/86) and the [formal M6 contract](M6_SUBMILESTONES.md).
 
 ## Acceptance and non-negotiable contracts
 
@@ -56,3 +56,10 @@ Reviewed the final M6.6-A/B/C implementation against AGENTS.md, root and V2 arch
 - **F3 (medium, acceptance integrity):** Word COM verifier classified only the literal `?` as unresolved, missing malformed/nonexistent PAGEREF bookmarks and Word's error messages. It now validates each field's actual bookmark target and empty/error results without outputting report content.
 
 **Local review checkout:** 441 full-suite tests passed (offscreen Linux), 13 dedicated M6.6 tests passed, `git diff --check` clean. Hosted exact-final-head Windows CI must be checked following this review commit; actual native installed Microsoft Word pagination and visual inspection remain **unperformed**. User explicitly requested review/fix/merge on 2026-10-29, but acceptance must not be represented as complete without the documented native Word gate. M6.7, release and V2-default activation are separate.
+
+## Native synthetic Word acceptance — 2026-10-29
+
+- User visually compared the exported **synthetic A4 DOCX and PDF** from independent QA branch `qa/pr88-word-acceptance` and reported both looked OK.
+- User ran `scripts/verify_word_pagination.ps1` on the DOCX in desktop Microsoft Word **16.0**. Native result: **3 pages before and after field update**, **4 PAGE-REFERENCE fields**, **0 unresolved**; no expected Word baseline was supplied (`expected_word_pages=0`). See `M6_6_WORD_ACCEPTANCE.md` for the full privacy-preserving JSON result and limitations.
+- Independent 3-finding review corrections are in PR code head `3e4127518e8befe75fecea45cd41b972efdbb066`; **441 Linux/offscreen unit tests** and **9 applicable hosted CI workflows** passed on that reviewed code head. Verify the new final documentation head's exact CI before merging.
+- The specific native synthetic fixture is accepted, **not** all complex Word template combinations, physical installed ReportMaker V2 behavior, global Word/PDF page identity or M6.7 Checkpoint C. User separately authorized review/fix/merge of PR #88.

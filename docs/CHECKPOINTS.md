@@ -492,3 +492,10 @@ Next reproducible action:
 - Independent review of draft PR #88 (base `main`, pre-review head `ccda9a28635f90a57cbbc341e195fdc1f9b470ea`) identified and corrected F1 narrow-viewport photo clipping, F2 quadratic initial table geometry work and F3 incomplete native PAGEREF error detection. Source and synthetic regression changes are isolated to the M6.6 branch; no canonical report, export storage, language provenance or browser contract changed.
 - Separate Linux/offscreen checkout: full unittest discovery **441 passed**, M6.6 **13 passed**, diff whitespace validation passed. Final pushed head Windows CI is still a distinct required check; native licensed Windows Word COM/visual pagination evidence is absent.
 - User authorized review/correction/merge of #88, but previously declared milestone native Word acceptance remains outstanding; do not mark native fidelity verified or publish a release. See `docs/v2/M6_6_PROGRESS.md` and `docs/v2/M6_6_WORD_ACCEPTANCE.md`.
+
+## CP-V2-M66-NATIVE-WORD-ACCEPTANCE — 2026-10-29
+
+- User completed native Microsoft Word **16.0** read-only verification of the synthetic A4 DOCX exported from reviewed PR #88 code `3e4127518e8befe75fecea45cd41b972efdbb066`, alongside a positive user-reported comparison with the matching synthetic PDF.
+- The supplied JSON reports **3 pages before and after field update**, **4 PAGEREF fields**, **0 unresolved references**. No approved Word baseline (`expected_word_pages=0`) or Word/PDF equality assertion was requested; native Word build, Windows edition, DPI/fonts not captured. Evidence and residual scope are documented in `docs/v2/M6_6_WORD_ACCEPTANCE.md`.
+- PR #88 received independent review with three corrections; Linux/offscreen 441 tests and **9/9 applicable exact-code-head GitHub workflows** passed. User gave explicit authorization to review/fix/merge #88; check documentation-final HEAD CI, then merge if unchanged review/technical scope and green.
+- Still outside this gate: extensive native layout/template matrix, installed V2 app DPI/device checks, M6.7 Checkpoint C, V2-default promotion and public installer/release. Do not call those complete.

@@ -402,3 +402,10 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 
 - Read architecture contracts, reviewed complete PR patch and tested on an isolated Linux checkout. Corrected a fixed-width photo preview violating narrow responsive paper, repeated O(rows × cells) sizing during initial table load and incomplete Word PAGEREF bookmark verification in the read-only native acceptance script. Added an offscreen photo width/aspect regression.
 - Local full suite: **441 tests passed**, dedicated M6.6: **13 passed**. Push/check exact final HEAD's Windows CI before any merge. No licensed Windows Word instance is connected, so the documented native Word pagination/visual acceptance gate is **not satisfied**. User requested review/fix/merge, not a release or a waiver of fidelity requirements. Keep M6.7 and installer promotion separate.
+
+## CP-V2-M66-NATIVE-WORD-ACCEPTANCE — 2026-10-29
+
+- User completed native Microsoft Word **16.0** read-only verification of the synthetic A4 DOCX exported from reviewed PR #88 code `3e4127518e8befe75fecea45cd41b972efdbb066`, alongside a positive user-reported comparison with the matching synthetic PDF.
+- The supplied JSON reports **3 pages before and after field update**, **4 PAGEREF fields**, **0 unresolved references**. No approved Word baseline (`expected_word_pages=0`) or Word/PDF equality assertion was requested; native Word build, Windows edition, DPI/fonts not captured. Evidence and residual scope are documented in `docs/v2/M6_6_WORD_ACCEPTANCE.md`.
+- PR #88 received independent review with three corrections; Linux/offscreen 441 tests and **9/9 applicable exact-code-head GitHub workflows** passed. User gave explicit authorization to review/fix/merge #88; check documentation-final HEAD CI, then merge if unchanged review/technical scope and green.
+- Still outside this gate: extensive native layout/template matrix, installed V2 app DPI/device checks, M6.7 Checkpoint C, V2-default promotion and public installer/release. Do not call those complete.
