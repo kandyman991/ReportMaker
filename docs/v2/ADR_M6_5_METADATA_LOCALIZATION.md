@@ -1,6 +1,6 @@
 # ADR (Proposed) — M6.5 metadata and generated-label localization
 
-**Status:** Proposed and implementation-gated; independent approval remains required before v5 changes. Pure pre-schema validation and tests may proceed.
+**Status:** Independently reviewed with corrective design constraints (2026-10-29); accepted as the v5 implementation contract, **not** as approval to merge, ship or claim M6.5 feature completion. Persisted schema changes require their own implementation/regression review.
 **Date:** 2026-10-29
 **Parent milestone:** [M6.5 acceptance plan](M6_SUBMILESTONES.md)
 **Review base:** PR #83's frozen M6.1–M6.4 feature branch
@@ -30,13 +30,13 @@ must be approved **before schema-altering implementation**.
   snapshot fields and `other_intervention_detail`. They remain the
   authoritative source. Do not clone the report tree or live-reference the
   customer database at export time.
-- Add a single **report-scoped localization ledger** keyed by stable,
+- Add a single **report-scoped localization ledger** for **project-owned source keys** keyed by stable,
   allowlisted semantic keys, *not* by current UI text. Example keys:
   `metadata.other_intervention_detail`, `label.report_information`,
   `label.summary`, `label.report_content`, `label.page`,
   `label.intervention_types`, `intervention.supervision` and every label
   used in `ExportPlan.info`. Each translation record contains exactly:
-  `language` (BCP-47-style tag), `text`, and `source_sha256`.
+  `language` (BCP-47-style tag), `text`, and `source_sha256` (the key and language are map keys in the proposed wire representation). Transient template branding is **not** an allowed persisted ledger key.
 - Derive source text **on demand** from its canonical metadata field or from
   a versioned English source-label catalog. **Generated label source is always
   `en`, independent of `Report.primary_language`.** The source digest binds
@@ -54,14 +54,21 @@ must be approved **before schema-altering implementation**.
     tested before customer export.
   * **Translation-required boilerplate:** all customer-visible generated
     headings, metadata field labels, intervention type descriptions, TOC/summary
-    labels and page-number prefix used in DOCX, PDF, schematic and proof. Every
+    labels and page-number prefix used in DOCX, PDF, schematic and proof;
+    Preview-only summary explanation, manual-page-break placeholder and footer
+    prefix must also have source keys, derived from canonical visible content. Every
     customer-visible label must have a semantic key; no scattered hardcoded
     English presentation strings.
   * **Branding-specific text:** a company name/logo are language-neutral
     identifiers; a nonempty authored `ExportStyle.footer_note` is customer
-    prose, needing a per-target approved variant or explicit fail-closed rule.
-    Do not persist transient branding inside the customer snapshot. Durable
-    per-project template design remains M6.6.
+    prose. Because `ExportStyle` is transient and not part of `.rmproj`,
+    `branding.footer_note` approvals may be supplied **only in detached export
+    context**, never persisted in the report ledger. The user must explicitly
+    declare the source language of this imported/authored footer; never infer
+    it from `Report.primary_language`. For another output language require an
+    approved source-digest-bound variant or reject export atomically. Do not
+    persist transient branding inside the customer snapshot. Durable per-project
+    template design/locale storage remains M6.6.
 - **No automatic translation, language-enum restriction, network access or
   silent locale fallback.** Exact target-language tags must resolve from
   reviewed user-edited entries or explicitly shipped catalog translations.
@@ -80,10 +87,10 @@ must be approved **before schema-altering implementation**.
   labels for languages validated under this policy. Source export remains
   backwards compatible.
 
-## v5 wire format and migration (subject to approval)
+## v5 wire format and migration (reviewed implementation contract)
 
-- Upgrade `reportmaker.project` from format **v4 to v5** only when this
-  ledger implementation is accepted. Add required, strictly bounded
+- Upgrade `reportmaker.project` from format **v4 to v5** during M6.5 implementation,
+  after preserving this reviewed contract and adding targeted gates. Add required, strictly bounded
   `report.localization_ledger` (empty map allowed) in v5; keep all old v4
   record fields and frozen snapshot representation unchanged. **Do not** merely
   change `VERSION = 4` to `5`: the loader currently checks
@@ -96,6 +103,19 @@ must be approved **before schema-altering implementation**.
   save behavior. Reject invalid/unrecognized keys, duplicate language tags
   differing only by case, malformed SHA-256, excessive entry lengths/counts
   and future unknown schema versions.
+- **Exact new report record:** for version 5, add required
+  `report.localization_ledger` as an object of recognized **persistable**
+  semantic keys (`PERSISTABLE_KEYS`) to an object mapping validated language
+  tags to records of exactly `{"text": string, "source_sha256": lowercase_64_hex}`.
+  No redundant copied source, key or language fields; no client-controlled
+  catalog changes; no unknown properties, duplicates, case-variant language
+  duplicates, invalid XML 1.0 text, source-language overrides, or source-blank
+  fabricated approvals. An empty object is valid. Existing v1–v4 records
+  must **reject** this new property instead of silently ignoring it. The
+  transient `branding.footer_note` key is **prohibited** in persisted records,
+  because its style source text and source language are not portable today.
+  A language-neutral footer is never inferred merely because a translation
+  is missing.
 - Load legacy v1–v4 unchanged into memory with an empty ledger; preserve
   original metadata, stable IDs, assets, links, text translations and photo
   annotations exactly. **No synthetic translation is invented.**
@@ -147,11 +167,14 @@ browser DOM/cookie reading, customer-data uploads, a second report model, V1
 shell rewrites or M6.6 Word/page work. Native installed-Windows release
 acceptance remains M7.
 
-## Initial architecture review findings and disposition (2026-10-29)
+## Independent architecture and foundation review findings (2026-10-29)
 
 1. **HIGH — v4 rich-text compatibility:** a naïve VERSION bump breaks v4 decoding because the loader ties rich-text requirements to the current version. Define independent per-feature minimum versions and test v1–v5 migrations before changing persistence.
 2. **HIGH — source-language confusion:** boilerplate has an English source even for reports authored in other languages; it must never inherit the report's primary-language tag.
 3. **MEDIUM — branded footer:** user-entered footer prose may need translation; never treat it as an automatically language-neutral proper name.
-4. **MEDIUM — untrusted provenance:** digest must bind key, source language and text. Reject unknown keys, duplicate locale casing, blank customer text and oversize values; stale entries may be stored, but cannot be resolved for customer export.
+4. **MEDIUM — untrusted provenance and malformed Unicode:** digest must bind key, source language and text. Reject unknown/nonstring keys, duplicate locale casing, blank source/target inventions, malformed Unicode/XML characters and oversize values; stale entries may be stored, but cannot be resolved for customer export.
+5. **HIGH — ephemeral template footer provenance:** a report-local approval for transient `ExportStyle.footer_note` cannot be reliably replayed after reopen or style replacement. Prohibit its wire persistence; require declared independent source language and pass transient approvals to detached export context.
+6. **MEDIUM — Preview generated-label coverage:** the early registry omitted preview-only summary guidance, manual page break and footer prefix. Catalog them and derive required keys from the canonical report tree, including nested modules.
+7. **MEDIUM — exact-head CI blind spot:** path-limited staged Windows workflows can skip future schema/editor/docs-only branch heads; enforce head-branch gates without path filtering and retain Python 3.11/3.12.
 
-**Implementation gate:** A pure, nonpersistent localization catalog and defensive tests may proceed. This proposed ADR does **not** authorize a schema v5 bump, migration, changes to customer export behavior or a claim of complete M6.5 acceptance until independently approved.
+**Review disposition:** The ADR is accepted **for implementing** the scoped v5 migration, with the wire schema and transient-branding exclusion above. No migration, UI/export changes or complete M6.5 acceptance exist in the present code; all still require implementation review, exact-head Windows CI and explicit user authorization before merge. Do not treat ADR acceptance as a passing feature gate.
