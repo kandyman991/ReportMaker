@@ -149,11 +149,16 @@ jobs:
           }
           finally {
             $uninstaller = Join-Path $installDir "unins000.exe"
-            if (Test-Path $uninstaller) {
-              $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @(
-                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
-              if ($uninstall.ExitCode -ne 0) {
-                throw "V2 CI uninstall failed: $($uninstall.ExitCode)"
-              }
+            if (!(Test-Path $uninstaller)) {
+              throw "V2 installed preview has no uninstaller; cannot claim clean uninstall"
+            }
+            $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @(
+              "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
+            if ($uninstall.ExitCode -ne 0) {
+              throw "V2 CI uninstall failed: $($uninstall.ExitCode)"
+            }
+            if ((Test-Path $installedExe) -or
+                (Test-Path (Join-Path $installDir "_internal"))) {
+              throw "V2 binaries remain after the silent uninstall"
             }
           }
