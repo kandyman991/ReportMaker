@@ -37,10 +37,15 @@ class MetadataTranslationDialog(QDialog):
         info.setWordWrap(True)
         root.addWidget(info)
         row = QHBoxLayout()
-        row.addWidget(QLabel("Output language"))
+        row.addWidget(QLabel("Output / primary preview language"))
         self.language = QComboBox(self)
         self.language.setObjectName("v2MetadataLanguage")
-        for language in session.report_snapshot().output_languages:
+        report = session.report_snapshot()
+        available = list(report.output_languages)
+        if not any(tag.casefold() == report.primary_language.casefold()
+                   for tag in available):
+            available.insert(0, report.primary_language)
+        for language in available:
             self.language.addItem(language, language)
         # Populate before connecting: the first addItem changes selection
         # synchronously, before the field list is constructed.
