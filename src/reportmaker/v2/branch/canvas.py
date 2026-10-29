@@ -24,6 +24,7 @@ from ...engine import module_outline, validate_report_tree
 from ...media_import import (INPUT_SUFFIXES, PictureImportError,
                              convert_picture, convert_picture_bytes, stage_pictures)
 from ...photo_gallery import clipboard_image_png, local_picture_paths
+from ..editing_keys import handle_plain_paste
 from ...photo_editor import render_photo
 from .photo_tools import V2PictureEditorDialog as PictureEditorDialog
 from ...rich_text import RichFormatting, style_at
@@ -137,6 +138,8 @@ class InlineTitle(QLineEdit):
     cancelRequested = Signal()
 
     def keyPressEvent(self, event):
+        if handle_plain_paste(self, event):
+            return
         if event.key() == Qt.Key.Key_Escape:
             self.cancelRequested.emit()
             event.accept()
@@ -246,6 +249,8 @@ class InlineParagraph(QPlainTextEdit):
             self.updateGeometry()
 
     def keyPressEvent(self, event):
+        if handle_plain_paste(self, event):
+            return
         if event.key() == Qt.Key.Key_Escape:
             self.cancelRequested.emit()
             event.accept()
