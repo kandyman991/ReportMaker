@@ -157,7 +157,10 @@ class MetadataLocale:
         if key in ENGLISH_LABELS:
             return ENGLISH_LABELS[key], "en"
         if key == "metadata.other_intervention_detail":
-            return self._report.other_intervention_detail, self._report.primary_language
+            source_text = self._report.other_intervention_detail
+            if not _xml_safe_text(source_text, MAX_FREE_TEXT):
+                raise ValueError("Invalid customer-entered metadata source")
+            return source_text, self._report.primary_language
         if key == "branding.footer_note":
             return self._footer_note, (self._footer_source_language or
                                        self._report.primary_language)
