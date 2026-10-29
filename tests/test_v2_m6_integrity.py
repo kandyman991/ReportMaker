@@ -215,6 +215,46 @@ class QtIntegrityRegressionTests(unittest.TestCase):
         self.assertTrue(self.win.branch.undo())
         self.assertEqual(self.win.session.report_snapshot(), before)
 
+    def test_linked_reference_identity_edits_require_explicit_unlink(self):
+        from reportmaker.reference import CustomerSnapshot
+        from reportmaker.v2.report_info import ReportInfoDialog
+
+        original = self.win.session.report_snapshot()
+        dialog = ReportInfoDialog(self.win.session, self.win.gateway, self.win)
+        linked = CustomerSnapshot(
+            customer_id="fictional-db-customer", customer_name="Customer A",
+            site_id="fictional-db-site", site_name="Site A",
+            machine_id="fictional-db-machine", machine_name="Machine A",
+            machine_serial="FAKE-001", customer_address="Fictional street")
+        dialog._snapshot = linked  # Simulate a successful database selection.
+        for key in ("customer_name", "site_name", "machine_name", "machine_serial"):
+            dialog.fields[key].setText(getattr(linked, key))
+        self.assertEqual(dialog._build_args()["customer_id"], linked.customer_id)
+        for key in ("customer_name", "site_name", "machine_name", "machine_serial"):
+            with self.subTest(field=key):
+                dialog.fields[key].setText("Different identity")
+                with self.assertRaisesRegex(ValueError, "one-off manual"):
+                    dialog._build_args()
+                self.assertFalse(dialog.apply_changes())
+                self.assertEqual(self.win.session.revision, 0)
+                self.assertEqual(self.win.session.report_snapshot(), original)
+                dialog.fields[key].setText(getattr(linked, key))
+
+        dialog.fields["customer_name"].setText("Different customer")
+        self.assertTrue(dialog.use_manual())
+        args = dialog._build_args()
+        self.assertIsNone(args["customer_id"])
+        self.assertIsNone(args["customer_snapshot"].site_id)
+        self.assertIsNone(args["customer_snapshot"].machine_id)
+        self.assertEqual(args["customer_snapshot"].customer_name, "Different customer")
+        self.assertEqual(args["customer_snapshot"].customer_address, "Fictional street")
+        self.assertTrue(dialog.apply_changes())
+        saved = self.win.session.report_snapshot()
+        self.assertIsNone(saved.customer_id)
+        self.assertEqual(saved.customer_snapshot.customer_name, "Different customer")
+        self.assertTrue(self.win.branch.undo())
+        self.assertEqual(self.win.session.report_snapshot(), original)
+
     def test_h5_new_and_open_project_reset_another_customers_branding(self):
         from reportmaker.export import ExportStyle
         from docx import Document
