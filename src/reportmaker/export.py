@@ -39,6 +39,9 @@ MAX_IMAGE_PIXELS = 36_000_000
 MAX_BRAND_LOGO_BYTES = 2 * 1024 * 1024
 PHOTO_MAX_WIDTH_CM = 15.6
 PHOTO_MAX_HEIGHT_CM = 19.5
+# Includes legacy GIF/TIFF/BMP assets; no document/vector/delegate parsers.
+# The canonical Gallery stores JPEG/PNG/WEBP only.
+EXPORT_IMAGE_FORMATS = ("JPEG", "PNG", "WEBP", "BMP", "GIF", "TIFF")
 
 
 @dataclass(frozen=True)
@@ -103,7 +106,7 @@ def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
                       max_height_cm: float = PHOTO_MAX_HEIGHT_CM) -> tuple[float, float]:
     """Natural 96-dpi size, never larger than the selected printable page."""
     from PIL import Image
-    with Image.open(BytesIO(image)) as im:
+    with Image.open(BytesIO(image), formats=EXPORT_IMAGE_FORMATS) as im:
         width, height = im.size
     scale = min(2.54 / 96.0, max_width_cm / width,
                 max_height_cm / height)
@@ -113,7 +116,7 @@ def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
 def _logo_dimensions(image: bytes, *, max_height_cm: float = 1.05) -> tuple[float, float]:
     """Logo at its natural (96-dpi) size, bounded without changing aspect ratio."""
     from PIL import Image
-    with Image.open(BytesIO(image)) as im:
+    with Image.open(BytesIO(image), formats=EXPORT_IMAGE_FORMATS) as im:
         width, height = im.size
     scale = min(2.54 / 96.0, 2.6 / width, max_height_cm / height)
     return width * scale, height * scale
@@ -150,7 +153,7 @@ def _image_bytes(payload: bytes) -> bytes:
     if len(payload) > MAX_ASSET:
         raise ExportError("Referenced photograph exceeds the project asset size limit")
     try:
-        with Image.open(BytesIO(payload)) as im:
+        with Image.open(BytesIO(payload), formats=EXPORT_IMAGE_FORMATS) as im:
             if im.width < 1 or im.height < 1 or im.width * im.height > MAX_IMAGE_PIXELS:
                 raise ExportError("Photograph dimensions exceed safe export limits")
             source_format = im.format
