@@ -1,6 +1,6 @@
 # ReportMaker V2 — Development Roadmap
 
-**Status:** Approved architecture baseline; V2 implementation in progress at M6 (submilestone status below)  
+**Status:** M6.7 synthetic Checkpoint C merged; M7.1 isolated Windows packaging preflight in development (see M7_PLAN.md)  
 **Date:** 2026-10-29  
 **Requirements baseline:** [RM-BE-001 — Branch Editor requirements](BRANCH_EDITOR_REQUIREMENTS.md), 33 selected features  
 **Architecture baseline:** [V2 architecture](ARCHITECTURE.md)  
@@ -17,7 +17,7 @@ Modules, nested submodules and ordered rich text, photographs, headings, tables 
 ## Project boundaries
 
 - Preserve V1's original `ROADMAP.md`, application implementation, and release fallback while V2 is built on its own reviewed feature branches.
-- Plan and execute V2 in this repository using reviewed, milestone-sized PRs. M6.1–M6.4 implementation currently resides in draft PR #83, which is now frozen for new features.
+- Plan and execute V2 in this repository using reviewed, milestone-sized PRs. M6.1–M6.4 merged in PR #83; subsequent M6 submilestones are independently reviewed and merged through PR #89.
 - Before copying a V1 module into V2, inventory its runtime and transitive imports, identify UI coupling, licensing, test coverage and migration assumptions. Prefer shared, independently testable services over a forked second report engine.
 - Never silently alter the binding project invariants in the root `ARCHITECTURE.md`, `AGENTS.md` or related ADRs. Any unavoidable contract change requires a reviewed ADR.
 - Avoid modifying shared V1 files from concurrent workstreams without an explicitly coordinated PR boundary.
@@ -117,9 +117,9 @@ Deliverables:
 4. **M6.4 — Explicit content translations and language delivery:** reviewed and merged in PR #83.
 5. **M6.5 — Metadata and boilerplate localization:** reviewed and merged in PR #84, including strict schema-v5 provenance and export approvals.
 6. **M6.6 — Precise page Editor and Word/template fidelity:** independently reviewed, corrected and merged in PR #88. Synthetic native Word 16.0 verification and visual comparison passed; broader release testing is M7. See [M6.6 progress](M6_6_PROGRESS.md).
-7. **M6.7 — End-to-end Checkpoint C:** ACTIVE on isolated branch after PR #88; see [M6.7 progress](M6_7_PROGRESS.md). Not yet independently accepted or merged.
+7. **M6.7 — End-to-end Checkpoint C:** Independently reviewed and merged as PR #89 (`6cd9565a1514e84c1ee2a21543174dafef4c911e`). Synthetic Checkpoint C is complete; native installed-Windows and release checks belong to M7. See [M6.7 progress](M6_7_PROGRESS.md).
 
-**PR boundary:** PR #83, #84 and #88 are merged. M6.7 is a separate integration/checkpoint draft with dedicated synthetic Windows-hosted gates; independent review and explicit merge authorization still apply. Physical installed-Windows/release acceptance remains M7, beyond the narrowly recorded synthetic Word check.
+**PR boundary:** M6.1–M6.7 PRs #83, #84, #88 and #89 are merged. M7.1 is isolated in draft PR #92; all 33 native installed-Windows cases remain pending. M7.1 preflight CI is not permission to merge, publish an installer or promote V2. See [M7 acceptance plan](M7_PLAN.md).
 
 **Exit / Checkpoint C:** End-to-end synthetic technical report edits in Branch Editor, previews, saves and exports correctly; all tabs reference the same stable content IDs and no unsaved edits vanish.
 
@@ -157,4 +157,4 @@ Deliverables:
 - Invariants and module/service boundaries: [V2 architecture](ARCHITECTURE.md)
 - V1 source of truth stays [root architecture contract](../../ARCHITECTURE.md), [report composition](../REPORT_COMPOSITION_CONTRACT.md) and [existing roadmap](../../ROADMAP.md).
 
-**Current next action (2026-10-29):** Complete the dedicated [M6.7 end-to-end Checkpoint C](M6_7_PROGRESS.md) after merged PR #83, #84 and #88. Verify full hosted Windows 3.11/3.12 CI, independently review the synthetic round-trip and remaining risks, then seek user authorization to merge. M7 installer and default-V2 promotion remain separate.
+**Current next action (2026-10-29):** M6.7 [PR #89](https://github.com/kandyman991/ReportMaker/pull/89) is independently reviewed and merged (commit `6cd9565a1514e84c1ee2a21543174dafef4c911e`), completing synthetic Checkpoint C. Begin [M7.1](M7_PLAN.md) on an isolated draft branch: build a **V2-specific** Windows installer with distinct V1 identity and safe installed-offline CI smoke, then separately review. All 33 physical Windows acceptance cases remain pending; do not release V2 or change the default without separate user authorization.

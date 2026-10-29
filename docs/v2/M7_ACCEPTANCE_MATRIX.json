@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "milestone": "M7",
+  "source": "docs/v2/BRANCH_EDITOR_REQUIREMENTS.md",
+  "definition": "Physical installed-Windows acceptance only; headless/hosted CI does not change status.",
+  "requirements": [
+    {
+      "id": "BE-L01",
+      "manual_acceptance": "Create a synthetic nested report directly in Modules; edit content without using Editor",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-L02",
+      "manual_acceptance": "Expand and move three levels; visually verify continuous parent-child connectors",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-L03",
+      "manual_acceptance": "Build and reopen a deeply nested synthetic report, documenting any explicit safety bound",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-L04",
+      "manual_acceptance": "Resize viewport with long Unicode text, images and tables; no clipping or nested scrollbars",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-L05",
+      "manual_acceptance": "Interleave text, photo, table and submodule; verify visual and exported ordering",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-L06",
+      "manual_acceptance": "Confirm no permanent second module navigator or independent editable tree",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-E01",
+      "manual_acceptance": "Edit selected multilingual paragraph in place with caret and formatting intact",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-E02",
+      "manual_acceptance": "Rename a module directly on its branch header; Editor and TOC update",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-E03",
+      "manual_acceptance": "Import safe synthetic images and verify visible thumbnails and captions in location",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-E04",
+      "manual_acceptance": "Crop, rotate, annotate and replace a synthetic image; export shows intended placement",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-E05",
+      "manual_acceptance": "Edit table cell, add/remove row and column in branch; undo and reopen",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-E06",
+      "manual_acceptance": "Insert each block type at beginning, middle and end of a nested module",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-E07",
+      "manual_acceptance": "Verify toolbar appears only for active text and selected formatting highlights",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-S01",
+      "manual_acceptance": "Drag modules and blocks across parents; save/reopen preserves IDs and children",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-S02",
+      "manual_acceptance": "Observe Before, After and Inside preview and reject Inside on noncontainers",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-S03",
+      "manual_acceptance": "Independently collapse and expand a parent and a nested submodule",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-S04",
+      "manual_acceptance": "Move selected module up/down via controls and keyboard alternatives",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-S05",
+      "manual_acceptance": "Duplicate, delete and outdent; undo preserves original and duplicate gets new IDs",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-S06",
+      "manual_acceptance": "Save and reopen after collapse state changes; verify state without reordering data",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-S07",
+      "manual_acceptance": "Validate collapsed descendant counts for modules, text, photos and tables",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-U01",
+      "manual_acceptance": "Focus a nested subtree then exit; preserve selection and source hierarchy",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-U02",
+      "manual_acceptance": "Zoom, pan and fit with mouse/touchpad; verify document print geometry unchanged",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-U03",
+      "manual_acceptance": "Search titles, body and captions within collapsed branches; reveal the selected hit",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-U04",
+      "manual_acceptance": "Right-click each block type; verify available actions and disabled invalid actions",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-U05",
+      "manual_acceptance": "Resize text, photo and table presentation at multiple DPI scales with no clipped data",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-U06",
+      "manual_acceptance": "Drag synthetic PNG/JPEG from Windows Explorer into branch and verify source untouched",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-U07",
+      "manual_acceptance": "Paste native bitmap and file list from Windows clipboard at chosen insertion point",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-I01",
+      "manual_acceptance": "Edit same block in Branch and Editor with draft conflict/Apply/Undo and stable IDs",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-I02",
+      "manual_acceptance": "Validate TOC/numbering from hierarchy and Conclusions last after moves and reopen",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-I03",
+      "manual_acceptance": "Use Editor precision page controls and verify same committed content in Modules",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-I04",
+      "manual_acceptance": "Verify Gallery shares photo assets; open independent user-operated ChatGPT tab",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-I05",
+      "manual_acceptance": "Verify PDF proof and DOCX/PDF after committed edits; distinguish pagination limits",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    },
+    {
+      "id": "BE-I06",
+      "manual_acceptance": "Manually copy selected branch text into ChatGPT site and paste a reviewed response; browser image copy/download remains manual and separate from Gallery import",
+      "status": "pending_native_acceptance",
+      "evidence_ref": null
+    }
+  ]
+}

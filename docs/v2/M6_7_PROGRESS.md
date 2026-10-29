@@ -1,8 +1,6 @@
 # M6.7 — End-to-end integration and Checkpoint C
 
-**Status:** In development on isolated draft branch
-`feature/v2-m6-7-checkpoint-c`, based on post-M6.6 `main`
-`e2a44f78ade51cf5879481c23b7377bb57770195`.
+**Status:** Reviewed and merged in [PR #89](https://github.com/kandyman991/ReportMaker/pull/89) on 2026-10-29: synthetic Checkpoint C accepted, merge SHA `6cd9565a1514e84c1ee2a21543174dafef4c911e`. The reviewed feature head was `cb11063f14b14fb12f490549a5f2fd954f8cf137`, based on post-M6.6 `main` `e2a44f78ade51cf5879481c23b7377bb57770195`.
 This is the **final M6 implementation/review boundary**, not a V2
 installer/release, V1 replacement or automatic merge authorization.
 Track planned acceptance in [M6 submilestones](M6_SUBMILESTONES.md),
@@ -84,10 +82,7 @@ drafts show the marker immediately and clear it after Revert/Discard.
 - **Local focused test status:** 2 Checkpoint C end-to-end Qt tests pass
   on the Linux offscreen developer checkout. Full suite and hosted CI
   are separately checked at the final PR code head.
-- **Milestone is NOT ACCEPTED until** final code, exact SHA, all
-  applicable hosted Windows CI and independent architecture/security/
-  export/data-integrity review have passed. Only then seek explicit
-  user authorization to merge. User authorized *starting* M6.7.
+- **Checkpoint C synthetic scope accepted:** 443 Linux/offscreen tests passed in the earlier independent checkout; nine applicable exact-feature-head GitHub workflows succeeded including Windows 3.11/3.12, with two expected old branch-only skips. No blocking findings, and the user explicitly authorized merge on 2026-10-29. Physical installed-Windows and release gates remain M7.
 - **M7 remains separate:** native installed Windows DPI/keyboard/
   clipboard/drag-drop, user-operated browser sign-in/fallback,
   complex-template/native Word matrix, all 33 RM-BE acceptance cases,
