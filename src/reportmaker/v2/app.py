@@ -8,11 +8,11 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
-    QTabWidget, QToolButton,
+    QTabWidget, QToolBar, QToolButton, QWidget,
 )
 
 from ..engine import module_outline
@@ -23,6 +23,7 @@ from .adapters.persistence import ProjectPersistence, _same_path
 from .branch.canvas import BranchCanvas
 from .commands import CommandGateway
 from .presentation import PresentationStore
+from .theme import LIGHT, stylesheet
 from .session import PendingDraftError, ReportSession
 
 
@@ -118,6 +119,10 @@ class V2MainWindow(QMainWindow):
         self.gallery_tab.on_inserted = lambda: self.tabs.setCurrentWidget(self.branch)
         self.tabs.currentChanged.connect(self._tab_changed)
         self.setCentralWidget(self.tabs)
+        # The workspace rail replaces the tab bar; the tabs stay the single source of truth.
+        self.tabs.tabBar().hide()
+        self._build_rail()
+        self.setStyleSheet(stylesheet(LIGHT))
         self.session.subscribe(self._workspace_changed)
         self.session.subscribe(lambda _: self._update_caption())
         # Staging a draft does not publish a canonical revision; separately
@@ -293,6 +298,48 @@ class V2MainWindow(QMainWindow):
             return False
         return True
 
+    # (object name, label, icon, tab widget attribute, tooltip)
+    _RAIL_ITEMS = (
+        ("rail_modules", "Modules", "layers", "branch", "Modules — build the report structure"),
+        ("rail_editor", "Editor", "file", "editor_tab", "Editor — edit as a document page"),
+        ("rail_photos", "Photos", "image", "gallery_tab", "Photos — the project picture gallery"),
+        ("rail_assistant", "Assistant", "chat", "chat_tab", "Assistant — an AI website, copy and paste only"),
+        ("rail_preview", "Preview", "eye", "preview_tab", "Preview — check and export the report"),
+    )
+
+    def _build_rail(self) -> None:
+        """Left workspace rail: one checkable action per tab, kept in sync with the tabs."""
+        from .icons import icon
+        rail = QToolBar("Workspaces", self)
+        rail.setObjectName("workspaceRail")
+        rail.setOrientation(Qt.Orientation.Vertical)
+        rail.setMovable(False)
+        rail.setFloatable(False)
+        rail.setIconSize(QSize(22, 22))
+        rail.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        self._rail_actions: dict[QWidget, QAction] = {}
+        for name, label, icon_name, attribute, tooltip in self._RAIL_ITEMS:
+            widget = getattr(self, attribute)
+            action = QAction(icon(icon_name, normal=LIGHT["text2"], checked=LIGHT["accent-soft-ink"],
+                                  disabled=LIGHT["text3"]), label, self)
+            action.setObjectName(name)
+            action.setCheckable(True)
+            action.setToolTip(tooltip)
+            action.triggered.connect(lambda checked=False, w=widget: self.tabs.setCurrentWidget(w))
+            group.addAction(action)
+            rail.addAction(action)
+            self._rail_actions[widget] = action
+        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, rail)
+        self.rail = rail
+        self._sync_rail(self.tabs.currentIndex())
+
+    def _sync_rail(self, index: int) -> None:
+        action = self._rail_actions.get(self.tabs.widget(index))
+        if action is not None and not action.isChecked():
+            action.setChecked(True)
+
     def _workspace_changed(self, change) -> None:
         # Lazily rebuild inactive document/preview panes. Draft-owning widgets
         # are never thrown away during a native Qt text-change callback.
@@ -301,6 +348,7 @@ class V2MainWindow(QMainWindow):
             self.gallery_tab.refresh()
 
     def _tab_changed(self, index: int) -> None:
+        self._sync_rail(index)
         pane = self.tabs.widget(index)
         if pane is self.editor_tab:
             self.editor_tab.activate()
