@@ -590,12 +590,15 @@ class V2MainWindow(QMainWindow):
                                 view[1], view[2], collapsed=view[3])
         self._synthetic_preview = False
         self._update_caption()
-        self.statusBar().showMessage(f"Saved {self.session.path.name}")
+        self.statusBar().showMessage(
+            f"Saved {self.session.path.name} as V2 project schema v{VERSION}. "
+            "Older/V1 ReportMaker versions cannot reopen this file; "
+            "keep any original legacy project as a separate backup.")
         return True
 
     def save_project(self, path: str | Path | None = None) -> bool:
         if self.session.path is not None and self.session.loaded_version != VERSION:
-            # v1–v3 source is immutable. Route Save to a different Save As path.
+            # v1–v4 source is immutable. Route Save to a different Save As path.
             if path is not None:
                 QMessageBox.warning(
                     self, "Legacy project", "Use Save As to a new project path."
