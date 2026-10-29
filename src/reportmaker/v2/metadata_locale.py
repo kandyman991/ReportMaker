@@ -110,7 +110,7 @@ def source_digest(key: str, source_language: str, source: str) -> str:
 class MetadataLocale:
     """Fail-closed, read-only resolver; no project mutation or persistence."""
 
-    def __init__(self, report: Report, approvals=(), *, footer_note: str = "",
+    def __init__(self, report: Report, approvals=None, *, footer_note: str = "",
                  footer_source_language: str | None = None):
         if not isinstance(report, Report):
             raise ValueError("Expected canonical report")
@@ -122,6 +122,8 @@ class MetadataLocale:
             raise ValueError("Branded footer prose requires an explicit source language")
         if footer_source_language is not None:
             validate_language_tag(footer_source_language)
+        if approvals is None:
+            approvals = ledger_approvals(report.localization_ledger)
         if not isinstance(approvals, (tuple, list)) or len(approvals) > MAX_ENTRIES:
             raise ValueError("Invalid number of metadata localization entries")
         self._report = report
@@ -275,3 +277,53 @@ def visible_metadata_keys(report: Report, *, preview: bool = False,
         if preview:
             labels.append("preview.footer_prefix")
     return tuple(labels)
+
+def ledger_approvals(ledger: object) -> list[LocaleApproval]:
+    """Strict v5 wire decoder; no persisted source text or transient branding.
+
+    Stale source digests remain stored for explicit reapproval after an edit.
+    Validation rejects malformed records before a project/session is installed.
+    """
+    if not isinstance(ledger, dict) or len(ledger) > len(PERSISTABLE_KEYS):
+        raise ValueError("Invalid metadata localization ledger")
+    entries = []
+    for key, languages in ledger.items():
+        if not isinstance(key, str) or key not in PERSISTABLE_KEYS:
+            raise ValueError("Unknown or transient metadata localization key")
+        if not isinstance(languages, dict) or len(languages) > MAX_ENTRIES:
+            raise ValueError("Invalid metadata localization languages")
+        seen = set()
+        for language, record in languages.items():
+            validate_language_tag(language)
+            lowered = language.casefold()
+            if lowered in seen:
+                raise ValueError("Duplicate metadata localization language")
+            seen.add(lowered)
+            if (not isinstance(record, dict) or
+                    set(record) != {"text", "source_sha256"}):
+                raise ValueError("Invalid metadata localization approval shape")
+            text = record["text"]
+            digest = record["source_sha256"]
+            if (not _xml_safe_text(text, MAX_FREE_TEXT if key in FREE_TEXT_KEYS
+                                   else MAX_LABEL) or
+                    not isinstance(digest, str) or
+                    not fullmatch(r"[0-9a-f]{64}", digest)):
+                raise ValueError("Invalid metadata localization text or digest")
+            entries.append(LocaleApproval(key, language, text, digest))
+            if len(entries) > MAX_ENTRIES:
+                raise ValueError("Too many metadata localization approvals")
+    return entries
+
+
+def validate_ledger(report: Report) -> None:
+    """Validate stored v5 ledger against report identity without mutating it."""
+    entries = ledger_approvals(report.localization_ledger)
+    resolver = MetadataLocale(report, entries)
+    for entry in entries:
+        source, language = resolver.source(entry.key)
+        if entry.language.casefold() == language.casefold():
+            raise ValueError("Source-language metadata approval is forbidden")
+        if (entry.key in FREE_TEXT_KEYS and not _has_visible_text(source)
+                and entry.source_sha256 == source_digest(entry.key, language, source)
+                and _has_visible_text(entry.text)):
+            raise ValueError("Fabricated target-only metadata translation")
