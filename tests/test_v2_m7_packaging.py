@@ -56,6 +56,12 @@ class M7PackageContractTests(unittest.TestCase):
         self.assertIn("Installed frozen payload file is missing:", workflow)
         self.assertIn("Installed frozen payload file does not match:", workflow)
 
+    def test_roadmap_cannot_revert_completed_m6_to_draft(self):
+        roadmap = (ROOT / "docs/v2/ROADMAP.md").read_text(encoding="utf-8")
+        self.assertIn("M6.7 — End-to-end Checkpoint C:** Independently reviewed and merged", roadmap)
+        self.assertNotIn("M6.7 is a separate integration/checkpoint draft", roadmap)
+        self.assertIn("M7.1 is isolated in draft PR #92", roadmap)
+
     def test_launcher_uses_v2_not_legacy_gui(self):
         v2 = (ROOT / "packaging/windows/v2_launcher.py").read_text(encoding="utf-8")
         self.assertIn("from reportmaker.v2.__main__ import main", v2)
