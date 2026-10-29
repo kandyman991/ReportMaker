@@ -27,7 +27,8 @@ from .reference import CustomerSnapshot
 from .rich_text import RichFormatting, format_to_dict, format_from_dict
 
 FORMAT = "reportmaker.project"
-VERSION = 4
+VERSION = 5
+RICH_FORMAT_VERSION = 4
 PREVIOUS_VERSION = 3
 V2_VERSION = 2
 LEGACY_VERSION = 1
@@ -282,7 +283,10 @@ def _report_to(report):
     if report.customer_snapshot is None:
         raise ValueError("Persisted projects require a detached customer snapshot")
     _snapshot_checked(report.customer_snapshot.to_dict())
+    from .v2.metadata_locale import validate_ledger
+    validate_ledger(report)
     return {
+        "localization_ledger": report.localization_ledger,
         "id": report.id, "customer_id": report.customer_id,
         "customer_snapshot": report.customer_snapshot.to_dict(),
         "created_date": report.created_date.isoformat(),
@@ -298,11 +302,14 @@ def _report_to(report):
     }
 
 
-def _report_from(obj, require_visual=False, require_rich=False):
-    obj = _shape(obj, ("id", "customer_id", "customer_snapshot", "created_date",
-                       "title", "start_date", "end_date", "primary_language",
-                       "output_languages", "ticket", "technicians", "intervention_types",
-                       "other_intervention_detail", "modules", "conclusion"))
+def _report_from(obj, require_visual=False, require_rich=False, require_ledger=False):
+    required = ("id", "customer_id", "customer_snapshot", "created_date",
+                "title", "start_date", "end_date", "primary_language",
+                "output_languages", "ticket", "technicians", "intervention_types",
+                "other_intervention_detail", "modules", "conclusion")
+    # v1-v4 must reject v5-only properties, and v5 must carry a ledger
+    # (possibly empty) so migration cannot accidentally drop translations.
+    obj = _shape(obj, required + (("localization_ledger",) if require_ledger else ()))
     if (not isinstance(obj["output_languages"], list) or
         not isinstance(obj["technicians"], list) or
         not isinstance(obj["intervention_types"], list) or
@@ -322,6 +329,7 @@ def _report_from(obj, require_visual=False, require_rich=False):
         technicians=[_string(v) for v in obj["technicians"]],
         intervention_types=[_string(v) for v in obj["intervention_types"]],
         other_intervention_detail=_string(obj["other_intervention_detail"]),
+        localization_ledger=(obj["localization_ledger"] if require_ledger else {}),
         modules=[_module_from(v, require_visual=require_visual,
                               require_rich=require_rich) for v in obj["modules"]],
         conclusion=_module_from(obj["conclusion"], require_visual=require_visual,
@@ -329,6 +337,8 @@ def _report_from(obj, require_visual=False, require_rich=False):
         id=_string(obj["id"]),
     )
     validate_report_tree(report)
+    from .v2.metadata_locale import validate_ledger
+    validate_ledger(report)
     return report
 
 
@@ -479,7 +489,7 @@ def load_project(source: str | Path) -> ReportProject:
                                   parse_constant=_reject_constant)
             if (not isinstance(manifest, dict) or manifest.get("format") != FORMAT
                 or type(manifest.get("version")) is not int
-                or manifest["version"] not in (LEGACY_VERSION, V2_VERSION, PREVIOUS_VERSION, VERSION)):
+                or manifest["version"] not in (LEGACY_VERSION, V2_VERSION, PREVIOUS_VERSION, RICH_FORMAT_VERSION, VERSION)):
                 raise ValueError("Unsupported project schema; no automatic downgrade")
             if manifest["version"] == LEGACY_VERSION:
                 _shape(manifest, ("format", "version", "report", "assets"))
@@ -535,16 +545,17 @@ def load_project(source: str | Path) -> ReportProject:
                 raise ValueError("Unlisted/untrusted files in project archive")
             report = _report_from(manifest["report"],
                                   require_visual=manifest["version"] >= PREVIOUS_VERSION,
-                                  require_rich=manifest["version"] == VERSION)
+                                  require_rich=manifest["version"] >= RICH_FORMAT_VERSION,
+                                  require_ledger=manifest["version"] >= VERSION)
             # Legacy v1 bundles may contain verified orphans, discarded on load.
             # v2 only contains block-referenced or explicitly declared library
             # assets; reject hidden unreferenced ZIP members even if hashed.
             keep = _photo_ids(report) | set(library)
             if not keep <= assets.keys():
                 raise ValueError("Declared picture is missing from archive")
-            if manifest["version"] in (V2_VERSION, PREVIOUS_VERSION, VERSION) and set(assets) != keep:
+            if manifest["version"] >= V2_VERSION and set(assets) != keep:
                 raise ValueError("Undeclared project image asset")
-            if manifest["version"] in (V2_VERSION, PREVIOUS_VERSION, VERSION):
+            if manifest["version"] >= V2_VERSION:
                 for identifier, signature in library_signatures.items():
                     if _image_signature(assets[identifier]) != signature:
                         raise ValueError("Project media metadata disagrees with image bytes")

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from ..export import ExportError, ExportStyle, export_project, prepare_export
 from .localized_export import TranslationRequiredError, localized_project
+from .metadata_locale import resolve_export_metadata
 from .language_bundle import export_language_bundle
 from .pdf_proof import PdfProofPanel
 from .session import ReportSession
@@ -97,17 +98,24 @@ class PreviewTab(QWidget):
         self.proof.hide()
         self.scroll.show()
 
+    def _projection(self, project, *, preview=False):
+        # Resolve semantic metadata before any detached content translation.
+        language = self._current_language() or project.report.primary_language
+        labels = resolve_export_metadata(project.report, language,
+                                         style=self.style, preview=preview)
+        if self._current_language() is not None:
+            project = localized_project(project, language)
+        return project, labels
+
     def show_pdf_proof(self) -> bool:
         """Render PDF pagination only from applied, validated report content."""
         try:
             self.session.require_clean_drafts()
-            project = self.session.project_snapshot()
-            if self._current_language() is not None:
-                project = localized_project(project, self._current_language())
+            project, labels = self._projection(self.session.project_snapshot())
         except (LookupError, ValueError, RuntimeError) as exc:
             self.notice.setText("PDF proof rejected: " + str(exc))
             return False
-        if not self.proof.generate(project, self.style):
+        if not self.proof.generate(project, self.style, locale_labels=labels):
             self.notice.setText(self.proof.notice.text())
             return False
         self.scroll.hide()
@@ -183,10 +191,9 @@ class PreviewTab(QWidget):
             return label
 
         try:
-            project = self.session.project_snapshot()
-            if self._current_language() is not None:
-                project = localized_project(project, self._current_language())
-            plan = prepare_export(project, visual_renderer=annotated_png)
+            project, labels = self._projection(self.session.project_snapshot(), preview=True)
+            plan = prepare_export(project, visual_renderer=annotated_png,
+                                  locale_labels=labels)
             if self.style.logo:
                 logo = QPixmap()
                 if logo.loadFromData(self.style.logo):
@@ -197,14 +204,15 @@ class PreviewTab(QWidget):
             if self.style.company_name:
                 text(self.style.company_name)
             text(plan.title, strong=True)
-            text("Report information", strong=True)
+            text(labels["heading.report_information"], strong=True)
             for name, value in plan.info:
                 text(f"{name}: {value}")
-            text("Summary · derived from the report hierarchy", strong=True)
+            text(labels["heading.summary"] + " · " +
+                 labels["preview.summary_detail"], strong=True)
             for entry in plan.outline:
                 text((entry.number + " " if entry.number else "") + entry.title,
                      margin=14 * min(10, entry.depth))
-            text("Report content", strong=True)
+            text(labels["heading.report_content"], strong=True)
             for item in plan.items:
                 if item.kind == "module":
                     text(item.text, strong=True, margin=10 * min(8, item.depth))
@@ -235,12 +243,13 @@ class PreviewTab(QWidget):
                     if item.text:
                         text(item.text)
                 elif item.kind == "page_break":
-                    text("— Manual page break in exported document —")
+                    text("— " + labels["preview.manual_page_break"] + " —")
             if self.style.footer_note:
-                text("Footer: " + self.style.footer_note)
+                text(labels["preview.footer_prefix"] + ": " +
+                     labels["branding.footer_note"])
             self.notice.setText(
-                ("Language-specific content preview · metadata labels and report "
-                 "information are shown as stored; no automatic translation. "
+                ("Language-specific content and approved metadata preview · "
+                 "no automatic translation. "
                  if self._current_language() is not None else "") +
                 "Continuous schematic preview of applied content · DOCX/PDF "
                 "export uses real pagination. Unapplied drafts are not displayed."
@@ -257,11 +266,9 @@ class PreviewTab(QWidget):
     def export_to(self, path: str | Path, format: str) -> bool:
         try:
             self.session.require_clean_drafts()
-            project = self.session.project_snapshot()
-            if self._current_language() is not None:
-                project = localized_project(project, self._current_language())
+            project, labels = self._projection(self.session.project_snapshot())
             export_project(project, path, format=format, style=self.style,
-                           visual_renderer=annotated_png)
+                           visual_renderer=annotated_png, locale_labels=labels)
         except (OSError, ValueError, RuntimeError) as exc:
             self.notice.setText("Export rejected; existing file left unchanged: " + str(exc))
             self.invalidate()  # Next visit refreshes the normal applied-content preview.
@@ -284,7 +291,7 @@ class PreviewTab(QWidget):
             return False
         self.notice.setText(
             f"Language package exported: {Path(path).name}. Each selected "
-            "language has its own document. Metadata labels remain English.")
+            "language has its own validated customer-facing metadata.")
         return True
 
     def export_bundle_dialog(self) -> bool:

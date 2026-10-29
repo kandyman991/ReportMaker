@@ -127,6 +127,8 @@ class V2MainWindow(QMainWindow):
             ("v2SaveProjectAs", "Save As", self.save_project_as, "Ctrl+Shift+S"),
             ("v2ReportInfo", "Report info", self.edit_report_info, "Ctrl+Shift+R"),
             ("v2Translations", "Translations…", self.edit_translations, ""),
+            ("v2MetadataTranslations", "Metadata languages…", self.edit_metadata_translations, ""),
+            ("v2FooterTranslation", "Footer languages…", self.edit_branding_footer, ""),
             ("v2ImportTemplate", "Layout template…", self.import_layout_template, ""),
             ("v2AddModule", "+ Module", self.branch.add_module, ""),
             ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
@@ -328,6 +330,73 @@ class V2MainWindow(QMainWindow):
         self.preview_tab.invalidate()
         return True
 
+    def edit_metadata_translations(self) -> bool:
+        """Approve semantic metadata/label translations in canonical history."""
+        from .metadata_translation_dialog import MetadataTranslationDialog
+        try:
+            self.session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.statusBar().showMessage(str(exc))
+            return False
+        MetadataTranslationDialog(self.session, self.gateway, self).exec()
+        self.preview_tab.invalidate()
+        return True
+
+    def edit_branding_footer(self) -> bool:
+        """Approve transient Word-template footer prose, never project data."""
+        from dataclasses import replace
+        from ..model import validate_language_tag
+        from .metadata_locale import MetadataLocale
+        try:
+            self.session.require_clean_drafts()
+            style = self.preview_tab.style
+            if not style.footer_note:
+                self.statusBar().showMessage("Choose a template containing footer text first.")
+                return False
+            language, ok = QInputDialog.getText(
+                self, "Template footer source language",
+                "Explicit source language (e.g. en, it, fr-CA):",
+                text=style.footer_source_language or "")
+            if not ok:
+                return False
+            validate_language_tag(language)
+            if language != style.footer_source_language:
+                style = replace(style, footer_source_language=language,
+                                footer_locale_approvals=())
+            tags = [tag for tag in self.session.report_snapshot().output_languages
+                    if tag.casefold() != language.casefold()]
+            if tags:
+                chosen, ok = QInputDialog.getItem(
+                    self, "Footer translation language",
+                    "Approve a target now, or only declare the source language:",
+                    ["Source language only — translate later", *tags], 0, False)
+                if not ok:
+                    return False
+                if chosen in tags:
+                    existing = next((record for record in style.footer_locale_approvals
+                                     if record.language.casefold() == chosen.casefold()), None)
+                    target, ok = QInputDialog.getMultiLineText(
+                        self, "Approve footer translation",
+                        "Manual translation of template footer (no automatic translation):",
+                        existing.text if existing is not None else "")
+                    if not ok:
+                        return False
+                    approved = MetadataLocale(
+                        self.session.report_snapshot(), [],
+                        footer_note=style.footer_note,
+                        footer_source_language=language).approve(
+                            "branding.footer_note", chosen, target)
+                    kept = tuple(record for record in style.footer_locale_approvals
+                                 if record.language.casefold() != chosen.casefold())
+                    style = replace(style, footer_locale_approvals=kept + (approved,))
+            self.editor_tab.set_style(style)
+            self.preview_tab.set_style(style)
+            self.statusBar().showMessage("Transient footer language recorded for this layout only.")
+            return True
+        except (ValueError, RuntimeError) as exc:
+            self.statusBar().showMessage("Footer localization rejected: " + str(exc))
+            return False
+
     def edit_report_info(self) -> bool:
         """Apply metadata through the same guarded canonical command history."""
         from .report_info import ReportInfoDialog
@@ -523,12 +592,15 @@ class V2MainWindow(QMainWindow):
                                 view[1], view[2], collapsed=view[3])
         self._synthetic_preview = False
         self._update_caption()
-        self.statusBar().showMessage(f"Saved {self.session.path.name}")
+        self.statusBar().showMessage(
+            f"Saved {self.session.path.name} as V2 project schema v{VERSION}. "
+            "Older/V1 ReportMaker versions cannot reopen this file; "
+            "keep any original legacy project as a separate backup.")
         return True
 
     def save_project(self, path: str | Path | None = None) -> bool:
         if self.session.path is not None and self.session.loaded_version != VERSION:
-            # v1–v3 source is immutable. Route Save to a different Save As path.
+            # v1–v4 source is immutable. Route Save to a different Save As path.
             if path is not None:
                 QMessageBox.warning(
                     self, "Legacy project", "Use Save As to a new project path."

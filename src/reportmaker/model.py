@@ -303,6 +303,9 @@ class Report:
     technicians: list[str] = field(default_factory=list)
     intervention_types: list[str] = field(default_factory=list)
     other_intervention_detail: str = ""
+    # M6.5: project-owned semantic-key -> language -> approved text/provenance.
+    # Canonical source metadata and generated-label catalog remain authoritative.
+    localization_ledger: dict[str, dict[str, dict[str, str]]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Preserve M0/M1 constructor compatibility without mutating later edits.

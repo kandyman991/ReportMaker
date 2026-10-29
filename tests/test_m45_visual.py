@@ -56,7 +56,7 @@ class M45VisualModelTests(unittest.TestCase):
         self.assertIn("de", actual.visual.marks[1].text.stale_languages)
         with ZipFile(self.path) as archive:
             manifest = json.loads(archive.read("manifest.json"))
-            self.assertEqual(manifest["version"], 4)
+            self.assertEqual(manifest["version"], 5)
             self.assertNotIn("original_path", archive.read("manifest.json").decode())
         self.assertNotIn(b"Valve 4", before_bytes)
 
@@ -117,6 +117,7 @@ class M45VisualModelTests(unittest.TestCase):
             assets = {item.filename: bundle.read(item.filename)
                       for item in bundle.infolist() if item.filename.startswith("assets/")}
         manifest["version"] = 2
+        manifest["report"].pop("localization_ledger")
         # Historical v2 files have no v3 visual layers OR v4 rich spans,
         # including in the mandatory Conclusions module.
         for module in manifest["report"]["modules"] + [manifest["report"]["conclusion"]]:
@@ -142,7 +143,7 @@ class M45VisualModelTests(unittest.TestCase):
         self.assertEqual(self.path.read_bytes(), original)
         updated = self.dir / "copy-v3.rmproj"
         save_project(loaded, updated)
-        self.assertEqual(load_project(updated).loaded_version, 4)
+        self.assertEqual(load_project(updated).loaded_version, 5)
 
     def test_v3_missing_or_corrupt_visual_is_rejected(self):
         save_project(self.project, self.path)

@@ -53,6 +53,8 @@ _KINDS = {
     "import_photos": ({"photos"}, {"index"}),
     "import_library_photos": ({"photos"}, set()),
     "set_translation": ({"language", "key", "text"}, set()),
+    "set_metadata_translation": (
+        {"language", "key", "text", "expected_source_sha256"}, set()),
     "set_fields_batch": ({"edits"}, set()),
     "set_report_metadata": ({"title", "created_date", "start_date", "end_date",
                              "ticket", "technicians", "intervention_types",
@@ -97,6 +99,12 @@ def _apply_report_metadata(report, args):
                 raise ValueError("Mixed source languages need a separate migration")
             if any(code.casefold() == new_language.casefold() for code in value.translations):
                 raise ValueError("A translation already exists for the requested source language; preserve it before migrating")
+        # Metadata translations must not become new canonical source text
+        # after a language relabel. Reject rather than silently discard them.
+        for code in report.localization_ledger.get(
+                "metadata.other_intervention_detail", {}):
+            if code.casefold() == new_language.casefold():
+                raise ValueError("Existing metadata translation conflicts with new source language")
         for _key, value in fields:
             value.original_language = new_language
             value.stale_languages.update(value.translations)
@@ -210,6 +218,29 @@ class CommandGateway:
             if matches[0].original.strip() and not text.strip():
                 raise ValueError("Nonempty original content needs a nonblank translation")
             return
+        if intent.kind == "set_metadata_translation":
+            from .metadata_locale import MetadataLocale, PERSISTABLE_KEYS, source_digest
+            from ..model import validate_language_tag
+            if intent.target is not None:
+                raise ValueError("Metadata translation must target the whole report")
+            key, language, text, expected = (intent.args[name] for name in
+                ("key", "language", "text", "expected_source_sha256"))
+            if not isinstance(key, str) or key not in PERSISTABLE_KEYS:
+                raise ValueError("Unknown or transient metadata translation key")
+            validate_language_tag(language)
+            report = self._session.report_snapshot()
+            # Generated labels may also need approval for the primary
+            # writing language when it is not selected as an export language:
+            # the schematic original-language Preview still uses those labels.
+            if not any(code.casefold() == language.casefold()
+                       for code in (*report.output_languages, report.primary_language)):
+                raise ValueError("Select metadata language in Report Information")
+            resolver = MetadataLocale(report)
+            original, source_language = resolver.source(key)
+            if expected != source_digest(key, source_language, original):
+                raise StaleIntentError("Metadata source changed since translation draft")
+            resolver.approve(key, language, text)
+            return
         if intent.kind == "set_report_metadata":
             if intent.target is not None:
                 raise ValueError("Report information must target the whole report")
@@ -322,6 +353,24 @@ class CommandGateway:
             editor.apply(apply_translation)
             change = ChangeSet(self._session.revision + 1,
                                frozenset({str(key[0])}), False, False, True)
+            self._session._publish(change)
+            return change
+        if kind == "set_metadata_translation":
+            from .metadata_locale import MetadataLocale
+            key, language, text = (args[name] for name in ("key", "language", "text"))
+            candidate = self._session.report_snapshot()
+            approved = MetadataLocale(candidate).approve(key, language, text)
+            current = candidate.localization_ledger.get(key, {})
+            code = next((tag for tag in current if tag.casefold() == language.casefold()),
+                        language)
+            record = {"text": approved.text, "source_sha256": approved.source_sha256}
+            if current.get(code) == record:
+                return None
+            def set_approved_metadata(report):
+                report.localization_ledger.setdefault(key, {})[code] = record
+            editor.apply(set_approved_metadata)
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({editor.report.id}), False, False, True)
             self._session._publish(change)
             return change
         if kind == "set_report_metadata":

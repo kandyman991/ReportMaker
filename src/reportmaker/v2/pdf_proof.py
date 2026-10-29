@@ -73,13 +73,14 @@ class PdfProofPanel(QWidget):
             self.page.blockSignals(False)
         self.notice.setText("PDF proof is outdated; generate it again from applied edits.")
 
-    def generate(self, project: ReportProject, style: ExportStyle) -> bool:
+    def generate(self, project: ReportProject, style: ExportStyle,
+                 *, locale_labels: dict[str, str] | None = None) -> bool:
         self.invalidate()
         try:
             with TemporaryDirectory(prefix="reportmaker-v2-proof-") as directory:
                 path = Path(directory) / "proof.pdf"
                 export_project(project, path, format="pdf", style=style,
-                               visual_renderer=annotated_png)
+                               visual_renderer=annotated_png, locale_labels=locale_labels)
                 if path.stat().st_size > MAX_PROOF_BYTES:
                     raise ValueError("Proof exceeds the 80 MiB in-memory rendering limit")
                 binary = path.read_bytes()

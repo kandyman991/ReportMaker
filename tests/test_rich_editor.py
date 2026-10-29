@@ -44,7 +44,7 @@ class RichModelTests(unittest.TestCase):
                           if isinstance(x, ParagraphBlock))
             self.assertEqual(result.text.original, text)
             self.assertEqual(result.rich, format)
-            self.assertEqual(reloaded.loaded_version, 4)
+            self.assertEqual(reloaded.loaded_version, 5)
 
     def test_installed_font_family_with_bracket_suffix_roundtrips_safely(self):
         # Fontconfig/Qt exposes legitimate families such as "C059 [UKWN]".
@@ -102,6 +102,7 @@ class RichModelTests(unittest.TestCase):
                 blobs = {i.filename: source.read(i.filename) for i in source.infolist()
                          if i.filename.startswith("assets/")}
             manifest["version"] = 3
+            manifest["report"].pop("localization_ledger")
             def remove_rich(module):
                 for item in module["blocks"]:
                     if item["kind"] in ("paragraph", "heading"):
@@ -122,7 +123,7 @@ class RichModelTests(unittest.TestCase):
             self.assertEqual(file.read_bytes(), prior)
             upgraded = Path(d) / "new-v4.rmproj"
             save_project(loaded, upgraded)
-            self.assertEqual(load_project(upgraded).loaded_version, 4)
+            self.assertEqual(load_project(upgraded).loaded_version, 5)
 
     def test_project_history_restores_original_formatting(self):
         project = synthetic_project()

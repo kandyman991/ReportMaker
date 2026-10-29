@@ -59,6 +59,9 @@ class ExportStyle:
     normal_size_pt: float = 11.0
     heading_font: str = ""
     heading_size_pt: float = 16.0
+    # Transient authored template prose; these are never included in .rmproj.
+    footer_source_language: str | None = None
+    footer_locale_approvals: tuple = ()
 
 
 def _validate_style(style: ExportStyle | None) -> ExportStyle:
@@ -92,7 +95,8 @@ def _validate_style(style: ExportStyle | None) -> ExportStyle:
                        style.top_margin_cm, style.bottom_margin_cm,
                        style.header_distance_cm, style.footer_distance_cm,
                        style.normal_font, style.normal_size_pt,
-                       style.heading_font, style.heading_size_pt)
+                       style.heading_font, style.heading_size_pt,
+                       style.footer_source_language, style.footer_locale_approvals)
 
 
 def _photo_dimensions(image: bytes, max_width_cm: float = PHOTO_MAX_WIDTH_CM,
@@ -134,6 +138,8 @@ class ExportPlan:
     info: tuple[tuple[str, str], ...]
     outline: tuple[OutlineEntry, ...]
     items: tuple[RenderItem, ...]
+    # Detached, prevalidated M6.5 semantic labels. Never stored in .rmproj.
+    locale_labels: dict[str, str] | None = None
 
 
 def _image_bytes(payload: bytes) -> bytes:
@@ -166,7 +172,8 @@ def _image_bytes(payload: bytes) -> bytes:
 
 
 def prepare_export(project: ReportProject, *,
-                   visual_renderer: Callable[[bytes, PhotoVisual], bytes] | None = None) -> ExportPlan:
+                   visual_renderer: Callable[[bytes, PhotoVisual], bytes] | None = None,
+                   locale_labels: dict[str, str] | None = None) -> ExportPlan:
     """Read-only export projection; source text only until M5 localization UI.
 
     All module numbering and TOC entries come from the exact model outline used
@@ -195,6 +202,40 @@ def prepare_export(project: ReportProject, *,
     ]
     if "other" in report.intervention_types:
         info.append(("Other intervention details", report.other_intervention_detail))
+    if locale_labels is not None:
+        if not isinstance(locale_labels, dict):
+            raise ExportError("Metadata localization must be a prevalidated mapping")
+        from .v2.metadata_locale import ENGLISH_LABELS
+        # The caller must provide *all* required labels. Never fall back to
+        # English if a validated language context is incomplete.
+        def localized(key):
+            if key not in locale_labels or not isinstance(locale_labels[key], str):
+                raise ExportError("Untranslated report metadata label: " + key)
+            return locale_labels[key]
+        renamed = []
+        field_keys = {
+            "Created": "field.created",
+            "Intervention from": "field.intervention_from",
+            "Intervention to": "field.intervention_to",
+            "Customer": "field.customer", "Site": "field.site",
+            "Machine": "field.machine", "Machine serial": "field.machine_serial",
+            "Ticket": "field.ticket", "Personnel": "field.personnel",
+            "Intervention types": "field.intervention_types",
+            "Other intervention details": "field.other_intervention_details",
+        }
+        for label, value in info:
+            if not value:
+                continue
+            key = field_keys[label]
+            if key == "field.intervention_types":
+                value = ", ".join(localized("intervention." + kind)
+                                  for kind in report.intervention_types)
+            elif key == "field.other_intervention_details":
+                value = localized("metadata.other_intervention_detail")
+            renamed.append((localized(key), value))
+        info = renamed
+        for key in ("heading.report_information", "heading.summary", "label.page"):
+            localized(key)
     items: list[RenderItem] = []
 
     def add_module(module: Module) -> None:
@@ -243,7 +284,7 @@ def prepare_export(project: ReportProject, *,
         add_module(module)
     return ExportPlan(report.title.original, tuple(
         (label, value) for label, value in info if value
-    ), outline, tuple(items))
+    ), outline, tuple(items), locale_labels)
 
 
 @contextmanager
@@ -411,18 +452,21 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
     footer = sec.footer.paragraphs[0]
     footer.paragraph_format.tab_stops.add_tab_stop(
         Cm(printable_width), WD_TAB_ALIGNMENT.RIGHT)
-    footer.add_run(style.footer_note)
-    footer.add_run("\tPage ")
+    labels = plan.locale_labels or {}
+    footer.add_run(labels.get("branding.footer_note", style.footer_note))
+    footer.add_run("\t" + labels.get("label.page", "Page") + " ")
     _word_field(footer, " PAGE ", "1")
     document.core_properties.title = plan.title
     document.add_heading(plan.title, 0)
-    document.add_heading("Report information", level=2)
+    document.add_heading((plan.locale_labels or {}).get(
+        "heading.report_information", "Report information"), level=2)
     table = document.add_table(rows=0, cols=2)
     table.style = "Table Grid"
     for label, value in plan.info:
         row = table.add_row().cells
         row[0].text, row[1].text = label, value
-    document.add_heading("Summary", level=2)
+    document.add_heading((plan.locale_labels or {}).get(
+        "heading.summary", "Summary"), level=2)
     for entry in plan.outline:
         paragraph = document.add_paragraph(style="Normal")
         paragraph.paragraph_format.left_indent = Cm(min(entry.depth, 12) * .5)
@@ -614,10 +658,11 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                               "increase the top margin or shorten the header")
 
     footer = None
-    if style.footer_note:
+    footer_note = (plan.locale_labels or {}).get("branding.footer_note", style.footer_note)
+    if footer_note:
         footer_style = ParagraphStyle("RMFooter", fontName=body_font,
                                       fontSize=8, leading=10)
-        markup = escape(style.footer_note).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
+        markup = escape(footer_note).replace("\t", "&#160;" * 4).replace("\n", "<br/>")
         footer = Paragraph(markup, footer_style)
         note_width = max(2*cm, (style.page_width_cm-style.left_margin_cm-
                                 style.right_margin_cm-3)*cm)
@@ -657,7 +702,8 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                 canvas.setFont(body_font, 9)
                 canvas.drawRightString((style.page_width_cm-style.right_margin_cm)*cm,
                                        style.footer_distance_cm*cm,
-                                       "Page " + str(doc.page))
+                                       (plan.locale_labels or {}).get(
+                                           "label.page", "Page") + " " + str(doc.page))
             finally:
                 canvas.restoreState()
 
@@ -694,7 +740,8 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     title_style = ParagraphStyle("ReportTitle", parent=styles["Title"], fontName=bold_font)
     label_style = ParagraphStyle("ReportLabel", parent=styles["Heading2"], fontName=bold_font)
     story = [Paragraph(escape(plan.title), title_style),
-             Spacer(1, 10), Paragraph("Report information", label_style)]
+             Spacer(1, 10), Paragraph(escape((plan.locale_labels or {}).get(
+                 "heading.report_information", "Report information")), label_style)]
     # Use the same selected/embedded Unicode font as report body content.
     # Default BodyText is Helvetica and corrupts non-Latin customer metadata.
     metadata = [[Paragraph(escape(label), normal),
@@ -711,7 +758,8 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ]))
         story.extend([tbl, Spacer(1, 12)])
-    story.extend([Paragraph("Summary", label_style), toc, PageBreak()])
+    story.extend([Paragraph(escape((plan.locale_labels or {}).get(
+        "heading.summary", "Summary")), label_style), toc, PageBreak()])
 
     # Continue a list over adjacent canonical text blocks, but never across a
     # module/table/photo/page break or a plain/bulleted paragraph.
@@ -810,12 +858,14 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
 
 def export_project(project: ReportProject, destination: str | Path,
                    *, format: str, style: ExportStyle | None = None,
-                   visual_renderer: Callable[[bytes, PhotoVisual], bytes] | None = None) -> Path:
+                   visual_renderer: Callable[[bytes, PhotoVisual], bytes] | None = None,
+                   locale_labels: dict[str, str] | None = None) -> Path:
     """Create DOCX or PDF atomically; caller owns the source project's Save."""
     if format not in {"docx", "pdf"}:
         raise ExportError("Unsupported export format")
     # Validate and decode all assets and branding before replacing any output.
-    plan = prepare_export(project, visual_renderer=visual_renderer)
+    plan = prepare_export(project, visual_renderer=visual_renderer,
+                          locale_labels=locale_labels)
     style = _validate_style(style)
     destination = Path(destination)
     with _atomic_destination(destination, "." + format) as temporary:
