@@ -124,6 +124,8 @@ class RenderItem:
     rows: tuple[tuple[str, ...], ...] = ()
     image: bytes = b""
     rich: RichFormatting | None = None
+    photo_width_pct: int = 100
+    photo_alignment: str = "default"
 
 
 @dataclass(frozen=True)
@@ -226,7 +228,11 @@ def prepare_export(project: ReportProject, *,
                         raise ExportError("Cannot render edited photograph") from exc
                 items.append(RenderItem(
                     "photo", block.caption.original if block.caption else "",
-                    image=_image_bytes(source)))
+                    image=_image_bytes(source),
+                    photo_width_pct=(block.visual.width_pct
+                                     if visual_renderer is not None else 100),
+                    photo_alignment=(block.visual.alignment
+                                     if visual_renderer is not None else "default")))
             elif isinstance(block, PageBreakBlock):
                 items.append(RenderItem("page_break"))
             else:
@@ -514,6 +520,15 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
                     PHOTO_MAX_HEIGHT_CM,
                     style.page_height_cm - style.top_margin_cm - style.bottom_margin_cm - 1))
             picture = document.add_paragraph()
+            if item.photo_alignment != "default":
+                from docx.enum.text import WD_ALIGN_PARAGRAPH
+                picture.alignment = {
+                    "left": WD_ALIGN_PARAGRAPH.LEFT,
+                    "center": WD_ALIGN_PARAGRAPH.CENTER,
+                    "right": WD_ALIGN_PARAGRAPH.RIGHT,
+                }[item.photo_alignment]
+            photo_w *= item.photo_width_pct / 100
+            photo_h *= item.photo_width_pct / 100
             picture.paragraph_format.keep_together = True
             picture.paragraph_format.keep_with_next = bool(item.text)
             picture.add_run().add_picture(BytesIO(item.image),
@@ -767,8 +782,12 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
                 max_height_cm=min(
                     PHOTO_MAX_HEIGHT_CM,
                     style.page_height_cm - style.top_margin_cm - style.bottom_margin_cm - 1))
+            photo_w *= item.photo_width_pct / 100
+            photo_h *= item.photo_width_pct / 100
             image = Image(BytesIO(item.image), width=photo_w*cm,
                           height=photo_h*cm)
+            if item.photo_alignment != "default":
+                image.hAlign = item.photo_alignment.upper()
             if item.text:
                 story.append(KeepTogether([image, Paragraph(escape(item.text),
                                                            normal)]))
