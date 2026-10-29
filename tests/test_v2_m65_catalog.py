@@ -226,13 +226,13 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertEqual(MetadataLocale(self.report, [replay]).resolve(
             "field.machine", "de"), "Maschine")
         # No v5 JSON keys may sneak into current project persistence.
-        self.assertEqual(VERSION, 4)
+        self.assertEqual(VERSION, 5)
         with TemporaryDirectory() as d:
             path = Path(d) / "existing-format.rmproj"
             save_project(self.project, path)
             reopened = load_project(path)
             self.assertEqual(reopened.report, original)
-            self.assertEqual(reopened.loaded_version, 4)
+            self.assertEqual(reopened.loaded_version, 5)
 
     def test_source_digest_binds_semantic_identity(self):
         self.assertNotEqual(source_digest("heading.summary", "en", "Same"),
