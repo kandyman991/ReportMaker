@@ -367,26 +367,28 @@ class V2MainWindow(QMainWindow):
                     if tag.casefold() != language.casefold()]
             if tags:
                 chosen, ok = QInputDialog.getItem(
-                    self, "Footer translation language", "Target output language:",
-                    tags, 0, False)
+                    self, "Footer translation language",
+                    "Approve a target now, or only declare the source language:",
+                    ["Source language only — translate later", *tags], 0, False)
                 if not ok:
                     return False
-                existing = next((record for record in style.footer_locale_approvals
-                                 if record.language.casefold() == chosen.casefold()), None)
-                target, ok = QInputDialog.getMultiLineText(
-                    self, "Approve footer translation",
-                    "Manual translation of template footer (no automatic translation):",
-                    existing.text if existing is not None else "")
-                if not ok:
-                    return False
-                approved = MetadataLocale(
-                    self.session.report_snapshot(), [],
-                    footer_note=style.footer_note,
-                    footer_source_language=language).approve(
-                        "branding.footer_note", chosen, target)
-                kept = tuple(record for record in style.footer_locale_approvals
-                             if record.language.casefold() != chosen.casefold())
-                style = replace(style, footer_locale_approvals=kept + (approved,))
+                if chosen in tags:
+                    existing = next((record for record in style.footer_locale_approvals
+                                     if record.language.casefold() == chosen.casefold()), None)
+                    target, ok = QInputDialog.getMultiLineText(
+                        self, "Approve footer translation",
+                        "Manual translation of template footer (no automatic translation):",
+                        existing.text if existing is not None else "")
+                    if not ok:
+                        return False
+                    approved = MetadataLocale(
+                        self.session.report_snapshot(), [],
+                        footer_note=style.footer_note,
+                        footer_source_language=language).approve(
+                            "branding.footer_note", chosen, target)
+                    kept = tuple(record for record in style.footer_locale_approvals
+                                 if record.language.casefold() != chosen.casefold())
+                    style = replace(style, footer_locale_approvals=kept + (approved,))
             self.editor_tab.set_style(style)
             self.preview_tab.set_style(style)
             self.statusBar().showMessage("Transient footer language recorded for this layout only.")
