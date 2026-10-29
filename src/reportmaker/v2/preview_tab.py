@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from ..export import ExportError, ExportStyle, export_project, prepare_export
 from .localized_export import TranslationRequiredError, localized_project
+from .pdf_proof import PdfProofPanel
 from .session import ReportSession
 from .visual_export import annotated_png
 
@@ -47,6 +48,14 @@ class PreviewTab(QWidget):
             button.setObjectName("v2Export" + kind.upper())
             button.clicked.connect(lambda checked=False, fmt=kind: self.export_dialog(fmt))
             buttons.addWidget(button)
+        proof = QPushButton("Render paginated PDF proof", self)
+        proof.setObjectName("v2GeneratePDFProof")
+        proof.clicked.connect(self.show_pdf_proof)
+        buttons.addWidget(proof)
+        schematic = QPushButton("Schematic view", self)
+        schematic.setObjectName("v2ReturnSchematic")
+        schematic.clicked.connect(self.return_schematic)
+        buttons.addWidget(schematic)
         buttons.addStretch()
         outer.addLayout(buttons)
         self.scroll = QScrollArea(self)
@@ -55,10 +64,40 @@ class PreviewTab(QWidget):
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setObjectName("v2PrintPreviewScroll")
         outer.addWidget(self.scroll, 1)
+        self.proof = PdfProofPanel(self)
+        self.proof.hide()
+        outer.addWidget(self.proof, 1)
         self.refresh()
 
-    def invalidate(self):
+    def invalidate(self, *_args):
         self._token = None
+        self.proof.invalidate()
+        self.proof.hide()
+        self.scroll.show()
+
+    def show_pdf_proof(self) -> bool:
+        """Render PDF pagination only from applied, validated report content."""
+        try:
+            self.session.require_clean_drafts()
+            project = self.session.project_snapshot()
+            if self._current_language() is not None:
+                project = localized_project(project, self._current_language())
+        except (LookupError, ValueError, RuntimeError) as exc:
+            self.notice.setText("PDF proof rejected: " + str(exc))
+            return False
+        if not self.proof.generate(project, self.style):
+            self.notice.setText(self.proof.notice.text())
+            return False
+        self.scroll.hide()
+        self.proof.show()
+        self.notice.setText("PDF proof uses actual exported pagination; DOCX may differ.")
+        return True
+
+    def return_schematic(self):
+        self.proof.hide()
+        self.scroll.show()
+        self.refresh()
+
 
     def set_style(self, style: ExportStyle) -> None:
         self.style = style
