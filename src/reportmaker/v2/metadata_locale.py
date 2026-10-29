@@ -230,7 +230,6 @@ def visible_metadata_keys(report: Report, *, preview: bool = False,
         raise ValueError("Expected canonical report")
     if not _xml_safe_text(footer_note, MAX_FREE_TEXT):
         raise ValueError("Invalid branding footer text")
-    snapshot = report.customer_snapshot
     labels = [
         "heading.report_information", "heading.summary", "label.page",
         "field.created", "field.intervention_from", "field.intervention_to",
