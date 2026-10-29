@@ -52,6 +52,7 @@ _KINDS = {
     "import_photo": ({"image_bytes", "name"}, {"index"}),
     "import_photos": ({"photos"}, {"index"}),
     "import_library_photos": ({"photos"}, set()),
+    "set_translation": ({"language", "key", "text"}, set()),
     "set_report_metadata": ({"title", "created_date", "start_date", "end_date",
                              "ticket", "technicians", "intervention_types",
                              "other_intervention_detail", "customer_snapshot",
@@ -145,6 +146,27 @@ class CommandGateway:
             if intent.target is not None:
                 raise ValueError("Library import cannot carry a report placement")
             return
+        if intent.kind == "set_translation":
+            from .localized_export import localized_fields
+            from ..model import validate_language_tag
+            language, key, text = (intent.args[name]
+                                   for name in ("language", "key", "text"))
+            validate_language_tag(language)
+            report = self._session.report_snapshot()
+            if not any(code.casefold() == language.casefold()
+                       for code in report.output_languages):
+                raise ValueError("Select the translation language in Report Information first")
+            if not isinstance(key, tuple) or not isinstance(text, str):
+                raise ValueError("Translation requires a stable field key and plain text")
+            matches = [value for candidate_key, value in localized_fields(report)
+                       if candidate_key == key]
+            if len(matches) != 1:
+                raise LookupError("Translation field no longer belongs to this report")
+            if matches[0].original_language.casefold() == language.casefold():
+                raise ValueError("Cannot overwrite original-language content")
+            if len(text) > 100000:
+                raise ValueError("Translation exceeds the safe text size")
+            return
         if intent.kind == "set_report_metadata":
             if intent.target is not None:
                 raise ValueError("Report information must target the whole report")
@@ -208,6 +230,29 @@ class CommandGateway:
         # callables/fields never enter the transaction.
         kind, args, address = intent.kind, dict(intent.args), intent.target
         editor = self._session._editor
+        if kind == "set_translation":
+            from .localized_export import localized_fields
+            from ..model import validate_language_tag
+            language = args["language"]
+            key = args["key"]
+            text = args["text"]
+            report = self._session.report_snapshot()
+            target = next(value for field_key, value in localized_fields(report)
+                          if field_key == key)
+            existing = next((code for code in target.translations
+                             if code.casefold() == language.casefold()), language)
+            if (target.translations.get(existing) == text
+                    and existing not in target.stale_languages):
+                return None
+            def apply_translation(report):
+                candidate = next(value for field_key, value in localized_fields(report)
+                                 if field_key == key)
+                candidate.set_translation(existing, text)
+            editor.apply(apply_translation)
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({str(key[0])}), False, False, True)
+            self._session._publish(change)
+            return change
         if kind == "set_report_metadata":
             candidate = deepcopy(editor.report)
             _apply_report_metadata(candidate, args)
