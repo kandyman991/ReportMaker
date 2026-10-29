@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-29T06:57:58.657Z",
+  "generatedAt": "2026-10-29T07:26:59.127Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "baaffb30a79f961d7ff4881298b9138c81088d2e",
-    "message": "V2 M3.4: contextual insertion and shared editor drafts (#80)\n\n* feat(v2): M3.4 contextual insertion and cross-editor draft ownership\n\n* fix(v2): distinguish stale branch drafts from external ownership\n\n---------\n\nCo-authored-by: ChatGPT <41898282+github-actions[bot]@users.noreply.github.com>",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/baaffb30a79f961d7ff4881298b9138c81088d2e"
+    "sha": "f22f24e62e9ddacf8647236a896707e899200531",
+    "message": "V2 M4: Photo integration, native import, and visual editing (#81)\n\n* feat(v2): M4 project-owned photo integration and guarded native imports\n\n* fix(v2-m4): reset placement edits when replacing with same photo\n\n* test(v2-m4): cover same-image visual reset, undo, and true no-op",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/f22f24e62e9ddacf8647236a896707e899200531"
   },
   "openPullRequests": [
     {
@@ -109,114 +109,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40832403005,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "baaffb30a79f961d7ff4881298b9138c81088d2e",
-      "event": "push",
-      "updatedAt": "2026-10-29T06:57:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832403005"
-    },
-    {
-      "id": 40832403002,
+      "id": 40835480983,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "baaffb30a79f961d7ff4881298b9138c81088d2e",
+      "headSha": "f22f24e62e9ddacf8647236a896707e899200531",
       "event": "push",
-      "updatedAt": "2026-10-29T06:57:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832403002"
+      "updatedAt": "2026-10-29T07:26:55Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835480983"
     },
     {
-      "id": 40832402995,
+      "id": 40835480976,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "f22f24e62e9ddacf8647236a896707e899200531",
+      "event": "push",
+      "updatedAt": "2026-10-29T07:26:56Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835480976"
+    },
+    {
+      "id": 40835480965,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "baaffb30a79f961d7ff4881298b9138c81088d2e",
+      "headSha": "f22f24e62e9ddacf8647236a896707e899200531",
       "event": "push",
-      "updatedAt": "2026-10-29T06:57:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832402995"
+      "updatedAt": "2026-10-29T07:26:55Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835480965"
     },
     {
-      "id": 40832194087,
-      "name": "V2 M1.2 session, commands and persistence",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-4-insertion-cross-tab",
-      "headSha": "125d1f88d3904c7565f5ef6c805a66bac2ac282b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T06:56:19Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832194087"
-    },
-    {
-      "id": 40832193962,
-      "name": "V2 M1.4 project lifecycle and Checkpoint A",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-4-insertion-cross-tab",
-      "headSha": "125d1f88d3904c7565f5ef6c805a66bac2ac282b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T06:56:40Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832193962"
-    },
-    {
-      "id": 40832193900,
-      "name": "V2 M2 structural placement",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-4-insertion-cross-tab",
-      "headSha": "125d1f88d3904c7565f5ef6c805a66bac2ac282b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T06:56:53Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832193900"
-    },
-    {
-      "id": 40832193892,
-      "name": "V2 M1.1 Branch Editor shell",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-4-insertion-cross-tab",
-      "headSha": "125d1f88d3904c7565f5ef6c805a66bac2ac282b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T06:56:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832193892"
-    },
-    {
-      "id": 40832193885,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m3-4-insertion-cross-tab",
-      "headSha": "125d1f88d3904c7565f5ef6c805a66bac2ac282b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T06:55:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832193885"
-    },
-    {
-      "id": 40832193822,
+      "id": 40835102307,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m3-4-insertion-cross-tab",
-      "headSha": "125d1f88d3904c7565f5ef6c805a66bac2ac282b",
+      "branch": "feature/v2-m4-photo-integration",
+      "headSha": "a67c1ee2d0c27d9b15b66a7789de84a432a5f0af",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T06:57:07Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832193822"
+      "updatedAt": "2026-10-29T07:26:00Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835102307"
     },
     {
-      "id": 40832193774,
+      "id": 40835102280,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m4-photo-integration",
+      "headSha": "a67c1ee2d0c27d9b15b66a7789de84a432a5f0af",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T07:23:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835102280"
+    },
+    {
+      "id": 40835102273,
       "name": "V2 M1.3 inline branch editing",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m3-4-insertion-cross-tab",
-      "headSha": "125d1f88d3904c7565f5ef6c805a66bac2ac282b",
+      "branch": "feature/v2-m4-photo-integration",
+      "headSha": "a67c1ee2d0c27d9b15b66a7789de84a432a5f0af",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T06:57:14Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40832193774"
+      "updatedAt": "2026-10-29T07:24:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835102273"
+    },
+    {
+      "id": 40835102267,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m4-photo-integration",
+      "headSha": "a67c1ee2d0c27d9b15b66a7789de84a432a5f0af",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T07:25:37Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835102267"
+    },
+    {
+      "id": 40835102256,
+      "name": "V2 M1.4 project lifecycle and Checkpoint A",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m4-photo-integration",
+      "headSha": "a67c1ee2d0c27d9b15b66a7789de84a432a5f0af",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T07:24:16Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835102256"
+    },
+    {
+      "id": 40835102252,
+      "name": "V2 M2 structural placement",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m4-photo-integration",
+      "headSha": "a67c1ee2d0c27d9b15b66a7789de84a432a5f0af",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T07:24:33Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835102252"
+    },
+    {
+      "id": 40835102239,
+      "name": "V2 M1.2 session, commands and persistence",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m4-photo-integration",
+      "headSha": "a67c1ee2d0c27d9b15b66a7789de84a432a5f0af",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T07:23:52Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40835102239"
     }
   ]
 }
