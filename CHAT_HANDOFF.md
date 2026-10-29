@@ -316,3 +316,11 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 ## V2 M3.3 independent review corrections (2026-10-29)
 - PR #79 original review head `618c77ee3ac5b72afc061dc6e93661deb4a63ded`. Reproduced and corrected stale pending-table draft refresh failure: render the frozen draft read-only with conflict warning/available Revert; canonical Apply still rejects. Rejected row insertion into existing zero-column tables (which previously created ragged rows). Added Qt/pure regressions; see `docs/v2/M3_3_INLINE_TABLES.md` and `docs/CHECKPOINTS.md`.
 - Check final PR head and Windows 3.11/3.12 v2-inline test steps after committing; physical native Windows acceptance remains separate. Next planned V2 milestone M3.4.
+
+## V2 M3.4 development checkpoint (2026-10-29)
+- Branch `feature/v2-m3-4-insertion-cross-tab` based on confirmed main `b676bffdba9e7aa5f69753562cde514ea09da1ff` (PR #79 merged + continuity). Adds safe contextual insertion for all existing leaf types including page breaks and reused project-owned photos, and one owner-tagged shared draft interface for a future Editor tab. Explicit Apply/Revert, stale-source/focus and project-switch barriers remain mandatory.
+- Photo thumbnails/import/annotations and the actual separate Editor/Gallery tabs belong to future M4/M6; M3.4 does not import V1 UI, change V1 exporters, schema v4, or manual-only ChatGPT behavior. RC PR #21 untouched.
+- See `docs/v2/M3_4_INSERTION_DRAFT_COORDINATION.md` and `docs/CHECKPOINTS.md`. Independent code review and exact final-head Windows Python 3.11/3.12 checks required before merge; no real data, installer, production release, or automatic user acceptance claimed.
+
+## V2 M3.4 independent PR #80 review (2026-10-29)
+- Initial PR #80 head 192c01316cc01729eea024293ecb61347c68fea7 passed 153/153 local V2 tests and hosted Windows Python 3.11/3.12 checks. Review corrected the misleading 'other editor owns draft' notice on a stale branch-owned text draft, preserving read-only recovery and appropriate original-editor guidance. Strengthened offscreen Qt regression assertions; verify checks on the final commit before merge. M4 remains next.

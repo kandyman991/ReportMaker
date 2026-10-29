@@ -17,7 +17,7 @@ from .adapters.tables import checked_rows, edit_cell, change_grid
 from .adapters.rich_text import rebase_rich
 from .commands import CommandGateway, CommandIntent
 from .projections import NodeAddress, find_node
-from .session import ReportSession, StaleIntentError
+from .session import PendingDraftError, ReportSession, StaleIntentError
 
 
 @dataclass(frozen=True)
@@ -56,6 +56,7 @@ class DraftCoordinator:
         self.gateway = gateway
         self._drafts: dict[NodeAddress, TextDraft | TableDraft] = {}
         self._committing = False
+        self._owners: dict[NodeAddress, str] = {}
         session.set_draft_guard(self._draft_guard)
 
     def _draft_guard(self) -> bool:
@@ -75,13 +76,56 @@ class DraftCoordinator:
     def is_dirty(self, address: NodeAddress) -> bool:
         return address in self._drafts
 
+    def draft_owner(self, address: NodeAddress) -> str | None:
+        """All views inspect one shared pending state, without copying a report."""
+        return self._owners.get(address)
+
+    def _check_owner(self, address: NodeAddress, owner: str) -> None:
+        if not isinstance(owner, str) or not owner.strip():
+            raise ValueError("Draft editor must have a nonempty identity")
+        current = self._owners.get(address)
+        if current is not None and current != owner:
+            raise PendingDraftError(
+                f"Resolve the {current} draft before editing this field in {owner}")
+
+    def _store(self, address: NodeAddress, draft: TextDraft | TableDraft,
+               owner: str) -> None:
+        self._drafts[address] = draft
+        self._owners[address] = owner
+
+    def _clear(self, address: NodeAddress) -> None:
+        self._drafts.pop(address, None)
+        self._owners.pop(address, None)
+
+    def for_editor(self, owner: str) -> "EditorDraftPort":
+        """Give a future Editor/Gallery tab guarded access to the same drafts."""
+        if not isinstance(owner, str) or not owner.strip() or owner == "branch":
+            raise ValueError("External editor requires a distinct nonempty identity")
+        return EditorDraftPort(self, owner)
+
     def text(self, address: NodeAddress) -> str:
         draft = self._drafts.get(address)
         if draft is not None:
             return draft.value
         return _source(find_node(self.session.report_snapshot(), address), address)
 
-    def update(self, address: NodeAddress, value: str) -> None:
+    def text_stale(self, address: NodeAddress) -> bool:
+        """A stale draft remains copyable/revertible but must not be edited."""
+        draft = self._drafts.get(address)
+        if draft is None:
+            return False
+        if not isinstance(draft, TextDraft):
+            raise ValueError("Not a text draft")
+        if draft.generation != self.session.generation:
+            return True
+        try:
+            node = find_node(self.session.report_snapshot(), address)
+            return _source(node, address) != draft.original
+        except (LookupError, ValueError):
+            return True
+
+    def update(self, address: NodeAddress, value: str, *, owner: str = "branch") -> None:
+        self._check_owner(address, owner)
         if not isinstance(value, str):
             raise ValueError("Inline text must be a string")
         old = self._drafts.get(address)
@@ -102,9 +146,9 @@ class DraftCoordinator:
         if _source(node, address) != original:
             raise StaleIntentError("Source changed since editing began; draft preserved")
         if value == original and (rich is None or rich == getattr(node, "rich", None)):
-            self._drafts.pop(address, None)
+            self._clear(address)
         else:
-            self._drafts[address] = TextDraft(address, original, value, generation, rich)
+            self._store(address, TextDraft(address, original, value, generation, rich), owner)
 
     def rich(self, address: NodeAddress) -> RichFormatting:
         node = find_node(self.session.report_snapshot(), address)
@@ -120,8 +164,10 @@ class DraftCoordinator:
         return rebase_rich(draft.original, draft.value, node.rich)
 
     def format(self, address: NodeAddress, start: int, end: int,
-               field: str, value: object, *, paragraph: bool = False) -> bool:
+               field: str, value: object, *, paragraph: bool = False,
+               owner: str = "branch") -> bool:
         """Stage styling without changing canonical data or undo history."""
+        self._check_owner(address, owner)
         node = find_node(self.session.report_snapshot(), address)
         if (address.field != "text" or address.block_id is None
                 or not isinstance(node, (ParagraphBlock, HeadingBlock))):
@@ -138,10 +184,10 @@ class DraftCoordinator:
         if previous == changed:
             return False
         if text == node.text.original and changed == node.rich:
-            self._drafts.pop(address, None)
+            self._clear(address)
         else:
-            self._drafts[address] = TextDraft(
-                address, node.text.original, text, self.session.generation, changed)
+            self._store(address, TextDraft(
+                address, node.text.original, text, self.session.generation, changed), owner)
         return True
 
     def table_rows(self, address: NodeAddress) -> list:
@@ -197,7 +243,9 @@ class DraftCoordinator:
         return result
 
     def _stage_table(self, address: NodeAddress, rows: list,
-                     origins: list[list[tuple[int, int] | None]] | None = None) -> bool:
+                     origins: list[list[tuple[int, int] | None]] | None = None,
+                     *, owner: str = "branch") -> bool:
+        self._check_owner(address, owner)
         node = find_node(self.session.report_snapshot(), address)
         if not isinstance(node, TableBlock):
             raise ValueError("Not a table")
@@ -211,16 +259,18 @@ class DraftCoordinator:
                 or (previous is None and original == rows)):
             return False
         if original == rows:
-            self._drafts.pop(address, None)
+            self._clear(address)
         else:
-            self._drafts[address] = TableDraft(
+            self._store(address, TableDraft(
                 address, original, checked_rows(rows), self.session.generation,
                 deepcopy(origins) if origins is not None else (
                     deepcopy(previous.origins) if isinstance(previous, TableDraft)
-                    else self._origins(original)))
+                    else self._origins(original))), owner)
         return True
 
-    def update_cell(self, address: NodeAddress, row: int, column: int, value: str) -> bool:
+    def update_cell(self, address: NodeAddress, row: int, column: int,
+                    value: str, *, owner: str = "branch") -> bool:
+        self._check_owner(address, owner)
         rows = self.table_rows(address)
         updated = edit_cell(rows, row, column, value)
         previous = self._drafts.get(address)
@@ -236,9 +286,11 @@ class DraftCoordinator:
             baseline = deepcopy(initial[origin[0]][origin[1]])
             baseline.update_original(value)
             updated[row][column] = baseline
-        return self._stage_table(address, updated, origins=origins)
+        return self._stage_table(address, updated, origins=origins, owner=owner)
 
-    def modify_table(self, address: NodeAddress, operation: str, index: int) -> bool:
+    def modify_table(self, address: NodeAddress, operation: str, index: int,
+                     *, owner: str = "branch") -> bool:
+        self._check_owner(address, owner)
         rows = self.table_rows(address)
         previous = self._drafts.get(address)
         origins = (previous.origins if isinstance(previous, TableDraft)
@@ -248,13 +300,16 @@ class DraftCoordinator:
         updated = change_grid(
             rows, operation, index, self.session.report_snapshot().primary_language)
         return self._stage_table(
-            address, updated, origins=self._remap_origins(origins, operation, index))
+            address, updated, origins=self._remap_origins(origins, operation, index),
+            owner=owner)
 
-    def discard(self, address: NodeAddress):
-        self._drafts.pop(address, None)
+    def discard(self, address: NodeAddress, *, owner: str = "branch"):
+        self._check_owner(address, owner)
+        self._clear(address)
         return self.table_rows(address) if address.field == "table" else self.text(address)
 
-    def commit(self, address: NodeAddress):
+    def commit(self, address: NodeAddress, *, owner: str = "branch"):
+        self._check_owner(address, owner)
         draft = self._drafts.get(address)
         if draft is None:
             return None
@@ -284,5 +339,42 @@ class DraftCoordinator:
             change = self.gateway.execute(intent)
         finally:
             self._committing = False
-        self._drafts.pop(address, None)
+        self._clear(address)
         return change
+
+
+@dataclass(frozen=True)
+class EditorDraftPort:
+    """M3.4 shared-session entry point for a future page Editor tab.
+
+    The page editor does not get an independent report or bypass the command
+    gateway. An external caller must explicitly Apply or Revert its owner-tagged
+    drafts. Same-field ownership conflicts are rejected before staging.
+    """
+    coordinator: DraftCoordinator
+    owner: str
+
+    def stage_text(self, address: NodeAddress, value: str) -> None:
+        self.coordinator.update(address, value, owner=self.owner)
+
+    def stage_format(self, address: NodeAddress, start: int, end: int,
+                     field: str, value: object, *, paragraph: bool = False) -> bool:
+        return self.coordinator.format(address, start, end, field, value,
+                                       paragraph=paragraph, owner=self.owner)
+
+    def stage_cell(self, address: NodeAddress, row: int, column: int,
+                   value: str) -> bool:
+        return self.coordinator.update_cell(address, row, column, value,
+                                             owner=self.owner)
+
+    def stage_grid(self, address: NodeAddress, operation: str, index: int) -> bool:
+        return self.coordinator.modify_table(address, operation, index, owner=self.owner)
+
+    def apply(self, address: NodeAddress):
+        return self.coordinator.commit(address, owner=self.owner)
+
+    def revert(self, address: NodeAddress):
+        return self.coordinator.discard(address, owner=self.owner)
+
+    def owns(self, address: NodeAddress) -> bool:
+        return self.coordinator.draft_owner(address) == self.owner
