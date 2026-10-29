@@ -40,8 +40,9 @@ def main(argv: list[str] | None = None) -> int:
             # must never silently turn the offline CI smoke into a no-op.
             if kinds != ["root", "module", "module", "paragraph", "conclusion"]:
                 raise RuntimeError("Canonical sample branch order changed")
-            if window.centralWidget() is not window.branch:
-                raise RuntimeError("Branch Editor is not the central workspace")
+            if (window.centralWidget() is not window.tabs
+                    or window.tabs.currentWidget() is not window.branch):
+                raise RuntimeError("Branch Editor is not the initial primary workspace")
             if window.findChildren(QSplitter):
                 raise RuntimeError("Legacy three-panel UI leaked into V2")
             if window.findChildren(QTreeWidget):

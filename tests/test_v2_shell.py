@@ -95,7 +95,9 @@ class V2BranchCanvasTests(unittest.TestCase):
         try:
             window.show()
             self.app.processEvents()
-            self.assertIs(window.centralWidget(), window.branch)
+            self.assertIs(window.centralWidget(), window.tabs)
+            self.assertIs(window.tabs.currentWidget(), window.branch)
+            self.assertIs(window.tabs.widget(0), window.branch)
             self.assertEqual(
                 [kind for _, kind, _, _ in window.branch.visible_nodes],
                 ["root", "module", "module", "paragraph", "conclusion"],

@@ -1,0 +1,66 @@
+# V2 M6 — Full application integration (in progress)
+
+**Date:** 2026-10-29. **Baseline main:** `63e8d1a359087ddeb2849a17bb961f6c4d995dee` (M5 PR #82). **Branch:** `feature/v2-m6-full-integration`.
+
+## Initial integration slice — implementation ready for independent validation
+
+- A `QTabWidget` separates Modules, Editor, Photo Gallery, ChatGPT and Preview while retaining **exactly one** `ReportSession`, `CommandGateway`, and canonical ordered report hierarchy. V1 application remains untouched.
+- Editor uses a bounded 90-row document-style projection (not another report tree); text, photo-caption and table edits stage through `DraftCoordinator.for_editor("page-editor")`. Apply/Revert and existing branch Undo/Redo operate on the same content IDs. Pending drafts block saving/export and destructive navigation; a cross-tab conflict does not overwrite a field.
+- Gallery reuses `ProjectPictureList` and the existing validated picture converter. Explicit local-file import, Windows Explorer copy-drop and native image-clipboard paste can create *unplaced* project library assets via an atomic undoable gateway transaction; originals stay unchanged.
+- ChatGPT is a lazy, user-operated Qt WebEngine website tab with V1-compatible browser profile configuration and external default-browser fallback. No API, DOM scripts, auto-copy, scraping, chat session data in projects, or report-content transfer.
+- Preview is explicitly a **continuous schematic**, derived from `prepare_export` over a detached canonical project, including original report hierarchy and photo visuals. It does not claim pixel-identical Word/PDF pagination.
+- DOCX/PDF export uses the existing pure export service with an **explicit V2 Qt visual renderer**. Edited image crops, rotations, annotation marks, per-placement width and alignment are rendered to sanitized detached bytes; unedited project bytes remain immutable. The pure/V1 default still fails closed on edited photos if no renderer is supplied. File export uses existing atomic destination handling.
+
+## Verification and outstanding M6 requirements
+
+- Dedicated synthetic `tests/test_v2_m6.py` includes gallery-only media undo/redo/save/reopen, annotated DOCX/PDF, independent tabs, guarded Editor drafts and branch Undo, stale export prevention and lazy ChatGPT load. Hosted Windows Python 3.11/3.12 steps are wired into `.github/workflows/v2-inline.yml`.
+- Report Information toolbar dialog now applies a single validated undoable command for report title, dates/ticket/personnel, customer/site/machine snapshot fields, multiple simultaneous intervention types, and extensible output language tags. Existing referenced customer/site/machine IDs are retained; direct customer-database selection is still outstanding.
+- Local template selection now reuses the safe DOCX/DOTX and .rmtemplate importer: validated page dimensions, margins, header/footer text, fonts and embedded logo map into transient ExportStyle for Editor schematic, Preview schematic and actual DOCX/PDF output. Complex unsupported Word objects remain explicitly out of scope; report facts and source template are never modified.
+- **Not yet completed:** direct customer database selection, high-fidelity complex Word layout editing and exact export-faithful paginated preview, all-format print fidelity, full installation and accessibility acceptance. These require further M6 slices, tests and review before Checkpoint C can be claimed.
+- **Not a release:** native installed Windows 100/125/150% DPI, real browser sign-in/copy/download, touchpad, multi-photo bulk behavior, screen readers and actual Word/PDF visual acceptance remain manual validation gates. V1 fallback and unrelated RC PR #21 are unchanged.
+
+**Next:** review test findings, finish remaining M6 integrations and hosted Windows gates, then request independent PR review before merge. No installer or default-V2 promotion is authorized.
+
+
+## Continued implementation — local references, translations, PDF proof (2026-10-29)
+
+**Implementation checkpoint:** `ee45c7f86cd7b187d9507bb45a5d738d19e895ac`. Windows hosted CI at this code revision: **all 8 workflows passed**, including dedicated Windows Python 3.11 and 3.12 M6 regression suites, M1–M5 V2 gates, core model/export gates, and V1 customer UI smoke. This is NOT physical installed-Windows validation.
+
+- **Database-linked selection:** Read-only customer/site/machine search in the existing local `CustomerStore`; selection reads a detached, consistent snapshot. The dialog only stages the snapshot; applying Report Information uses a single validated gateway transaction to update the snapshot and `report.customer_id` together. Switching to manual mode removes master IDs but retains other frozen customer/site/machine address and contact details. Undo/Redo, Save/Open, mismatch rejection and late master-data changes have synthetic tests.
+- **Explicit language editing:** `set_translation` applies only to stable report fields through the existing command gateway. A manual Translations dialog lets users edit title, module titles, paragraphs/headings, table cells, photo captions and textual photo annotations. Original wording and translation provenance remain in the canonical .rmproj; edits are undoable and ownership/draft conflicts remain guarded.
+- **Strict selected-language output:** A detached `localized_project` projection fails closed on missing, stale, unselected or invalid translated fields. The Preview language selector and DOCX/PDF use that same projection, including photo-mark text. No machine translation, fallback language substitution or modification of the user's original project is performed. **Limitation:** report-information values and boilerplate labels are still displayed as stored/English; translated output here refers to translatable content fields, not full localized metadata/labels.
+- **Paginated PDF proof:** The Preview tab now has an explicit PDF-proof action using the same local exporter, bounded 80 MiB QBuffer and QtPdf page renderer. It displays actual PDF pages and invalidates after a canonical edit or changed template/language. The fast schematic preview remains separate. Microsoft Word's DOCX pagination is **not** claimed to match the PDF proof.
+- Regression coverage: `tests/test_v2_m6_followup.py` added to the Windows 3.11/3.12 CI. Only synthetic database content and fabricated images are used; no private customer files or browser profiles are committed.
+
+**Still outstanding for full M6 Checkpoint C:** fully translated metadata/boilerplate/report-information language workflow; high-fidelity complex imported Word layout editing, precise page Editor typography/geometry and actual DOCX/Word page fidelity; multi-output language presentation modes; broader end-to-end/migration acceptance; native installed-Windows DPI/clipboard/browser/login and Word/PDF visual checks. Keep PR #83 **draft and unmerged**, retain V1 fallback and RC PR #21 unchanged.
+
+## Independent PR #83 review corrections — H1–H5 (2026-10-29)
+
+- **H1 translation/rich typography:** localized DOCX/PDF is explicitly plain-text for translated paragraph/heading content until separately localized formatting exists. Never reuse source-language character offsets for translated text. The canonical rich source, translation text, and stale markers remain preserved in the project; the export projection is detached.
+- **H2 atomic cross-tab edits:** Editor Apply validates every pending text/caption/table field in a compound command and commits all-or-nothing as one ReportSession/ProjectEditor revision and one Undo/Redo step; failure retains all drafts.
+- **H3 primary-language provenance:** changing primary language requires user confirmation that existing original text is already written in the new language. The atomic migration relabels original-language tags, keeps source wording, marks translations stale and rejects conflicts with translations already stored in the requested source language. Mixed-source projects require a separate explicit migration.
+- **H4 content completeness:** writing blank translations for nonempty originals is rejected, including exported archive content with pre-existing empty translations; intentionally target-only translation text on an empty source field is not discarded.
+- **H5 project branding isolation:** a successful New/Open resets the transient Word-derived ExportStyle in both Editor and Preview so a previous project's logo, company title, footer and geometry do not contaminate another customer's export. Persistent project-scoped styles remain future work.
+- **Synthetic regression gates:** tests/test_v2_m6_integrity.py covers short Unicode rich text, blank and target-only translations, source-language relabel/Undo, canonical field order, compound draft atomicity/rollback, and project transition branding. Added to hosted Windows 3.11/3.12 CI. These corrections do **not** claim full M6 completion or native installed-Windows acceptance.
+- Corrective implementation prior to curated documentation: `7043f08d8e34850b44c330d8a8a523b6b3e79e79`. Verify exact final PR head checks; leave PR #83 draft and unmerged.
+
+## M6 continuation — atomic selected-language export packages (2026-10-29)
+
+- Added pure `v2/language_bundle.py` export: one portable ZIP with separately editable DOCX and paginated PDF for **each** language selected in Report Information. Preview now has an explicit **Export language package** button and DOCX+PDF / DOCX-only / PDF-only selection. The active single-language preview is independent of the package selection.
+- Each output is generated from `localized_project` over the **same detached canonical report**, reusing strict stale/missing/blank translation gates and the existing audited visual-image renderer, `ExportStyle`, and atomic DOCX/PDF exporter. If any file fails, existing ZIP bytes remain unchanged; no partial directory or temporary archive survives failure.
+- ZIP includes `manifest.json` with stable language-to-file mappings and an explicit disclosure: report information values and metadata labels remain stored/English, not fully translated. Output names use validated BCP-47-style ASCII tags with safe hashed shortening for extremely long tags. Arbitrary output language count is supported without a hardcoded locale list.
+- Corrected document Editor tables to derive natural height from all table rows, use content-aware vertical sizing, stretch columns and disable nested visible scrollbars; the page-level scroll surface owns movement. Added synthetic pure/offscreen Qt gates `tests/test_v2_m6_bundle.py`, hosted Windows Python 3.11/3.12 workflow steps.
+- Further M6 work remains: canonical language-aware metadata and boilerplate with explicit provenance/schema contract, more exact complex Word template/page typography and print fidelity, broader end-to-end/migration and installed-Windows DPI/browser/clipboard/Word/PDF acceptance. **PR #83 stays draft and unmerged.**
+
+## Frozen milestone ownership — M6.1–M6.4 (2026-10-29)
+
+The authoritative M6 scope/acceptance matrix is [M6_SUBMILESTONES.md](M6_SUBMILESTONES.md), linked from [ROADMAP.md](ROADMAP.md). **PR #83 is now frozen for new features** at the combined M6.1–M6.4 foundation. Every existing code slice is *implemented and hosted-CI-tested*, not yet independently accepted or merged. This PR has no implementation claim for fully localized report metadata and generated boilerplate (M6.5), high-fidelity Word/page editing (M6.6), or Checkpoint C (M6.7). Only corrective review/CI fixes and necessary records may enter #83 from here.
+
+Next development is **M6.5 only** in a separate branch with a stacked draft PR against #83 while the foundation remains unmerged. It must start with the data/provenance/serialization/ADR design for customer-entered metadata and generated labels. After #83's authorized merge, rebase/retarget, review and rerun final-head Windows CI. No V1 release/default promotion or native Windows acceptance is implied.
+
+## Final independent review correction — linked identity edits (2026-10-29)
+
+- **F1 / High (M6.3, customer-reference integrity):** In the Report Information form, a user could select a database-linked customer/site/machine, then overwrite the displayed customer/site/machine name or serial while retaining the original master IDs. The saved report could consequently claim an inconsistent master identity.
+- **Correction:** Reject edits to these four captured identity fields while the snapshot retains a master customer ID. The user must explicitly select **Use one-off manual details** to detach all master IDs; other hidden snapshot details remain preserved. A fresh database selection remains valid, and applying metadata still uses one undoable canonical transaction.
+- **Regression:** `tests/test_v2_m6_integrity.py::QtIntegrityRegressionTests::test_linked_reference_identity_edits_require_explicit_unlink` checks each altered field is rejected without a revision or data change, then verifies manual unlink, Apply and Undo. All inputs are synthetic.
+- **Review/merge boundary:** The independent review covers M6.1–M6.4 in PR #83 only. M6.5 is separate in stacked draft PR #84; M6.6, M6.7 and installed-Windows/native Word acceptance are not claimed here. The exact corrective SHA and hosted Windows CI must be verified before merging #83.

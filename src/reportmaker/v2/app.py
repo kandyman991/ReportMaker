@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
+    QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QTabWidget,
 )
 
 from ..engine import module_outline
@@ -72,7 +72,10 @@ class V2MainWindow(QMainWindow):
 
     def __init__(self, report: Report | None = None, *,
                  project: ReportProject | None = None,
-                 presentation: PresentationStore | None = None) -> None:
+                 presentation: PresentationStore | None = None,
+                 load_website: bool = True,
+                 browser_profile_root: Path | None = None,
+                 ephemeral_browser: bool = False) -> None:
         super().__init__()
         if report is not None and project is not None:
             raise ValueError("Pass either a Report or an existing project")
@@ -88,9 +91,31 @@ class V2MainWindow(QMainWindow):
         self.persistence = ProjectPersistence()
         self.presentation = presentation or PresentationStore()
         self.branch = BranchCanvas(self)
-        self.setCentralWidget(self.branch)
         self.branch.bind_session(self.session, self.gateway)
         self.branch.feedback.connect(self.statusBar().showMessage)
+        # Distinct workspaces share the *same* canonical report session.
+        # No V1 three-pane shell or second data tree is imported.
+        from .editor_tab import DocumentEditorTab
+        from .gallery_tab import GalleryTab
+        from .chat_tab import ChatTab
+        from .preview_tab import PreviewTab
+        self.tabs = QTabWidget(self)
+        self.tabs.setObjectName("v2WorkspaceTabs")
+        self.editor_tab = DocumentEditorTab(self.session, self.branch, self.tabs)
+        self.gallery_tab = GalleryTab(self.session, self.gateway, self.branch, self.tabs)
+        self.chat_tab = ChatTab(
+            load_website=load_website, browser_profile_root=browser_profile_root,
+            ephemeral_browser=ephemeral_browser, parent=self.tabs)
+        self.preview_tab = PreviewTab(self.session, self.tabs)
+        self.tabs.addTab(self.branch, "Modules")
+        self.tabs.addTab(self.editor_tab, "Editor")
+        self.tabs.addTab(self.gallery_tab, "Photo Gallery")
+        self.tabs.addTab(self.chat_tab, "ChatGPT")
+        self.tabs.addTab(self.preview_tab, "Preview")
+        self.gallery_tab.on_inserted = lambda: self.tabs.setCurrentWidget(self.branch)
+        self.tabs.currentChanged.connect(self._tab_changed)
+        self.setCentralWidget(self.tabs)
+        self.session.subscribe(self._workspace_changed)
         self.session.subscribe(lambda _: self._update_caption())
 
         toolbar = self.addToolBar("Project and branch actions")
@@ -100,6 +125,9 @@ class V2MainWindow(QMainWindow):
             ("v2OpenProject", "Open", self.open_project, "Ctrl+O"),
             ("v2SaveProject", "Save", self.save_project, "Ctrl+S"),
             ("v2SaveProjectAs", "Save As", self.save_project_as, "Ctrl+Shift+S"),
+            ("v2ReportInfo", "Report info", self.edit_report_info, "Ctrl+Shift+R"),
+            ("v2Translations", "Translations…", self.edit_translations, ""),
+            ("v2ImportTemplate", "Layout template…", self.import_layout_template, ""),
             ("v2AddModule", "+ Module", self.branch.add_module, ""),
             ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
             ("v2AddParagraph", "+ Paragraph", self.branch.add_paragraph, ""),
@@ -164,6 +192,24 @@ class V2MainWindow(QMainWindow):
             "New/Open/Save/Save As use portable .rmproj files."
         )
 
+    def _workspace_changed(self, change) -> None:
+        # Lazily rebuild inactive document/preview panes. Draft-owning widgets
+        # are never thrown away during a native Qt text-change callback.
+        self.preview_tab.invalidate()
+        if self.tabs.currentWidget() is self.gallery_tab:
+            self.gallery_tab.refresh()
+
+    def _tab_changed(self, index: int) -> None:
+        pane = self.tabs.widget(index)
+        if pane is self.editor_tab:
+            self.editor_tab.activate()
+        elif pane is self.gallery_tab:
+            self.gallery_tab.refresh()
+        elif pane is self.chat_tab:
+            self.chat_tab.activate()
+        elif pane is self.preview_tab:
+            self.preview_tab.refresh()
+
     def _update_move_actions(self) -> None:
         """Disable unavailable moves, including their keyboard shortcuts."""
         up = self.findChild(QAction, "v2MoveUp")
@@ -220,6 +266,78 @@ class V2MainWindow(QMainWindow):
             self.statusBar().showMessage("Apply or Revert pending edits before revealing a match")
         else:
             self.statusBar().showMessage(f"Found {len(hits)} matching report blocks — F3 for next")
+
+    def import_layout_template(self, path: str | Path | None = None) -> bool:
+        """Import a local, bounded Word layout profile without changing report."""
+        from .layout_template import style_from_template
+        from ..template_import import import_word_template, load_template
+        try:
+            self.session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.statusBar().showMessage(str(exc))
+            return False
+        if path is None:
+            filename, _ = QFileDialog.getOpenFileName(
+                self, "Select a local Word layout",
+                "", "Word and ReportMaker templates (*.docx *.dotx *.rmtemplate)")
+            if not filename:
+                return False
+            path = filename
+        try:
+            local = Path(path)
+            warnings = ()
+            if local.suffix.lower() == ".rmtemplate":
+                template = load_template(local)
+            else:
+                imported = import_word_template(local)
+                template, warnings = imported.template, imported.warnings
+            style = style_from_template(template)
+            # Apply only after complete import/validation; never persist this
+            # presentation profile into report facts or project media.
+            self.editor_tab.set_style(style)
+            self.preview_tab.set_style(style)
+            self.statusBar().showMessage(
+                "Local template selected; " +
+                ("Some Word elements were not imported: " + "; ".join(warnings[:2])
+                 if warnings else "export page geometry and branding updated"))
+        except (OSError, ValueError, RuntimeError) as exc:
+            self.statusBar().showMessage("Template import rejected: " + str(exc))
+            return False
+        return True
+
+    def _reset_project_layout(self) -> None:
+        """Never reuse another project's transient logo/header/footer.
+
+        Until template profiles become explicit per-project data, a project
+        switch returns the page Editor and both preview/export surfaces to
+        safe defaults rather than leaking the prior customer's branding.
+        """
+        from ..export import ExportStyle
+        self.editor_tab.set_style(ExportStyle())
+        self.preview_tab.set_style(ExportStyle())
+
+    def edit_translations(self) -> bool:
+        """Edit explicit localized fields without changing the source writing."""
+        from .translation_dialog import TranslationDialog
+        try:
+            self.session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.statusBar().showMessage(str(exc))
+            return False
+        TranslationDialog(self.session, self.gateway, self).exec()
+        self.preview_tab.invalidate()
+        return True
+
+    def edit_report_info(self) -> bool:
+        """Apply metadata through the same guarded canonical command history."""
+        from .report_info import ReportInfoDialog
+        try:
+            self.session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.statusBar().showMessage(str(exc))
+            return False
+        result = ReportInfoDialog(self.session, self.gateway, self).exec()
+        return bool(result)
 
     def _update_caption(self) -> None:
         name = self.session.path.name if self.session.path else "Untitled"
@@ -311,6 +429,7 @@ class V2MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot create report", str(exc))
             return False
         self._persist_previous_view(view)
+        self._reset_project_layout()
         self._synthetic_preview = False
         self._restore_presentation()
         self._update_caption()
@@ -341,6 +460,7 @@ class V2MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot open project", str(exc))
             return False
         self._persist_previous_view(view)
+        self._reset_project_layout()
         self._synthetic_preview = False
         self._restore_presentation()
         self._update_caption()

@@ -14,6 +14,7 @@ from ..model import (HeadingBlock, LocalizedText, Module, PageBreakBlock,
                      ParagraphBlock, PhotoBlock, PhotoVisual, TableBlock,
                      validate_photo_visual)
 from ..media_import import ImportedPicture, StagedPicture, commit_staged_pictures
+from ..engine import validate_report_tree
 from ..project_io import ASSET_ID
 from ..rich_text import RichFormatting, validate_rich
 from .adapters.tables import checked_rows
@@ -50,6 +51,13 @@ _KINDS = {
     "add_photo": ({"asset_id"}, {"index"}),
     "import_photo": ({"image_bytes", "name"}, {"index"}),
     "import_photos": ({"photos"}, {"index"}),
+    "import_library_photos": ({"photos"}, set()),
+    "set_translation": ({"language", "key", "text"}, set()),
+    "set_fields_batch": ({"edits"}, set()),
+    "set_report_metadata": ({"title", "created_date", "start_date", "end_date",
+                             "ticket", "technicians", "intervention_types",
+                             "other_intervention_detail", "customer_snapshot",
+                             "primary_language", "output_languages"}, {"customer_id", "relabel_source_language"}),
     "replace_photo_import": ({"image_bytes", "name"}, set()),
     "replace_photo": ({"asset_id"}, set()),
     "set_photo_caption": ({"text"}, set()),
@@ -63,6 +71,43 @@ _KINDS = {
     "duplicate_node": (set(), set()),
     "delete_node": (set(), set()),
 }
+
+
+def _apply_report_metadata(report, args):
+    """Validate by replaying the exact same one-report transaction."""
+    snapshot = args["customer_snapshot"]
+    # A selected database reference and its report key are one atomic pair.
+    # Legacy clients may omit customer_id, but may never override the snapshot.
+    customer_id = snapshot.customer_id if snapshot is not None else None
+    if "customer_id" in args and args["customer_id"] != customer_id:
+        raise ValueError("Customer ID does not match detached reference")
+    # The primary language labels existing source text. A language change
+    # therefore requires explicit user confirmation and a safe provenance
+    # migration, never a metadata-only relabel with mismatched field tags.
+    new_language = args["primary_language"]
+    from ..model import validate_language_tag
+    validate_language_tag(new_language)
+    if new_language.casefold() != report.primary_language.casefold():
+        from .localized_export import localized_fields
+        if args.get("relabel_source_language") is not True:
+            raise ValueError("Changing source language requires explicit confirmation that existing original text is already in that language")
+        fields = list(localized_fields(report))
+        for _key, value in fields:
+            if value.original_language.casefold() != report.primary_language.casefold():
+                raise ValueError("Mixed source languages need a separate migration")
+            if any(code.casefold() == new_language.casefold() for code in value.translations):
+                raise ValueError("A translation already exists for the requested source language; preserve it before migrating")
+        for _key, value in fields:
+            value.original_language = new_language
+            value.stale_languages.update(value.translations)
+    elif "relabel_source_language" in args and args["relabel_source_language"] is not False:
+        raise ValueError("Relabel confirmation is only valid for a source-language change")
+    report.customer_id = customer_id
+    report.title.update_original(args["title"])
+    for field in ("created_date", "start_date", "end_date", "ticket",
+                  "technicians", "intervention_types", "other_intervention_detail",
+                  "customer_snapshot", "primary_language", "output_languages"):
+        setattr(report, field, deepcopy(args[field]))
 
 
 class CommandGateway:
@@ -84,6 +129,25 @@ class CommandGateway:
         required, optional = _KINDS[intent.kind]
         if set(intent.args) - required - optional or not required <= set(intent.args):
             raise ValueError("Unsupported command arguments")
+        if intent.kind == "set_fields_batch":
+            edits = intent.args["edits"]
+            allowed = {"rename_module", "set_paragraph_rich", "set_heading_rich",
+                       "set_photo_caption", "set_table_rows"}
+            if (not isinstance(edits, (list, tuple)) or not 1 <= len(edits) <= 256
+                    or any(not isinstance(edit, CommandIntent) or edit.kind not in allowed
+                           for edit in edits)):
+                raise ValueError("Editor batch requires 1–256 validated field intents")
+            addresses = [edit.target for edit in edits]
+            if any(not isinstance(address, NodeAddress) for address in addresses):
+                raise ValueError("Invalid document editor field address")
+            if len(set(addresses)) != len(addresses):
+                raise ValueError("Duplicate field in document editor batch")
+            for edit in edits:
+                if (edit.expected_revision != intent.expected_revision or
+                        edit.project_generation != intent.project_generation):
+                    raise StaleIntentError("Batch field is based on a different revision")
+                self.validate(edit)
+            return
         if intent.kind == "move_node":
             plan_drop(self._session.report_snapshot(), intent.target,
                       intent.args["anchor"], intent.args["position"])
@@ -110,7 +174,7 @@ class CommandGateway:
             if (not isinstance(intent.args["image_bytes"], bytes)
                     or not isinstance(intent.args["name"], str)):
                 raise ValueError("Import requires detached image bytes and a label")
-        if intent.kind == "import_photos":
+        if intent.kind in ("import_photos", "import_library_photos"):
             from ..media_import import MAX_IMPORT_BATCH
             photos = intent.args["photos"]
             if (not isinstance(photos, (list, tuple))
@@ -119,6 +183,40 @@ class CommandGateway:
                            or not isinstance(photo[0], str)
                            or not isinstance(photo[1], bytes) for photo in photos)):
                 raise ValueError("Import batch must contain validated (name, bytes) pairs")
+        if intent.kind == "import_library_photos":
+            if intent.target is not None:
+                raise ValueError("Library import cannot carry a report placement")
+            return
+        if intent.kind == "set_translation":
+            from .localized_export import localized_fields
+            from ..model import validate_language_tag
+            language, key, text = (intent.args[name]
+                                   for name in ("language", "key", "text"))
+            validate_language_tag(language)
+            report = self._session.report_snapshot()
+            if not any(code.casefold() == language.casefold()
+                       for code in report.output_languages):
+                raise ValueError("Select the translation language in Report Information first")
+            if not isinstance(key, tuple) or not isinstance(text, str):
+                raise ValueError("Translation requires a stable field key and plain text")
+            matches = [value for candidate_key, value in localized_fields(report)
+                       if candidate_key == key]
+            if len(matches) != 1:
+                raise LookupError("Translation field no longer belongs to this report")
+            if matches[0].original_language.casefold() == language.casefold():
+                raise ValueError("Cannot overwrite original-language content")
+            if len(text) > 100000:
+                raise ValueError("Translation exceeds the safe text size")
+            if matches[0].original.strip() and not text.strip():
+                raise ValueError("Nonempty original content needs a nonblank translation")
+            return
+        if intent.kind == "set_report_metadata":
+            if intent.target is not None:
+                raise ValueError("Report information must target the whole report")
+            candidate = self._session.report_snapshot()
+            _apply_report_metadata(candidate, intent.args)
+            validate_report_tree(candidate)
+            return
         if intent.kind == "set_photo_visual":
             validate_photo_visual(intent.args["visual"])
         value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich", "set_photo_caption") else "title"
@@ -175,6 +273,67 @@ class CommandGateway:
         # callables/fields never enter the transaction.
         kind, args, address = intent.kind, dict(intent.args), intent.target
         editor = self._session._editor
+        if kind == "set_fields_batch":
+            edits = args["edits"]
+            def apply_batch(report):
+                for field in edits:
+                    node = find_node(report, field.target)
+                    payload = field.args
+                    if field.kind == "rename_module":
+                        node.title.update_original(payload["title"])
+                    elif field.kind in ("set_paragraph_rich", "set_heading_rich"):
+                        node.text.update_original(payload["text"])
+                        node.rich = deepcopy(payload["rich"])
+                        validate_rich(node.rich, node.text.original)
+                    elif field.kind == "set_photo_caption":
+                        if node.caption is None:
+                            node.caption = LocalizedText(report.primary_language, payload["text"])
+                        else:
+                            node.caption.update_original(payload["text"])
+                    elif field.kind == "set_table_rows":
+                        node.rows = checked_rows(payload["rows"])
+            # One validated report transaction, one history entry; no prefix
+            # of successful field writes can leak out on a later failure.
+            editor.apply(apply_batch)
+            ids = frozenset(
+                field.target.block_id or field.target.module_id for field in edits)
+            renamed = any(field.kind == "rename_module" for field in edits)
+            change = ChangeSet(self._session.revision + 1, ids, False, False, renamed)
+            self._session._publish(change)
+            return change
+        if kind == "set_translation":
+            from .localized_export import localized_fields
+            from ..model import validate_language_tag
+            language = args["language"]
+            key = args["key"]
+            text = args["text"]
+            report = self._session.report_snapshot()
+            target = next(value for field_key, value in localized_fields(report)
+                          if field_key == key)
+            existing = next((code for code in target.translations
+                             if code.casefold() == language.casefold()), language)
+            if (target.translations.get(existing) == text
+                    and existing not in target.stale_languages):
+                return None
+            def apply_translation(report):
+                candidate = next(value for field_key, value in localized_fields(report)
+                                 if field_key == key)
+                candidate.set_translation(existing, text)
+            editor.apply(apply_translation)
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({str(key[0])}), False, False, True)
+            self._session._publish(change)
+            return change
+        if kind == "set_report_metadata":
+            candidate = deepcopy(editor.report)
+            _apply_report_metadata(candidate, args)
+            if candidate == editor.report:
+                return None
+            editor.apply(lambda report: _apply_report_metadata(report, args))
+            change = ChangeSet(self._session.revision + 1,
+                               frozenset({editor.report.id}), False, False, True)
+            self._session._publish(change)
+            return change
         if kind == "move_node":
             plan = plan_drop(editor.report, address, args["anchor"], args["position"])
             if plan.noop:
@@ -234,11 +393,11 @@ class CommandGateway:
                                frozenset({address.block_id}))
             self._session._publish(change)
             return change
-        if kind in ("import_photo", "import_photos", "replace_photo_import"):
+        if kind in ("import_photo", "import_photos", "import_library_photos", "replace_photo_import"):
             from ..project_io import ReportProject, _assets_checked
             staged = ReportProject(deepcopy(editor.report),
                                    dict(self._session.assets), dict(self._session.media_library))
-            photos = (args["photos"] if kind == "import_photos"
+            photos = (args["photos"] if kind in ("import_photos", "import_library_photos")
                       else [(args["name"], args["image_bytes"])])
             imports = [
                 StagedPicture(name, ImportedPicture(
@@ -250,7 +409,14 @@ class CommandGateway:
                 PhotoBlock(asset_id, LocalizedText(editor.report.primary_language, ""))
                 for asset_id in asset_ids
             ]
-            if kind in ("import_photo", "import_photos"):
+            if kind == "import_library_photos":
+                def edit(report):
+                    # A single canonical editor history step keeps asset-only
+                    # transactions aligned with session media undo/redo.
+                    return None
+                changed_ids = frozenset(asset_ids)
+                structure = False
+            elif kind in ("import_photo", "import_photos"):
                 def edit(report):
                     module = find_node(report, address)
                     at = args.get("index", len(module.blocks))

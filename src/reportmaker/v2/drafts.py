@@ -310,6 +310,56 @@ class DraftCoordinator:
         self._clear(address)
         return self.table_rows(address) if address.field == "table" else self.text(address)
 
+    def commit_batch(self, addresses, *, owner: str):
+        """Atomically apply a document editor's draft fields as ONE undo step.
+
+        Inspect every baseline and owner before executing anything. A failed
+        validation/commit retains all original drafts and canonical content.
+        """
+        keys = tuple(addresses)
+        if not keys or len(set(keys)) != len(keys):
+            raise ValueError("Editor batch must have distinct pending fields")
+        edits = []
+        for address in keys:
+            self._check_owner(address, owner)
+            draft = self._drafts.get(address)
+            if draft is None or draft.generation != self.session.generation:
+                raise StaleIntentError("Editor batch has a missing or obsolete draft")
+            node = find_node(self.session.report_snapshot(), address)
+            if isinstance(draft, TextDraft):
+                if _source(node, address) != draft.original:
+                    raise StaleIntentError("Source changed since editing began; draft preserved")
+                if address.field == "title":
+                    kind, args = "rename_module", {"title": draft.value}
+                elif address.field == "caption":
+                    kind, args = "set_photo_caption", {"text": draft.value}
+                    address = NodeAddress(address.report_id, address.module_id,
+                                          address.block_id, "photo")
+                else:
+                    kind = ("set_heading_rich" if isinstance(node, HeadingBlock)
+                            else "set_paragraph_rich")
+                    args = {"text": draft.value,
+                            "rich": (deepcopy(draft.rich) if draft.rich is not None
+                                     else rebase_rich(draft.original, draft.value, node.rich))}
+            elif isinstance(draft, TableDraft):
+                if not isinstance(node, TableBlock) or node.rows != draft.original:
+                    raise StaleIntentError("Table changed since editing began; draft preserved")
+                kind, args = "set_table_rows", {"rows": checked_rows(draft.rows)}
+            else:
+                raise ValueError("Unsupported editor draft")
+            edits.append(CommandIntent(kind, address, args,
+                                       self.session.revision, self.session.generation))
+        intent = CommandIntent("set_fields_batch", None, {"edits": tuple(edits)},
+                               self.session.revision, self.session.generation)
+        self._committing = True
+        try:
+            change = self.gateway.execute(intent)
+        finally:
+            self._committing = False
+        for address in keys:
+            self._clear(address)
+        return change
+
     def commit(self, address: NodeAddress, *, owner: str = "branch"):
         self._check_owner(address, owner)
         draft = self._drafts.get(address)
@@ -379,6 +429,9 @@ class EditorDraftPort:
 
     def apply(self, address: NodeAddress):
         return self.coordinator.commit(address, owner=self.owner)
+
+    def apply_batch(self, addresses):
+        return self.coordinator.commit_batch(addresses, owner=self.owner)
 
     def revert(self, address: NodeAddress):
         return self.coordinator.discard(address, owner=self.owner)
