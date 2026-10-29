@@ -150,8 +150,19 @@ class ReportInfoDialog(QDialog):
                 get("customer_name"), site_name=get("site_name"),
                 machine_name=get("machine_name"), machine_serial=get("machine_serial"))
         else:
-            # Frozen database IDs remain untouched; never adopt a new master
-            # or rewrite its current customer/site/machine details.
+            # A linked snapshot is a captured master identity, not an editable
+            # alias for a different customer/site/machine. Changing these fields
+            # while retaining the database IDs would silently misattribute the
+            # report. Users can explicitly detach using manual mode first.
+            identity_fields = ("customer_name", "site_name", "machine_name",
+                               "machine_serial")
+            if self._snapshot.customer_id is not None and any(
+                    get(key) != getattr(self._snapshot, key)
+                    for key in identity_fields):
+                raise ValueError(
+                    "Database-linked reference details cannot be changed here. "
+                    "Choose 'Use one-off manual details' first to unlink the "
+                    "customer, site and machine IDs before editing them.")
             snapshot = replace(
                 self._snapshot, customer_name=get("customer_name"),
                 site_name=get("site_name"), machine_name=get("machine_name"),
