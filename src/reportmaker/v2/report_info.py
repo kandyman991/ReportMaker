@@ -12,7 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
-    QLabel, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout,
+    QLabel, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox,
 )
 
 from ..reference import manual_snapshot
@@ -177,6 +177,24 @@ class ReportInfoDialog(QDialog):
     def apply_changes(self):
         try:
             args = self._build_args()
+            source = self.session.report_snapshot().primary_language
+            target = args["primary_language"]
+            if source.casefold() != target.casefold():
+                answer = QMessageBox.question(
+                    self, "Confirm original-language relabel",
+                    "The report already contains original text labeled as " + source +
+                    ". Changing the primary source to " + target +
+                    " does NOT translate any words. It relabels all original "
+                    "fields as " + target + " and marks existing translations stale. "
+                    "Continue only if the existing original text is already "
+                    "written in the new language. Translations targeting that "
+                    "language will block this operation to prevent data loss.",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No)
+                if answer != QMessageBox.StandardButton.Yes:
+                    self.status.setText("Source-language change cancelled; original content unchanged.")
+                    return False
+                args["relabel_source_language"] = True
             self.gateway.execute(CommandIntent(
                 "set_report_metadata", None, args, self._revision, self._generation))
         except (ValueError, LookupError, RuntimeError) as exc:
