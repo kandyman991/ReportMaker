@@ -109,6 +109,18 @@ Deliverables:
 - Synchronize automatic numbering and TOC from the canonical hierarchy.
 - Live printable preview with clearly stated fidelity and refresh rules, and accurate DOCX/PDF export of ordered text/tables/photos, including supported photo annotations. Do not silently export an unedited photo when edits exist.
 
+**M6 implementation decomposition (2026-10-29):** [Seven formally tracked submilestones, evidence and PR ownership](M6_SUBMILESTONES.md). The approved M6 deliverables and Checkpoint C definition above/below are unchanged.
+
+1. **M6.1 — Canonical shared workspaces:** session-backed tabs, draft ownership and atomic Editor Apply. Implemented/hosted CI-tested within draft PR #83, independent acceptance pending.
+2. **M6.2 — Photos/Gallery and basic faithful exports:** safe media imports and annotated DOCX/PDF. Implemented/hosted CI-tested within PR #83, acceptance pending.
+3. **M6.3 — Report Info and references:** frozen customer/site/machine snapshots, multi-intervention metadata, template basics. Implemented/hosted CI-tested within PR #83, acceptance pending.
+4. **M6.4 — Explicit content translations and language delivery:** stable-ID translations, strict single/multi-language DOCX/PDF and ZIP, PDF proof; metadata localization is excluded. Implemented/hosted CI-tested within PR #83, acceptance pending.
+5. **M6.5 — Metadata and boilerplate localization:** NOT IMPLEMENTED; next separate, scoped PR; no silent source-language/English fallback.
+6. **M6.6 — Precise page Editor and Word/template fidelity:** basic infrastructure within PR #83, remaining fidelity work in its own later PR.
+7. **M6.7 — End-to-end Checkpoint C:** final independent integration tests and acceptance PR after the preceding slices.
+
+**PR boundary:** PR #83 is frozen for new features after milestone formalization and represents M6.1–M6.4 only. Remaining features use *one separate milestone-sized PR at a time*, stacked on #83 only while it is unmerged. CI success alone is not approval or permission to merge. Physical installed Windows/release acceptance remains M7, with M6 hosted integration gates required.
+
 **Exit / Checkpoint C:** End-to-end synthetic technical report edits in Branch Editor, previews, saves and exports correctly; all tabs reference the same stable content IDs and no unsaved edits vanish.
 
 ### M7 — Validation, migration acceptance and Windows release
