@@ -56,7 +56,7 @@ class M45VisualModelTests(unittest.TestCase):
         self.assertIn("de", actual.visual.marks[1].text.stale_languages)
         with ZipFile(self.path) as archive:
             manifest = json.loads(archive.read("manifest.json"))
-            self.assertEqual(manifest["version"], 4)
+            self.assertEqual(manifest["version"], 5)
             self.assertNotIn("original_path", archive.read("manifest.json").decode())
         self.assertNotIn(b"Valve 4", before_bytes)
 
