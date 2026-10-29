@@ -10,11 +10,12 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
+    QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QVBoxLayout, QWidget,
 )
 
 from ..export import ExportError, ExportStyle, export_project, prepare_export
+from .localized_export import TranslationRequiredError, localized_project
 from .session import ReportSession
 from .visual_export import annotated_png
 
@@ -32,6 +33,14 @@ class PreviewTab(QWidget):
             "Actual page layout is determined by the export settings.")
         self.notice.setWordWrap(True)
         outer.addWidget(self.notice)
+        language_row = QHBoxLayout()
+        language_row.addWidget(QLabel("Document content language"))
+        self.language = QComboBox(self)
+        self.language.setObjectName("v2PreviewLanguage")
+        self.language.currentIndexChanged.connect(self.invalidate)
+        self.language.currentIndexChanged.connect(self.refresh)
+        language_row.addWidget(self.language, 1)
+        outer.addLayout(language_row)
         buttons = QHBoxLayout()
         for label, kind in (("Export editable DOCX…", "docx"), ("Export PDF…", "pdf")):
             button = QPushButton(label)
@@ -56,9 +65,33 @@ class PreviewTab(QWidget):
         self.invalidate()
         self.refresh()
 
+    def _current_language(self):
+        return self.language.currentData()
+
+    def _sync_languages(self):
+        report = self.session.report_snapshot()
+        chosen = self.language.currentData()
+        wanted = [(None, "Original report text")]
+        wanted.extend((tag, f"{tag} · checked translation")
+                      for tag in report.output_languages
+                      if tag.casefold() != report.primary_language.casefold())
+        if [(self.language.itemData(i), self.language.itemText(i))
+            for i in range(self.language.count())] == wanted:
+            return
+        self.language.blockSignals(True)
+        try:
+            self.language.clear()
+            for code, caption in wanted:
+                self.language.addItem(caption, code)
+            index = self.language.findData(chosen)
+            self.language.setCurrentIndex(index if index >= 0 else 0)
+        finally:
+            self.language.blockSignals(False)
+
     def refresh(self):
+        self._sync_languages()
         token = (self.session.generation, self.session.revision,
-                 self.session._draft_guard())
+                 self.session._draft_guard(), self._current_language())
         if token == self._token:
             return
         self._token = token
@@ -89,8 +122,10 @@ class PreviewTab(QWidget):
             return label
 
         try:
-            plan = prepare_export(
-                self.session.project_snapshot(), visual_renderer=annotated_png)
+            project = self.session.project_snapshot()
+            if self._current_language() is not None:
+                project = localized_project(project, self._current_language())
+            plan = prepare_export(project, visual_renderer=annotated_png)
             if self.style.logo:
                 logo = QPixmap()
                 if logo.loadFromData(self.style.logo):
@@ -143,6 +178,9 @@ class PreviewTab(QWidget):
             if self.style.footer_note:
                 text("Footer: " + self.style.footer_note)
             self.notice.setText(
+                ("Language-specific content preview · metadata labels and report "
+                 "information are shown as stored; no automatic translation. "
+                 if self._current_language() is not None else "") +
                 "Continuous schematic preview of applied content · DOCX/PDF "
                 "export uses real pagination. Unapplied drafts are not displayed."
                 if self.session._draft_guard() else
@@ -159,6 +197,8 @@ class PreviewTab(QWidget):
         try:
             self.session.require_clean_drafts()
             project = self.session.project_snapshot()
+            if self._current_language() is not None:
+                project = localized_project(project, self._current_language())
             export_project(project, path, format=format, style=self.style,
                            visual_renderer=annotated_png)
         except (OSError, ValueError, RuntimeError) as exc:
