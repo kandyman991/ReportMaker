@@ -12,6 +12,7 @@ from io import BytesIO
 from hashlib import sha256
 import os
 from pathlib import Path
+from typing import Callable
 import tempfile
 from xml.sax.saxutils import escape
 
@@ -162,7 +163,8 @@ def _image_bytes(payload: bytes) -> bytes:
         raise ExportError("Photograph is not a supported, safe local image") from exc
 
 
-def prepare_export(project: ReportProject) -> ExportPlan:
+def prepare_export(project: ReportProject, *,
+                   visual_renderer: Callable[[bytes, PhotoVisual], bytes] | None = None) -> ExportPlan:
     """Read-only export projection; source text only until M5 localization UI.
 
     All module numbering and TOC entries come from the exact model outline used
@@ -209,16 +211,22 @@ def prepare_export(project: ReportProject) -> ExportPlan:
                     "table", rows=tuple(tuple(cell.original for cell in row)
                                         for row in block.rows)))
             elif isinstance(block, PhotoBlock):
-                # M4.5.4 will render visual layers consistently to DOCX/PDF.
-                # Never silently export the unedited original in their place.
-                if block.visual != PhotoVisual():
-                    raise ExportError("Edited photographs cannot be exported until "
-                                      "M4.5.4 annotated DOCX/PDF support is implemented")
+                # The pure exporter never interprets Qt annotation layers.
+                # A caller must supply an explicit reviewed renderer; V1's
+                # original fail-closed behavior remains the default.
                 if block.asset_id not in project.assets:
                     raise ExportError("Referenced photograph is missing: " + block.asset_id)
+                source = project.assets[block.asset_id]
+                if block.visual != PhotoVisual():
+                    if visual_renderer is None:
+                        raise ExportError("Edited photographs require an approved visual renderer")
+                    try:
+                        source = visual_renderer(source, block.visual)
+                    except (ValueError, RuntimeError, OSError) as exc:
+                        raise ExportError("Cannot render edited photograph") from exc
                 items.append(RenderItem(
                     "photo", block.caption.original if block.caption else "",
-                    image=_image_bytes(project.assets[block.asset_id])))
+                    image=_image_bytes(source)))
             elif isinstance(block, PageBreakBlock):
                 items.append(RenderItem("page_break"))
             else:
@@ -780,12 +788,13 @@ def _write_pdf(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
 
 
 def export_project(project: ReportProject, destination: str | Path,
-                   *, format: str, style: ExportStyle | None = None) -> Path:
+                   *, format: str, style: ExportStyle | None = None,
+                   visual_renderer: Callable[[bytes, PhotoVisual], bytes] | None = None) -> Path:
     """Create DOCX or PDF atomically; caller owns the source project's Save."""
     if format not in {"docx", "pdf"}:
         raise ExportError("Unsupported export format")
     # Validate and decode all assets and branding before replacing any output.
-    plan = prepare_export(project)
+    plan = prepare_export(project, visual_renderer=visual_renderer)
     style = _validate_style(style)
     destination = Path(destination)
     with _atomic_destination(destination, "." + format) as temporary:
