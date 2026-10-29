@@ -11,10 +11,11 @@ from copy import deepcopy
 
 from ..engine import validate_report_tree
 from ..model import (
-    HeadingBlock, LocalizedText, NestedModuleBlock, ParagraphBlock,
+    HeadingBlock, LocalizedText, Module, NestedModuleBlock, ParagraphBlock,
     PhotoBlock, Report, TableBlock, validate_language_tag,
 )
 from ..project_io import ReportProject
+from ..rich_text import RichFormatting
 
 
 class TranslationRequiredError(ValueError):
@@ -22,39 +23,44 @@ class TranslationRequiredError(ValueError):
 
 
 def localized_fields(report: Report):
-    """Canonical, iterative fields in export order; no separately stored tree.
+    """Yield translatable fields in canonical mixed-block document order.
 
-    Key components are immutable node IDs plus a field marker and optional
-    zero-based cell coordinates or persistent photo-mark IDs.
+    Nested-module frames use iterators, avoiding recursive depth limits.
     """
     yield (report.id, "report_title"), report.title
-    stack = list(reversed(report.ordered_sections()))
+    stack = [iter(report.ordered_sections())]
     while stack:
-        module = stack.pop()
-        yield (module.id, "module_title"), module.title
-        for block in reversed(module.blocks):
-            if isinstance(block, NestedModuleBlock):
-                stack.append(block.module)
-            elif isinstance(block, (ParagraphBlock, HeadingBlock)):
-                yield (block.id, "text"), block.text
-            elif isinstance(block, PhotoBlock):
-                if block.caption is not None:
-                    yield (block.id, "caption"), block.caption
-                for mark in block.visual.marks:
-                    if mark.text is not None:
-                        yield (block.id, "photo_mark", mark.id), mark.text
-            elif isinstance(block, TableBlock):
-                for row_idx, row in enumerate(block.rows):
-                    for col_idx, cell in enumerate(row):
-                        yield (block.id, "cell", row_idx, col_idx), cell
+        try:
+            item = next(stack[-1])
+        except StopIteration:
+            stack.pop()
+            continue
+        if isinstance(item, NestedModuleBlock):
+            stack.append(iter((item.module,)))
+        elif isinstance(item, Module):
+            yield (item.id, "module_title"), item.title
+            stack.append(iter(item.blocks))
+        elif isinstance(item, (ParagraphBlock, HeadingBlock)):
+            yield (item.id, "text"), item.text
+        elif isinstance(item, PhotoBlock):
+            if item.caption is not None:
+                yield (item.id, "caption"), item.caption
+            for mark in item.visual.marks:
+                if mark.text is not None:
+                    yield (item.id, "photo_mark", mark.id), mark.text
+        elif isinstance(item, TableBlock):
+            for row_idx, row in enumerate(item.rows):
+                for col_idx, cell in enumerate(row):
+                    yield (item.id, "cell", row_idx, col_idx), cell
 
 
 def _select(value: LocalizedText, language: str, key: tuple) -> str:
     if language.casefold() == value.original_language.casefold():
         return value.original
-    if not value.original:
-        return ""  # Empty source text is genuinely empty, not fallback.
     matches = [tag for tag in value.translations if tag.casefold() == language.casefold()]
+    # Empty originals may remain empty; explicit target-only text is retained.
+    if not value.original and not matches:
+        return ""
     if len(matches) != 1:
         raise TranslationRequiredError(
             f"Missing {language} translation for {key!r}; no source-text fallback")
@@ -62,7 +68,11 @@ def _select(value: LocalizedText, language: str, key: tuple) -> str:
     if tag in value.stale_languages:
         raise TranslationRequiredError(
             f"Outdated {language} translation for {key!r}; review it before export")
-    return value.translations[tag]
+    translated = value.translations[tag]
+    if value.original.strip() and not translated.strip():
+        raise TranslationRequiredError(
+            f"Blank {language} translation for {key!r}; customer content cannot disappear")
+    return translated
 
 
 def localized_project(project: ReportProject, language: str) -> ReportProject:
@@ -86,6 +96,11 @@ def localized_project(project: ReportProject, language: str) -> ReportProject:
     translations = [
         _select(value, language, key) for key, value in original_values
     ]
+    translated_rich_ids = {
+        key[0] for key, original in original_values
+        if key[1] == "text" and
+        original.original_language.casefold() != language.casefold()
+    }
     for (_key, target), value in zip(target_values, translations):
         target.original = value
         # The temporary projection is for output only, not persistence.
@@ -93,5 +108,17 @@ def localized_project(project: ReportProject, language: str) -> ReportProject:
         target.translations = {}
         target.stale_languages = set()
         target.original_language = language
+    # Source formatting ranges describe source-language character offsets.
+    # Until localized formatting has its own schema, translated paragraphs
+    # use plain text; never guess spans or export invalid/misapplied styles.
+    # Canonical rich source and translation provenance remain untouched.
+    stack = list(result.report.ordered_sections())
+    while stack:
+        module = stack.pop()
+        for block in module.blocks:
+            if isinstance(block, NestedModuleBlock):
+                stack.append(block.module)
+            elif isinstance(block, (ParagraphBlock, HeadingBlock)) and block.id in translated_rich_ids:
+                block.rich = RichFormatting()
     validate_report_tree(result.report)
     return result
