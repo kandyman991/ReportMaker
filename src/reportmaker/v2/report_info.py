@@ -1,0 +1,132 @@
+"""M6 report information form with a single canonical, undoable commit.
+
+No database identity is invented: database-backed snapshots keep their IDs;
+manually entered snapshots remain detached, portable and project-local.
+"""
+from __future__ import annotations
+
+from dataclasses import replace
+
+from PySide6.QtCore import QDate
+from PySide6.QtWidgets import (
+    QCheckBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
+    QLabel, QLineEdit, QVBoxLayout,
+)
+
+from ..reference import manual_snapshot
+from .commands import CommandIntent
+
+_TYPES = (
+    ("supervision", "Supervision"),
+    ("ordinary_maintenance", "Ordinary maintenance"),
+    ("extraordinary_maintenance", "Extraordinary maintenance"),
+    ("other", "Other"),
+)
+
+
+class ReportInfoDialog(QDialog):
+    def __init__(self, session, gateway, parent=None):
+        super().__init__(parent)
+        self.setObjectName("v2ReportInfo")
+        self.setWindowTitle("Report information")
+        self.session, self.gateway = session, gateway
+        report = session.report_snapshot()
+        self._revision, self._generation = session.revision, session.generation
+        self._snapshot = report.customer_snapshot
+        layout = QVBoxLayout(self)
+        info = QLabel(
+            "Report information is shared by Modules, Editor and exports. "
+            "Apply commits one undoable canonical change.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        form = QFormLayout()
+        self.fields = {}
+        for key, label, value in (
+            ("title", "Report title", report.title.original),
+            ("customer_name", "Customer", self._snapshot.customer_name if self._snapshot else ""),
+            ("site_name", "Site", self._snapshot.site_name if self._snapshot else ""),
+            ("machine_name", "Machine", self._snapshot.machine_name if self._snapshot else ""),
+            ("machine_serial", "Serial number", self._snapshot.machine_serial if self._snapshot else ""),
+            ("ticket", "Reference ticket", report.ticket),
+            ("technicians", "Personnel (comma-separated)", ", ".join(report.technicians)),
+            ("other_intervention_detail", "Other intervention detail", report.other_intervention_detail),
+            ("primary_language", "Source language tag", report.primary_language),
+            ("output_languages", "Export language tags (comma-separated)",
+             ", ".join(report.output_languages)),
+        ):
+            control = QLineEdit(str(value), self)
+            control.setObjectName("v2Info_" + key)
+            form.addRow(label, control)
+            self.fields[key] = control
+
+        for key, label, value in (
+            ("created_date", "Creation date", report.created_date),
+            ("start_date", "Intervention start", report.start_date),
+            ("end_date", "Intervention end", report.end_date),
+        ):
+            control = QDateEdit(self)
+            control.setObjectName("v2Info_" + key)
+            control.setDisplayFormat("yyyy-MM-dd")
+            control.setCalendarPopup(True)
+            control.setDate(QDate(value.year, value.month, value.day))
+            form.addRow(label, control)
+            self.fields[key] = control
+
+        self.types = {}
+        for key, label in _TYPES:
+            control = QCheckBox(label, self)
+            control.setObjectName("v2InfoType_" + key)
+            control.setChecked(key in report.intervention_types)
+            form.addRow("Intervention type", control)
+            self.types[key] = control
+        layout.addLayout(form)
+        self.status = QLabel("")
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel, parent=self)
+        buttons.accepted.connect(self.apply_changes)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _build_args(self):
+        get = lambda key: self.fields[key].text().strip()
+        if self._snapshot is None:
+            snapshot = manual_snapshot(
+                get("customer_name"), site_name=get("site_name"),
+                machine_name=get("machine_name"), machine_serial=get("machine_serial"))
+        else:
+            # Frozen database IDs remain untouched; never adopt a new master
+            # or rewrite its current customer/site/machine details.
+            snapshot = replace(
+                self._snapshot, customer_name=get("customer_name"),
+                site_name=get("site_name"), machine_name=get("machine_name"),
+                machine_serial=get("machine_serial"))
+        return {
+            "title": get("title"),
+            "created_date": self.fields["created_date"].date().toPython(),
+            "start_date": self.fields["start_date"].date().toPython(),
+            "end_date": self.fields["end_date"].date().toPython(),
+            "ticket": get("ticket"),
+            "technicians": [value.strip() for value in get("technicians").split(",")
+                            if value.strip()],
+            "intervention_types": [key for key, control in self.types.items()
+                                   if control.isChecked()],
+            "other_intervention_detail": get("other_intervention_detail"),
+            "customer_snapshot": snapshot,
+            "primary_language": get("primary_language"),
+            "output_languages": [value.strip() for value in get("output_languages").split(",")
+                                 if value.strip()],
+        }
+
+    def apply_changes(self):
+        try:
+            args = self._build_args()
+            self.gateway.execute(CommandIntent(
+                "set_report_metadata", None, args, self._revision, self._generation))
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.status.setText("Report information not applied: " + str(exc))
+            return False
+        self.accept()
+        return True
