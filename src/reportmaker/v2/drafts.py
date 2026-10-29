@@ -103,6 +103,13 @@ class DraftCoordinator:
     def is_dirty(self, address: NodeAddress) -> bool:
         return address in self._drafts
 
+    def pending_addresses(self, *, owner: str | None = None) -> tuple[NodeAddress, ...]:
+        """Expose draft identities (never text) for explicit owner-scoped UI actions."""
+        if owner is not None and (not isinstance(owner, str) or not owner.strip()):
+            raise ValueError("Draft owner must be a nonempty string")
+        return tuple(address for address in self._drafts
+                     if owner is None or self._owners.get(address) == owner)
+
     def draft_owner(self, address: NodeAddress) -> str | None:
         """All views inspect one shared pending state, without copying a report."""
         return self._owners.get(address)

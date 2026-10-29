@@ -442,10 +442,22 @@ class V2MainWindow(QMainWindow):
 
     def _drafts_clean(self) -> bool:
         if self.branch.drafts.pending:
-            QMessageBox.warning(
-                self, "Unapplied edits",
-                "Apply or Revert all inline drafts before saving or switching projects."
-            )
+            own = self.branch.drafts.pending_addresses(owner="branch")
+            if own:
+                self.tabs.setCurrentWidget(self.branch)
+                self.branch.verticalScrollBar().setValue(0)
+                instruction = (
+                    "There are unapplied edits in Modules. Use the yellow "
+                    "UNAPPLIED EDITS panel at the top: click 'Apply all edits' "
+                    "to keep them, or 'Discard edits…' to revert with confirmation. "
+                    "Then retry Save or switch projects."
+                )
+            else:
+                instruction = (
+                    "There are unapplied edits in Editor. Return to Editor "
+                    "and explicitly Apply or Revert them before continuing."
+                )
+            QMessageBox.warning(self, "Unapplied edits", instruction)
             return False
         return True
 

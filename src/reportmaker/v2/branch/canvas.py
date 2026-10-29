@@ -488,6 +488,8 @@ class BranchCanvas(QScrollArea):
         self._unsubscribe = None
         self._editors = {}
         self._draft_bars = {}
+        self._pending_panel = None
+        self._pending_message = None
         self._table_cells = {}
         self._table_selected = {}
         self._ribbons = {}
@@ -877,6 +879,7 @@ class BranchCanvas(QScrollArea):
             self._unsubscribe()
         self._session, self._gateway = session, gateway
         self.drafts = DraftCoordinator(session, gateway)
+        self.drafts.subscribe_pending(lambda _pending: self._update_pending_panel())
         self._unsubscribe = session.subscribe(self._on_change)
         self._refresh()
 
@@ -987,9 +990,19 @@ class BranchCanvas(QScrollArea):
                     self.selectionChanged.emit()
         return super().eventFilter(watched, event)
 
+    def _blocked_by_pending_edits(self) -> bool:
+        """Offer visible recovery without auto-committing or discarding work."""
+        if self.drafts is None or not self.drafts.pending:
+            return False
+        self.verticalScrollBar().setValue(0)
+        self._update_pending_panel()
+        self.feedback.emit(
+            "Action blocked by unapplied edits — see the yellow Apply/Discard panel")
+        return True
+
     def _arm_drag(self, source: NodeAddress) -> QMimeData | None:
         """Create an internal move token only for a live clean canonical node."""
-        if self._session is None:
+        if self._session is None or self._blocked_by_pending_edits():
             return None
         try:
             self._session.require_clean_drafts()
@@ -1265,7 +1278,7 @@ class BranchCanvas(QScrollArea):
 
     def import_photo_dialog(self, *, module_id=None, index=None,
                             expected_revision=None, expected_generation=None):
-        if self._session is None:
+        if self._session is None or self._blocked_by_pending_edits():
             return False
         rev = self._session.revision if expected_revision is None else expected_revision
         gen = self._session.generation if expected_generation is None else expected_generation
@@ -1278,7 +1291,7 @@ class BranchCanvas(QScrollArea):
 
     def paste_photo(self, *, module_id=None, index=None):
         """Explicit native-image clipboard import; never parse browser HTML."""
-        if self._session is None:
+        if self._session is None or self._blocked_by_pending_edits():
             return False
         rev, gen = self._session.revision, self._session.generation
         owner = self._selected_module_id if module_id is None else module_id
@@ -1452,6 +1465,7 @@ class BranchCanvas(QScrollArea):
         revert.setObjectName("v2RevertPhotoCaption")
         apply.setEnabled(not stale and not external)
         revert.setEnabled(not external)
+        self._style_draft_buttons(apply, revert)
         layout.addWidget(apply)
         layout.addWidget(revert)
         layout.addStretch(1)
@@ -1466,6 +1480,82 @@ class BranchCanvas(QScrollArea):
         revert.clicked.connect(lambda checked=False, a=caption_addr: self.revert_draft(a))
         card.layout().addWidget(caption_editor)
         card.layout().addWidget(buttons)
+
+    @staticmethod
+    def _style_draft_buttons(apply: QPushButton, revert: QPushButton) -> None:
+        """Keep Apply/Revert legible in native Windows light/dark themes."""
+        apply.setStyleSheet(
+            "QPushButton { color: #ffffff; background: #1d4ed8;"
+            " border: 1px solid #1e40af; border-radius: 4px;"
+            " padding: 5px 12px; font-weight: bold; }"
+            "QPushButton:disabled { color: #4b5563; background: #e5e7eb;"
+            " border-color: #9ca3af; }")
+        revert.setStyleSheet(
+            "QPushButton { color: #192d40; background: #ffffff;"
+            " border: 1px solid #64748b; border-radius: 4px;"
+            " padding: 5px 12px; font-weight: bold; }"
+            "QPushButton:disabled { color: #6b7280; background: #e5e7eb; }")
+
+    def _update_pending_panel(self) -> None:
+        panel, message = self._pending_panel, self._pending_message
+        if panel is None or message is None or self.drafts is None:
+            return
+        pending = self.drafts.pending_addresses()
+        own = self.drafts.pending_addresses(owner="branch")
+        if pending:
+            message.setText(
+                "UNAPPLIED EDITS — Insert, move, drag and Save are paused. "
+                + (f"{len(own)} change(s) in Modules: Apply all to keep them "
+                   "or Discard to revert them."
+                   if own else "Edits belong to another tab; resolve them there.")
+                + (" Pending Editor edits must also be resolved in Editor."
+                   if len(own) != len(pending) and own else ""))
+        panel.setVisible(bool(pending))
+        apply = panel.findChild(QPushButton, "v2ApplyAllBranchDrafts")
+        discard = panel.findChild(QPushButton, "v2DiscardAllBranchDrafts")
+        if apply is not None:
+            apply.setEnabled(bool(own))
+        if discard is not None:
+            discard.setEnabled(bool(own))
+
+    def apply_all_branch_drafts(self) -> bool:
+        """Atomic explicit approval; never auto-commit a toolbar or drag action."""
+        if self.drafts is None:
+            return False
+        own = self.drafts.pending_addresses(owner="branch")
+        if not own:
+            self.feedback.emit("No Modules drafts to apply; check the Editor tab")
+            return False
+        try:
+            self.drafts.commit_batch(own, owner="branch")
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Edits retained; cannot apply: " + str(exc))
+            self._update_pending_panel()
+            return False
+        self._refresh()
+        self.feedback.emit("Module edits applied; Insert, drag and Save are available")
+        return True
+
+    def discard_all_branch_drafts(self) -> bool:
+        """Require explicit confirmation before discarding uncommitted work."""
+        if self.drafts is None:
+            return False
+        own = self.drafts.pending_addresses(owner="branch")
+        if not own:
+            return False
+        answer = QMessageBox.question(
+            self, "Discard unapplied Modules edits?",
+            f"Discard {len(own)} unapplied edit(s) in Modules? "
+            "These changes have not been saved.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        for address in own:
+            self.drafts.discard(address, owner="branch")
+        self._refresh()
+        self.feedback.emit("Unapplied Modules edits discarded")
+        return True
 
     def _changed(self, address, text, buttons):
         try:
@@ -1556,6 +1646,10 @@ class BranchCanvas(QScrollArea):
                 kind, target, args,
                 self._session.revision if expected_revision is None else expected_revision,
                 self._session.generation if expected_generation is None else expected_generation))
+        except PendingDraftError:
+            # A blocked toolbar command must reveal explicit recovery controls.
+            self._blocked_by_pending_edits()
+            return False
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit(str(exc))
             return False
@@ -2332,6 +2426,7 @@ class BranchCanvas(QScrollArea):
         revert = QPushButton("Revert table", bar)
         revert.setObjectName("v2RevertTableDraft")
         revert.setEnabled(not external)
+        self._style_draft_buttons(apply, revert)
         apply.clicked.connect(lambda checked=False, a=address: self.apply_table_draft(a))
         revert.clicked.connect(lambda checked=False, a=address: self.revert_table_draft(a))
         buttons.addWidget(apply)
@@ -2397,6 +2492,9 @@ class BranchCanvas(QScrollArea):
         revert.setObjectName("v2RevertDraft")
         apply.setEnabled(not external and not stale)
         revert.setEnabled(not external)
+        self._style_draft_buttons(apply, revert)
+        apply.setToolTip("Commit this edit before adding blocks or saving")
+        revert.setToolTip("Discard only this unapplied edit")
         bar.addWidget(apply)
         bar.addWidget(revert)
         bar.addStretch(1)
@@ -2456,6 +2554,8 @@ class BranchCanvas(QScrollArea):
                                      if r.kind in ("module", "conclusion")), None)
                 self._selected_module_id = first_module or first.parent_module_id
         scroll = self.verticalScrollBar().value()
+        self._pending_panel = None
+        self._pending_message = None
         self._editors.clear()
         self._draft_bars.clear()
         self._table_cells.clear()
@@ -2466,6 +2566,33 @@ class BranchCanvas(QScrollArea):
             if widget is not None:
                 widget.setParent(None)
                 widget.deleteLater()
+        # Always visible above the report, including when drafts are in
+        # scrolled, collapsed or paged-away cards.
+        panel = QFrame(self._host)
+        panel.setObjectName("v2PendingDraftPanel")
+        panel.setStyleSheet(
+            "QFrame#v2PendingDraftPanel { background: #fff0c2;"
+            " border: 2px solid #9a6700; border-radius: 6px; }")
+        panel_row = QHBoxLayout(panel)
+        message = QLabel(panel)
+        message.setObjectName("v2PendingDraftMessage")
+        message.setWordWrap(True)
+        message.setStyleSheet("QLabel { color: #332400; font-size: 13px; font-weight: bold; }")
+        panel_row.addWidget(message, 1)
+        apply = QPushButton("Apply all edits", panel)
+        apply.setObjectName("v2ApplyAllBranchDrafts")
+        apply.setToolTip("Commit all Modules drafts together as one Undo step")
+        discard = QPushButton("Discard edits…", panel)
+        discard.setObjectName("v2DiscardAllBranchDrafts")
+        discard.setToolTip("Ask before discarding unapplied Modules edits")
+        self._style_draft_buttons(apply, discard)
+        apply.clicked.connect(lambda checked=False: self.apply_all_branch_drafts())
+        discard.clicked.connect(lambda checked=False: self.discard_all_branch_drafts())
+        panel_row.addWidget(apply)
+        panel_row.addWidget(discard)
+        self._body.addWidget(panel)
+        self._pending_panel, self._pending_message = panel, message
+        self._update_pending_panel()
         if self._page_count > 1:
             label = QLabel(f"Branch window {self._page + 1} of {self._page_count}"
                            f" — {len(rows)} visible report nodes", self._host)

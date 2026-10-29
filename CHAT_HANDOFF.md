@@ -452,3 +452,9 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - M7.3 physical installed-Windows acceptance has **0/33 accepted**. Connected development device the connected Linux development device is Linux; it cannot produce valid native Windows, DPI, clipboard, Explorer or manual browser evidence.
 - Initial draft adds a local-only V2 preview installer build/install script and private redacted-evidence ledger requiring per-case observations and independent reviewer, with no matrix auto-update, publishing, V1 replacement or personal data upload. Refer to `docs/v2/M7_3_PROGRESS.md`.
 - Next: draft PR and hosted CI review; then real installed x64 Windows 33-case execution, fix blockers and retest against exact installer/source hashes, independently review and request separate explicit M7.3 merge authorization. Do not claim M7.3 completed yet, publish V2 or promote over V1.
+
+## 2026-10-29 — M7.3 physical Windows blocker found
+
+- User installed/launched unsigned V2 QA installer from workflow run 40911125858 on a real Windows PC; build source `9315a93ddce28277bb7c0ea7a1d6d5ab5ebec94a`, setup SHA-256 `48a305aa4a3869a3803592446475c64f9112490f0d387f8efbf8bb187ecaa8c1`. **Install/open smoke succeeds.** BE-L01 is **blocked, 0/33 accepted**.
+- Native screenshot and user report: typing/rich formatting works but subsequent add module, paragraph, photo, drag and Save appear blocked. Save's Unapplied edits modal is shown; Apply/Revert on cards are nearly invisible. Logged as issue #98, linked to M7.3 #96 and draft PR #97.
+- Code trace shows intentional pending-draft command guard with poor user-visible recovery. A correction is being developed on PR #97 with high-contrast, explicit atomic Apply all / confirmed Discard banner; no implicit auto-commit or V1 change. Must independently review, pass exact-head Windows CI, rebuild short-lived QA installer and retest physically before treating BE-L01 as passed.
