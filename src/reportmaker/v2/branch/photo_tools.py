@@ -6,7 +6,7 @@ of a hidden dropdown. No new image model or secondary annotation store.
 """
 from __future__ import annotations
 
-from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QToolButton
+from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QToolButton
 
 from ...photo_editor import PictureEditorDialog, TOOLS
 from ..contrast import PHOTO_EDITOR_CHROME, PHOTO_TOOL_CHROME
@@ -58,6 +58,16 @@ class V2PictureEditorDialog(PictureEditorDialog):
         while properties.count() > 4:
             transforms.addItem(properties.takeAt(4))
         self.layout().insertLayout(4, transforms)
+        # The inherited single-line export caveat is longer than 950px in
+        # Windows Segoe UI metrics and can still force a 1114px dialog,
+        # independent of the tool/property rows. Wrap it instead.
+        notice = next((label for label in self.findChildren(QLabel)
+                       if label.text().startswith("Annotations remain editable in .rmproj.")),
+                      None)
+        if notice is None:
+            raise RuntimeError("Photo editor informational note is missing")
+        notice.setObjectName("v2PhotoExportNotice")
+        notice.setWordWrap(True)
         self.tool_buttons = QButtonGroup(self)
         self.tool_buttons.setExclusive(True)
         for index, kind in enumerate(TOOLS):

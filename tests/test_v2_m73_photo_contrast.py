@@ -148,6 +148,9 @@ class V2ControlContrastTests(unittest.TestCase):
                     self.assertGreaterEqual(action_row.count(), 7)
                     self.assertEqual(dlg.layout().itemAt(3).layout().count(), 4)
                     self.assertEqual(dlg.layout().itemAt(4).layout().count(), 4)
+                    note = dlg.findChild(QLabel, "v2PhotoExportNotice")
+                    self.assertIsNotNone(note)
+                    self.assertTrue(note.wordWrap())
                     # All three shorter rows must fit the native 950px dialog
                     # even when Windows fonts are wider than Linux fonts.
                     self.assertLessEqual(dlg.geometry().width(), 950)

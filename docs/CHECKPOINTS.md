@@ -559,3 +559,5 @@ Next reproducible action:
 - Still gated: exact-head CI, rebuilt isolated unsigned preview installer, physical Windows screenshot/regression, independent security/architecture/data-integrity review, 33-case acceptance. Do **not** treat either issue #98 or #99 as physically accepted yet.
 
 - Windows CI on the initial issue #99 head `49afdc2` caught a genuine layout issue: photo editor auto-expanded to 1114 px under Windows text metrics, exceeding its 950 px intended width. No QA installer was produced by failing run 40921065239. Follow-up fix splits the inherited photo-property row; subsequent exact-head Windows checks remain required before manual retest.
+
+- Second issue #99 Windows run 40921503256 also failed minimum dialog width 1114px after splitting photo properties. V2 only now wraps the inherited long export note, a suspected remaining intrinsic width source; exact-head Windows regression must prove <=950 before installer generation.
