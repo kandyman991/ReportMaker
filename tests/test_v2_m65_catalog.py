@@ -126,7 +126,7 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertEqual(names[:3], (
             "heading.report_information", "heading.summary", "label.page"))
         self.assertNotIn("metadata.other_intervention_detail", names)
-        self.assertIn("field.ticket", names)  # empty value, but exported label
+        self.assertNotIn("field.ticket", names)  # empty row omitted by exporter
         self.report.intervention_types = ["supervision", "other"]
         self.report.other_intervention_detail = "Synthetic remark"
         names = visible_metadata_keys(
@@ -142,11 +142,12 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertNotIn("preview.manual_page_break", names)
         self.assertEqual(len(names), len(set(names)))
 
-    def test_all_export_info_rows_require_localized_labels_even_when_blank(self):
+    def test_export_info_preflight_matches_visible_rows_and_omits_empty_ones(self):
         from reportmaker.export import prepare_export
         plan = prepare_export(self.project)
-        self.assertIn(("Ticket", ""), plan.info)
+        self.assertNotIn(("Ticket", ""), plan.info)
         required = visible_metadata_keys(self.report)
+        emitted = set()
         for label, _value in plan.info:
             semantic_keys = [
                 key for key, english in ENGLISH_LABELS.items()
@@ -154,17 +155,25 @@ class MetadataLocaleContractTests(unittest.TestCase):
             ]
             self.assertEqual(len(semantic_keys), 1, label)
             self.assertIn(semantic_keys[0], required)
-        # A missing label for a blank field must still fail strict export
-        # preflight rather than falling through to hardcoded English.
+            emitted.add(semantic_keys[0])
+        self.assertEqual(
+            {key for key in required if key.startswith("field.")}, emitted)
+        self.assertNotIn("field.ticket", required)
+
+        # A missing translation for a *visible* row must still fail closed,
+        # while hidden/empty rows do not impose extraneous locale approvals.
         builder = MetadataLocale(self.report)
         approvals = [
             builder.approve(key, "fr", f"Label {i}")
             for i, key in enumerate(required)
-            if key in ENGLISH_LABELS and key != "field.ticket"
+            if key in ENGLISH_LABELS and key != "field.customer"
         ]
         with self.assertRaisesRegex(MetadataTranslationRequiredError,
-                                    "field.ticket"):
+                                    "field.customer"):
             MetadataLocale(self.report, approvals).resolve_many(required, "fr")
+        self.report.ticket = "FAKE-123"
+        self.assertIn(("Ticket", "FAKE-123"), prepare_export(self.project).info)
+        self.assertIn("field.ticket", visible_metadata_keys(self.report))
 
     def test_absent_footer_must_not_borrow_report_writing_language(self):
         with self.assertRaisesRegex(ValueError, "not declared"):
