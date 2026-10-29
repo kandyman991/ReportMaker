@@ -1,6 +1,6 @@
-# ADR (Proposed) — M6.5 metadata and generated-label localization
+# ADR (Reviewed) — M6.5 metadata and generated-label localization
 
-**Status:** Independently reviewed with corrective design constraints (2026-10-29); accepted as the v5 implementation contract, **not** as approval to merge, ship or claim M6.5 feature completion. Persisted schema changes require their own implementation/regression review.
+**Status:** Independently reviewed contract, implemented in draft PR #84 on 2026-10-29; post-implementation independent review, exact-head CI and explicit merge authorization are still required. This ADR is not production/installed-Windows acceptance.
 **Date:** 2026-10-29
 **Parent milestone:** [M6.5 acceptance plan](M6_SUBMILESTONES.md)
 **Review base:** PR #83's frozen M6.1–M6.4 feature branch
@@ -19,9 +19,9 @@ labels. Merely replacing English labels with one fixed list of supported
 languages would violate open-ended language requirements, and silently
 retaining English in non-English outputs violates strict customer export.
 
-A change to the canonical project format is therefore unavoidable for durable
-manual translations of free-text metadata and custom boilerplate. This ADR
-must be approved **before schema-altering implementation**.
+The canonical project format is upgraded to v5 for durable manual translations
+of free-text metadata and generated boilerplate. This ADR was independently
+reviewed **before schema-altering implementation**.
 
 ## Proposed decision: v5 optional localization ledger (one canonical source)
 
@@ -89,8 +89,8 @@ must be approved **before schema-altering implementation**.
 
 ## v5 wire format and migration (reviewed implementation contract)
 
-- Upgrade `reportmaker.project` from format **v4 to v5** during M6.5 implementation,
-  after preserving this reviewed contract and adding targeted gates. Add required, strictly bounded
+- Upgrade `reportmaker.project` from format **v4 to v5** in M6.5,
+  preserving this reviewed contract and adding targeted gates. Add required, strictly bounded
   `report.localization_ledger` (empty map allowed) in v5; keep all old v4
   record fields and frozen snapshot representation unchanged. **Do not** merely
   change `VERSION = 4` to `5`: the loader currently checks
@@ -119,9 +119,12 @@ must be approved **before schema-altering implementation**.
 - Load legacy v1–v4 unchanged into memory with an empty ledger; preserve
   original metadata, stable IDs, assets, links, text translations and photo
   annotations exactly. **No synthetic translation is invented.**
-  Legacy source-language output still works. Selected non-English export now
-  demands explicit metadata localization, even if report body translations
-  are otherwise complete.
+  Legacy source wording remains editable and preserved; English-source report
+  output can use the canonical English label catalog. Any selected non-English
+  customer export (including a non-English primary-language original) now
+  demands explicit metadata-label approvals, even if report body translations
+  are otherwise complete. This intentional fail-closed rule prevents silent
+  English boilerplate in non-English customer documents.
 - For legacy files, existing `ReportProject.loaded_version` and
   `loaded_from` continue enforcing **Save As** to a new v5 file, never
   overwriting the user's v1–v4 original. No promise that V1 can reopen v5.
@@ -143,24 +146,24 @@ must be approved **before schema-altering implementation**.
 5. **Changing v4 records without format bump:** older parsers' strict shape
    validation would misinterpret or reject files without clear migration.
 
-## M6.5 implementation/acceptance checklist (not yet passed)
+## M6.5 implementation and acceptance checklist
 
-- [ ] Reviewed ADR decision and exact v5 wire schema.
-- [ ] Stable semantic key registry, locale ledger, safe validation and command
+- [x] Reviewed ADR decision and exact v5 wire schema.
+- [x] Stable semantic key registry, locale ledger, safe validation and command
       transactions with stale-source rejection and Undo/Redo.
-- [ ] v1–v4 load + non-destructive Save As v5, future/corrupt rejection,
+- [x] v1–v4 load + non-destructive Save As v5, future/corrupt rejection,
       stable IDs/assets/customer snapshots and V1 compatibility warning.
-- [ ] User-operated translation editing for metadata and labels; no machine
+- [x] User-operated translation editing for metadata and labels; no machine
       translation or UI-locale coupling.
-- [ ] DOCX, PDF, Qt schematic, PDF proof and ZIP render all customer-visible
+- [x] DOCX, PDF, Qt schematic, PDF proof and ZIP render all customer-visible
       generated headings/labels/types/page numbering from the same locale
       context with no English fallback.
-- [ ] Synthetic complex multi-type and other-detail reports with arbitrary
+- [x] Synthetic complex multi-type and other-detail reports with arbitrary
       language tags, Unicode, missing/stale/blank translations,
       intervening metadata changes, archive rollback and proof consistency.
 - [ ] Hosted Windows Python 3.11 and 3.12 affected M1–M6 checks pass on
       exact final head; independent review and explicit merge authorization.
-- [ ] M6.6 fidelity and M6.7 final Checkpoint C remain outside this PR.
+- [x] M6.6 fidelity and M6.7 final Checkpoint C remain outside this PR.
 
 **Architecture boundaries:** This ADR does not authorize ChatGPT API access,
 browser DOM/cookie reading, customer-data uploads, a second report model, V1
@@ -178,3 +181,16 @@ acceptance remains M7.
 7. **MEDIUM — exact-head CI blind spot:** path-limited staged Windows workflows can skip future schema/editor/docs-only branch heads; enforce head-branch gates without path filtering and retain Python 3.11/3.12.
 
 **Review disposition:** The ADR is accepted **for implementing** the scoped v5 migration, with the wire schema and transient-branding exclusion above. No migration, UI/export changes or complete M6.5 acceptance exist in the present code; all still require implementation review, exact-head Windows CI and explicit user authorization before merge. Do not treat ADR acceptance as a passing feature gate.
+
+## Post-implementation status (2026-10-29)
+
+The scoped feature now has v5 `Report.localization_ledger`, a validated wire
+decoder, non-destructive v1–v4 migration with v4 rich requirements retained,
+source-digest and generation/revision guarded user approvals with Undo/Redo,
+manual Qt metadata/template-footer controls, and one detached localization
+context for DOCX/PDF, continuous Preview, PDF proof and atomic multilingual
+ZIP. See `M6_5_PROGRESS.md` for synthetic and Windows regression evidence.
+Pure/V1 export remains on its preexisting path when no V2 locale context is
+supplied, and remains an intentionally separate fallback. Full M6.5 acceptance
+is **pending** independent final-code review, exact-head CI and explicit merge
+authorization; M6.6/M6.7 must not start automatically.
