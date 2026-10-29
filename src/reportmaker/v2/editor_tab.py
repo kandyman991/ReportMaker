@@ -329,13 +329,14 @@ class DocumentEditorTab(QWidget):
     def apply_changes(self):
         if not self._owned:
             return False
-        for address in tuple(self._owned):
-            try:
-                self.port.apply(address)
-                self._owned.remove(address)
-            except (ValueError, LookupError, RuntimeError) as exc:
-                self.info.setText("Apply failed; remaining draft retained: " + str(exc))
-                return False
+        try:
+            # One compound canonical commit, never a partially applied
+            # prefix of draft fields. On failure all drafts stay editable.
+            self.port.apply_batch(tuple(self._owned))
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.info.setText("Apply failed; all document drafts retained: " + str(exc))
+            return False
+        self._owned.clear()
         self._token = None
         self.refresh()
         return True
