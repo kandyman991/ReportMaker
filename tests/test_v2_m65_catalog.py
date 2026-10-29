@@ -13,7 +13,8 @@ import unittest
 from reportmaker.model import NestedModuleBlock, PageBreakBlock, Module, LocalizedText
 from reportmaker.project_io import VERSION, load_project, save_project
 from reportmaker.v2.metadata_locale import (
-    ALL_KEYS, ENGLISH_LABELS, LocaleApproval, MetadataLocale,
+    ALL_KEYS, ENGLISH_LABELS, PERSISTABLE_KEYS, TRANSIENT_EXPORT_KEYS,
+    LocaleApproval, MetadataLocale,
     MetadataTranslationRequiredError, source_digest, visible_metadata_keys,
 )
 from test_v2_m6 import synthetic_project
@@ -113,6 +114,10 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertIn("field.intervention_types", ENGLISH_LABELS)
         self.assertIn("intervention.extraordinary_maintenance", ENGLISH_LABELS)
         self.assertIn("branding.footer_note", ALL_KEYS)
+        self.assertIn("branding.footer_note", TRANSIENT_EXPORT_KEYS)
+        self.assertNotIn("branding.footer_note", PERSISTABLE_KEYS)
+        self.assertIn("metadata.other_intervention_detail", PERSISTABLE_KEYS)
+        self.assertTrue(PERSISTABLE_KEYS.isdisjoint(TRANSIENT_EXPORT_KEYS))
         with self.assertRaises(TypeError):
             ENGLISH_LABELS["field.customer"] = "changed"
 
