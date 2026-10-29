@@ -285,7 +285,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertTrue(self.s.dirty)
         self.assertEqual(self.p.save(self.s, self.a), self.a)
         self.assertFalse(self.s.dirty)
-        self.assertEqual(self.s.loaded_version, 4)
+        self.assertEqual(self.s.loaded_version, 5)
         self.assertEqual(self.s.path, self.a)
         self.p.save_as(self.s, self.b)
         self.assertEqual(self.s.path, self.b)
@@ -394,10 +394,11 @@ class PersistenceTests(unittest.TestCase):
         self.p.save(self.s, self.a)
         with ZipFile(self.a) as z:
             template = json.loads(z.read("manifest.json"))
-        for version in (1, 2, 3):
+        for version in (1, 2, 3, 4):
             with self.subTest(version=version):
                 legacy = deepcopy(template)
                 legacy["version"] = version
+                legacy["report"].pop("localization_ledger")
                 if version == 1:
                     legacy.pop("media_library")
                 def remove_rich(module):
@@ -406,8 +407,9 @@ class PersistenceTests(unittest.TestCase):
                             block.pop("rich", None)
                         if block["kind"] == "module":
                             remove_rich(block["module"])
-                for module in legacy["report"]["modules"] + [legacy["report"]["conclusion"]]:
-                    remove_rich(module)
+                if version < 4:
+                    for module in legacy["report"]["modules"] + [legacy["report"]["conclusion"]]:
+                        remove_rich(module)
                 source = self.directory / f"legacy{version}.rmproj"
                 target = self.directory / f"upgrade{version}.rmproj"
                 with ZipFile(source, "w", ZIP_DEFLATED) as z:
@@ -421,7 +423,7 @@ class PersistenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.p.save_as(loaded_session, source, overwrite=True)
                 self.p.save_as(loaded_session, target)
-                self.assertEqual(loaded_session.loaded_version, 4)
+                self.assertEqual(loaded_session.loaded_version, 5)
                 self.assertEqual(loaded_session.path, target)
                 self.assertEqual(source.read_bytes(), unchanged)
                 self.assertEqual(load_project(target).report.id,
