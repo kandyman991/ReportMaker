@@ -14,7 +14,8 @@
 ## Verification and outstanding M6 requirements
 
 - Dedicated synthetic `tests/test_v2_m6.py` includes gallery-only media undo/redo/save/reopen, annotated DOCX/PDF, independent tabs, guarded Editor drafts and branch Undo, stale export prevention and lazy ChatGPT load. Hosted Windows Python 3.11/3.12 steps are wired into `.github/workflows/v2-inline.yml`.
-- **Not yet completed:** report-info/customer database editing, language configuration controls, full template import/selection and precise document layout editing, export-faithful paginated preview, all-format print fidelity, full installation and accessibility acceptance. These require further M6 slices, tests and review before Checkpoint C can be claimed.
+- Report Information toolbar dialog now applies a single validated undoable command for report title, dates/ticket/personnel, customer/site/machine snapshot fields, multiple simultaneous intervention types, and extensible output language tags. Existing referenced customer/site/machine IDs are retained; direct customer-database selection is still outstanding.
+- **Not yet completed:** direct customer database selection, full template import/selection and precise document layout editing, export-faithful paginated preview, all-format print fidelity, full installation and accessibility acceptance. These require further M6 slices, tests and review before Checkpoint C can be claimed.
 - **Not a release:** native installed Windows 100/125/150% DPI, real browser sign-in/copy/download, touchpad, multi-photo bulk behavior, screen readers and actual Word/PDF visual acceptance remain manual validation gates. V1 fallback and unrelated RC PR #21 are unchanged.
 
 **Next:** review test findings, finish remaining M6 integrations and hosted Windows gates, then request independent PR review before merge. No installer or default-V2 promotion is authorized.
