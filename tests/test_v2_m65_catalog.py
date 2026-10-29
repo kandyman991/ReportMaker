@@ -272,3 +272,23 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertEqual(len(keys), len(set(keys)))
         self.assertNotIn("preview.manual_page_break",
                          visible_metadata_keys(self.report, preview=False))
+
+    def test_invisible_only_approval_and_oversized_resolution_fail_closed(self):
+        builder = MetadataLocale(self.report)
+        approved = builder.approve("field.customer", "de", "Kunde")
+        for invisible in ("\\u200b", "\\u2060", "\\u0301"):
+            value = invisible.encode("ascii").decode("unicode_escape")
+            with self.subTest(text=repr(value)):
+                with self.assertRaisesRegex(ValueError, "nonblank"):
+                    builder.approve("field.customer", "de", value)
+                record = LocaleApproval(approved.key, approved.language,
+                                        value, approved.source_sha256)
+                with self.assertRaisesRegex(
+                        MetadataTranslationRequiredError, "Blank"):
+                    MetadataLocale(self.report, [record]).resolve("field.customer", "de")
+        with self.assertRaisesRegex(ValueError, "sequence"):
+            builder.resolve_many(["heading.summary", "heading.summary"], "en")
+        with self.assertRaisesRegex(ValueError, "sequence"):
+            builder.resolve_many(["heading.summary"] * 1000, "en")
+        with self.assertRaisesRegex(ValueError, "footer text"):
+            visible_metadata_keys(self.report, footer_note="x" * 10001)
