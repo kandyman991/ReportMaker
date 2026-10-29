@@ -1,7 +1,6 @@
 # ADR (Proposed) — M6.5 metadata and generated-label localization
 
-**Status:** Proposed for independent architecture review; **not yet approved**, no schema
-or exporter implementation changes in this PR at the time of proposal.
+**Status:** Proposed and implementation-gated; independent approval remains required before v5 changes. Pure pre-schema validation and tests may proceed.
 **Date:** 2026-10-29
 **Parent milestone:** [M6.5 acceptance plan](M6_SUBMILESTONES.md)
 **Review base:** PR #83's frozen M6.1–M6.4 feature branch
@@ -38,12 +37,11 @@ must be approved **before schema-altering implementation**.
   `label.intervention_types`, `intervention.supervision` and every label
   used in `ExportPlan.info`. Each translation record contains exactly:
   `language` (BCP-47-style tag), `text`, and `source_sha256`.
-- Derive the source text **on demand** for every key from the single canonical
-  report field, or from a versioned, fixed English source-label catalog for
-  generated boilerplate. `source_sha256` binds approval to that precise
-  source; it does **not** store a second editable source copy. Changing source
-  report info or a catalog label automatically makes older translations stale
-  without mutating translations in place.
+- Derive source text **on demand** from its canonical metadata field or from
+  a versioned English source-label catalog. **Generated label source is always
+  `en`, independent of `Report.primary_language`.** The source digest binds
+  key + source language + exact source text, not text alone; changes make
+  existing approvals stale without storing a second editable source copy.
 - Explicitly classify values in export:
   * **Language-neutral identifiers and proper names:** ISO dates, ticket
     reference number, machine serial/asset tag, customer, site, machine,
@@ -59,6 +57,11 @@ must be approved **before schema-altering implementation**.
     labels and page-number prefix used in DOCX, PDF, schematic and proof. Every
     customer-visible label must have a semantic key; no scattered hardcoded
     English presentation strings.
+  * **Branding-specific text:** a company name/logo are language-neutral
+    identifiers; a nonempty authored `ExportStyle.footer_note` is customer
+    prose, needing a per-target approved variant or explicit fail-closed rule.
+    Do not persist transient branding inside the customer snapshot. Durable
+    per-project template design remains M6.6.
 - **No automatic translation, language-enum restriction, network access or
   silent locale fallback.** Exact target-language tags must resolve from
   reviewed user-edited entries or explicitly shipped catalog translations.
@@ -82,7 +85,13 @@ must be approved **before schema-altering implementation**.
 - Upgrade `reportmaker.project` from format **v4 to v5** only when this
   ledger implementation is accepted. Add required, strictly bounded
   `report.localization_ledger` (empty map allowed) in v5; keep all old v4
-  record fields and frozen snapshot representation unchanged. Use the existing
+  record fields and frozen snapshot representation unchanged. **Do not** merely
+  change `VERSION = 4` to `5`: the loader currently checks
+  `require_rich=(manifest.version == VERSION)` and that would break v4.
+  Define a separate `RICH_FORMAT_VERSION = 4` and accept versions 1–5;
+  v4/v5 both require rich typography, and v3–v5 require photo visual state.
+  Media-library checks must still cover v2–v5 and legacy records must reject
+  v5-only keys. Use the existing
   duplicate-key rejection, UTF-8 JSON, 8 MiB manifest bound and atomic file
   save behavior. Reject invalid/unrecognized keys, duplicate language tags
   differing only by case, malformed SHA-256, excessive entry lengths/counts
@@ -137,3 +146,12 @@ must be approved **before schema-altering implementation**.
 browser DOM/cookie reading, customer-data uploads, a second report model, V1
 shell rewrites or M6.6 Word/page work. Native installed-Windows release
 acceptance remains M7.
+
+## Initial architecture review findings and disposition (2026-10-29)
+
+1. **HIGH — v4 rich-text compatibility:** a naïve VERSION bump breaks v4 decoding because the loader ties rich-text requirements to the current version. Define independent per-feature minimum versions and test v1–v5 migrations before changing persistence.
+2. **HIGH — source-language confusion:** boilerplate has an English source even for reports authored in other languages; it must never inherit the report's primary-language tag.
+3. **MEDIUM — branded footer:** user-entered footer prose may need translation; never treat it as an automatically language-neutral proper name.
+4. **MEDIUM — untrusted provenance:** digest must bind key, source language and text. Reject unknown keys, duplicate locale casing, blank customer text and oversize values; stale entries may be stored, but cannot be resolved for customer export.
+
+**Implementation gate:** A pure, nonpersistent localization catalog and defensive tests may proceed. This proposed ADR does **not** authorize a schema v5 bump, migration, changes to customer export behavior or a claim of complete M6.5 acceptance until independently approved.
