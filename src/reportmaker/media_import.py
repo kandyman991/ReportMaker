@@ -94,7 +94,7 @@ def convert_picture(path: str | Path, *, preset: str = "balanced",
 def _convert_picture_data(data: bytes, *, preset: str, output_format: str) -> ImportedPicture:
     """Shared content-validated conversion for source files and clipboard pixels."""
     max_edge, quality = PRESETS[preset]
-    with Image.open(BytesIO(data)) as input_image:
+    with Image.open(BytesIO(data), formats=("JPEG", "PNG", "BMP", "WEBP", "HEIF")) as input_image:
         if input_image.format not in {"JPEG", "PNG", "BMP", "WEBP", "HEIF"}:
             raise PictureImportError("Unsupported image content format")
         width, height = input_image.size
