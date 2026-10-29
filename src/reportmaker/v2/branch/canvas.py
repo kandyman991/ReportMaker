@@ -32,7 +32,7 @@ from ...model import (
 from ..commands import CommandGateway, CommandIntent
 from ..drafts import DraftCoordinator
 from ..projections import NodeAddress, descendant_counts, project_branch
-from ..session import PendingDraftError, ReportSession
+from ..session import StaleIntentError, PendingDraftError, ReportSession
 from ..structure import plan_drop, plan_indent, plan_outdent, structural_node
 
 _STEP = 25
@@ -862,7 +862,8 @@ class BranchCanvas(QScrollArea):
         if change is not None:
             # Inserting through the toolbar into a collapsed container must
             # reveal the new block, not silently create invisible content.
-            if kind in ("add_nested_module", "add_paragraph", "add_heading", "add_table") and target is not None:
+            if kind in ("add_nested_module", "add_paragraph", "add_heading", "add_table",
+                        "add_page_break", "add_photo") and target is not None:
                 reveal_insert_parent = target.module_id in self._collapsed
                 self._collapsed.discard(target.module_id)
             new_id = next(iter(change.changed_ids))
@@ -870,12 +871,16 @@ class BranchCanvas(QScrollArea):
             if kind in ("add_module", "add_nested_module"):
                 self._selected_module_id = new_id
                 self._restore = (NodeAddress(report_id, new_id), 0, -1)
-            elif kind in ("add_paragraph", "add_heading", "add_table"):
+            elif kind in ("add_paragraph", "add_heading", "add_table",
+                          "add_page_break", "add_photo"):
                 self._selected_module_id = target.module_id
-                self._restore = (NodeAddress(report_id, target.module_id, new_id,
-                                             "cell" if kind == "add_table" else "text",
-                                             0 if kind == "add_table" else None,
-                                             0 if kind == "add_table" else None), 0, 0)
+                self._restore = (
+                    (NodeAddress(report_id, target.module_id, new_id,
+                                 "cell" if kind == "add_table" else "text",
+                                 0 if kind == "add_table" else None,
+                                 0 if kind == "add_table" else None), 0, 0)
+                    if kind in ("add_paragraph", "add_heading", "add_table")
+                    else None)
             elif kind == "duplicate_node":
                 if target.block_id is None:
                     self._selected_module_id = new_id
@@ -945,34 +950,86 @@ class BranchCanvas(QScrollArea):
         return self._run("add_table",
                          NodeAddress(self._session.report_snapshot().id, owner), **args)
 
-    def insert_table_after(self, address: NodeAddress) -> bool:
-        if self._session is None or address is None or address.block_id is None:
+    def add_page_break(self, *, module_id: str | None = None,
+                       index: int | None = None) -> bool:
+        return self._insert_content("page_break", module_id=module_id, index=index)
+
+    def add_photo(self, *, module_id: str | None = None,
+                  index: int | None = None, asset_id: str | None = None) -> bool:
+        return self._insert_content("photo", module_id=module_id, index=index,
+                                    asset_id=asset_id)
+
+    def _insert_content(self, kind: str, *, module_id: str | None = None,
+                        index: int | None = None, asset_id: str | None = None,
+                        expected_revision: int | None = None,
+                        expected_generation: str | None = None) -> bool:
+        if self._session is None:
             return False
         report = self._session.report_snapshot()
-        try:
-            from ..projections import find_node
-            module = find_node(report, NodeAddress(report.id, address.module_id))
-            slot = next(i for i, block in enumerate(module.blocks)
-                        if block.id == address.block_id)
-        except (LookupError, ValueError, StopIteration):
+        owner = self._selected_module_id if module_id is None else module_id
+        if owner is None:
+            self.feedback.emit("Select an owning module first")
             return False
-        return self.add_table(module_id=address.module_id, index=slot + 1)
+        revision = self._session.revision if expected_revision is None else expected_revision
+        generation = self._session.generation if expected_generation is None else expected_generation
+        args = {} if index is None else {"index": index}
+        if kind == "photo":
+            available = tuple(sorted(self._session.assets))
+            if not available:
+                self.feedback.emit(
+                    "No project-owned photos yet; import via Photo Gallery in M4")
+                return False
+            if asset_id is None:
+                names = self._session.media_library
+                choices = {f"{names.get(key, 'Project photo')} [{key}]": key
+                           for key in available}
+                label, accepted = QInputDialog.getItem(
+                    self, "Insert existing photo", "Project-owned photo:",
+                    list(choices), 0, False)
+                if not accepted:
+                    return False
+                asset_id = choices[label]
+            if asset_id not in available:
+                self.feedback.emit("Selected photo is no longer part of this project")
+                return False
+            args["asset_id"] = asset_id
+        elif kind not in ("paragraph", "heading", "table", "page_break"):
+            raise ValueError("Unsupported contextual insertion")
+        if kind in ("paragraph", "heading"):
+            args["text"] = ""
+        if kind == "heading":
+            args["level"] = 2
+        return self._run("add_" + kind, NodeAddress(report.id, owner),
+                         expected_revision=revision,
+                         expected_generation=generation, **args)
 
-    def insert_heading_after(self, address: NodeAddress) -> bool:
-        """Insert into the exact mixed-order slot after a visible content leaf."""
+    def insert_content_after(self, address: NodeAddress, kind: str,
+                             *, asset_id: str | None = None,
+                             expected_revision: int | None = None,
+                             expected_generation: str | None = None) -> bool:
+        """Insert after the canonical mixed index (not a separately kept UI list)."""
         if self._session is None or not isinstance(address, NodeAddress):
             return False
         report = self._session.report_snapshot()
         if address.report_id != report.id or address.block_id is None:
             return False
-        try:
-            from ..projections import find_node
-            container = find_node(report, NodeAddress(report.id, address.module_id))
-            slot = next(i for i, block in enumerate(container.blocks)
-                        if block.id == address.block_id)
-        except (LookupError, StopIteration, ValueError):
+        row = next((item for item in project_branch(report)
+                    if item.stable_id == address.block_id
+                    and item.parent_module_id == address.module_id
+                    and item.kind not in ("module", "conclusion")), None)
+        if row is None:
             return False
-        return self.add_heading(module_id=address.module_id, index=slot + 1)
+        return self._insert_content(
+            kind, module_id=row.parent_module_id,
+            index=row.mixed_sibling_index + 1, asset_id=asset_id,
+            expected_revision=expected_revision,
+            expected_generation=expected_generation)
+
+    def insert_table_after(self, address: NodeAddress) -> bool:
+        return self.insert_content_after(address, "table")
+
+    def insert_heading_after(self, address: NodeAddress) -> bool:
+        return self.insert_content_after(address, "heading")
 
     def _sibling_move_target(self, offset: int):
         """Find an adjacent *mixed* sibling without modifying the report."""
@@ -1124,24 +1181,41 @@ class BranchCanvas(QScrollArea):
             outdent.setEnabled(self._planned_indent(address, outdent=True) is not None)
             outdent.triggered.connect(lambda: self._structural_move(address, outdent=True))
             menu.addSeparator()
+        insert_menu = menu.addMenu("Insert inside" if address.block_id is None
+                                   else "Insert after")
+        source_revision, source_generation = self._session.revision, self._session.generation
+        for kind, caption in (
+            ("paragraph", "Paragraph"), ("heading", "Heading"),
+            ("table", "Table"), ("page_break", "Page break"),
+            ("photo", "Existing project photo"),
+        ):
+            action = insert_menu.addAction(caption)
+            if kind == "photo":
+                action.setEnabled(bool(self._session.assets))
+                if not self._session.assets:
+                    action.setToolTip("Import project media through Gallery in M4")
+            if address.block_id is None:
+                action.triggered.connect(
+                    lambda checked=False, k=kind, mid=address.module_id,
+                           rev=source_revision, gen=source_generation:
+                    self._insert_content(k, module_id=mid, expected_revision=rev,
+                                         expected_generation=gen))
+            else:
+                action.triggered.connect(
+                    lambda checked=False, k=kind, a=address,
+                           rev=source_revision, gen=source_generation:
+                    self.insert_content_after(a, k, expected_revision=rev,
+                                               expected_generation=gen))
         if address.block_id is None:
-            insert = menu.addAction("Insert heading inside")
-            insert.triggered.connect(
-                lambda checked=False, mid=address.module_id:
-                self.add_heading(module_id=mid))
-        else:
-            insert = menu.addAction("Insert heading after")
-            insert.triggered.connect(
-                lambda checked=False, a=address: self.insert_heading_after(a))
-        if address.block_id is None:
-            insert_table = menu.addAction("Insert table inside")
-            insert_table.triggered.connect(
-                lambda checked=False, mid=address.module_id:
-                self.add_table(module_id=mid))
-        else:
-            insert_table = menu.addAction("Insert table after")
-            insert_table.triggered.connect(
-                lambda checked=False, a=address: self.insert_table_after(a))
+            submodule = insert_menu.addAction("Submodule")
+            submodule.setEnabled(address.module_id !=
+                                 self._session.report_snapshot().conclusion.id)
+            submodule.triggered.connect(
+                lambda checked=False, a=address, rev=source_revision,
+                       gen=source_generation:
+                self._run("add_nested_module", a,
+                          expected_revision=rev, expected_generation=gen,
+                          title="New submodule"))
         menu.addSeparator()
         duplicate = menu.addAction("Duplicate")
         duplicate.triggered.connect(lambda: self.duplicate_node(address))
@@ -1430,6 +1504,13 @@ class BranchCanvas(QScrollArea):
 
     def _inline_table(self, card, address):
         rows, stale = self.drafts.table_preview(address)
+        external = self.drafts.draft_owner(address) not in (None, "branch")
+        if external:
+            label = QLabel("Pending edits belong to the other editor; return there "
+                           "to Apply or Revert.", card)
+            label.setObjectName("v2ExternalDraftNotice")
+            label.setWordWrap(True)
+            card.layout().addWidget(label)
         if stale:
             warning = QLabel(
                 "Table changed while your edits were pending. You can copy your staged "
@@ -1454,7 +1535,7 @@ class BranchCanvas(QScrollArea):
                 editor.setObjectName("v2TableCell")
                 editor.setAccessibleName(f"Table row {i + 1}, column {j + 1}")
                 editor.setPlainText(cell.original)
-                editor.setReadOnly(stale)
+                editor.setReadOnly(stale or external)
                 editor.setStyleSheet(
                     "color: #182b3a; background: #f9fbff;"
                     "border: 1px solid #aabbd0; border-radius: 3px;"
@@ -1499,7 +1580,7 @@ class BranchCanvas(QScrollArea):
                 "insert_column": bool(rows),
                 "delete_column": width > 1,
             }[operation]
-            button.setEnabled(enabled and not stale)
+            button.setEnabled(enabled and not stale and not external)
             if not rectangular:
                 button.setToolTip("Ragged tables permit cell edits only")
             button.clicked.connect(
@@ -1513,9 +1594,10 @@ class BranchCanvas(QScrollArea):
         buttons.setContentsMargins(0, 3, 0, 0)
         apply = QPushButton("Apply table", bar)
         apply.setObjectName("v2ApplyTableDraft")
-        apply.setEnabled(not stale)
+        apply.setEnabled(not stale and not external)
         revert = QPushButton("Revert table", bar)
         revert.setObjectName("v2RevertTableDraft")
+        revert.setEnabled(not external)
         apply.clicked.connect(lambda checked=False, a=address: self.apply_table_draft(a))
         revert.clicked.connect(lambda checked=False, a=address: self.revert_table_draft(a))
         buttons.addWidget(apply)
@@ -1542,12 +1624,27 @@ class BranchCanvas(QScrollArea):
                                  "color: #182b3a; font-size: 14px;")
             try:
                 staged_rich = self.drafts.rich(address)
-            except ValueError:
+            except (ValueError, StaleIntentError):
                 # An unsafe edit of a styled paragraph boundary must remain
                 # visible and revertible. Commit will reject it without losing
                 # either the canonical model or the pending draft.
                 staged_rich = RichFormatting()
             paint_rich(editor, text, staged_rich)
+        external = self.drafts.draft_owner(address) not in (None, "branch")
+        stale = self.drafts.text_stale(address)
+        if stale:
+            note = QLabel("Source changed while a draft was pending. "
+                          "Copy staged text if needed, then Revert.", card)
+            note.setWordWrap(True)
+            note.setObjectName("v2StaleTextDraftWarning")
+            card.layout().addWidget(note)
+        if stale or external:
+            editor.setReadOnly(True)
+            note = QLabel("Unapplied changes belong to the other editor. "
+                          "Apply or Revert them there.", card)
+            note.setWordWrap(True)
+            note.setObjectName("v2ExternalDraftNotice")
+            card.layout().addWidget(note)
         editor.setProperty("nodeId", address.block_id or address.module_id)
         editor.setProperty("moduleId", address.module_id)
         editor.installEventFilter(self)
@@ -1559,6 +1656,8 @@ class BranchCanvas(QScrollArea):
         apply.setObjectName("v2ApplyDraft")
         revert = QPushButton("Revert", buttons)
         revert.setObjectName("v2RevertDraft")
+        apply.setEnabled(not external and not stale)
+        revert.setEnabled(not external)
         bar.addWidget(apply)
         bar.addWidget(revert)
         bar.addStretch(1)
@@ -1669,7 +1768,11 @@ class BranchCanvas(QScrollArea):
                            else NodeAddress(report.id, meta.parent_module_id, identifier, "text"))
                 self._inline(card, address, kind, text)
             else:
-                value = QLabel(text or "(Empty)", card)
+                display = ("Page break" if kind == "page-break" else
+                           ("Photo" + (": " + text if text else
+                                       " (thumbnail and captions in M4)")
+                            if kind == "photo" else text or "(Empty)"))
+                value = QLabel(display, card)
                 value.setObjectName("v2BranchValue")
                 value.setTextFormat(Qt.TextFormat.PlainText)
                 value.setWordWrap(True)

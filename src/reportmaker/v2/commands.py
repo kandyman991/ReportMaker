@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from typing import Mapping
 from uuid import uuid4
 
-from ..model import HeadingBlock, LocalizedText, Module, ParagraphBlock, TableBlock
+from ..model import (HeadingBlock, LocalizedText, Module, PageBreakBlock,
+                     ParagraphBlock, PhotoBlock, TableBlock)
+from ..project_io import ASSET_ID
 from ..rich_text import RichFormatting, validate_rich
 from .adapters.tables import checked_rows
 from .projections import NodeAddress, find_node
@@ -42,6 +44,8 @@ _KINDS = {
     "add_paragraph": ({"text"}, {"index"}),
     "add_heading": ({"text", "level"}, {"index"}),
     "add_table": (set(), {"index"}),
+    "add_page_break": (set(), {"index"}),
+    "add_photo": ({"asset_id"}, {"index"}),
     "set_table_rows": ({"rows"}, set()),
     "rename_module": ({"title"}, set()),
     "set_paragraph": ({"text"}, set()),
@@ -89,8 +93,13 @@ class CommandGateway:
                 raise ValueError("Table edit requires an owning table address")
             checked_rows(intent.args["rows"])
             return
+        if intent.kind == "add_photo":
+            asset_id = intent.args["asset_id"]
+            if (not isinstance(asset_id, str) or ASSET_ID.fullmatch(asset_id) is None
+                    or asset_id not in self._session.assets):
+                raise ValueError("Photo must reference an existing project-owned asset")
         value_key = "text" if intent.kind in ("add_paragraph", "add_heading", "set_paragraph", "set_paragraph_rich", "set_heading_rich") else "title"
-        if intent.kind != "add_table" and not isinstance(intent.args[value_key], str):
+        if intent.kind not in ("add_table", "add_page_break", "add_photo") and not isinstance(intent.args[value_key], str):
             raise ValueError("Title and text must be strings")
         if intent.kind == "add_heading" and (type(intent.args["level"]) is not int
                                              or not 1 <= intent.args["level"] <= 6):
@@ -126,7 +135,7 @@ class CommandGateway:
                 if intent.kind == "add_nested_module" and module.id == report.conclusion.id:
                     raise ValueError("Conclusions cannot have intervention submodules")
                 size = len(module.blocks)
-        if intent.kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table"):
+        if intent.kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table", "add_page_break", "add_photo"):
             if "index" in intent.args and intent.args["index"] > size:
                 raise ValueError("Mixed insertion index exceeds parent length")
 
@@ -212,7 +221,7 @@ class CommandGateway:
                 return None
         language = editor.report.primary_language
         changed_id: str
-        structure = kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table")
+        structure = kind in ("add_module", "add_nested_module", "add_paragraph", "add_heading", "add_table", "add_page_break", "add_photo")
         if kind in ("add_module", "add_nested_module"):
             module = Module(LocalizedText(language, args["title"]))
             if kind == "add_module":
@@ -224,6 +233,16 @@ class CommandGateway:
             paragraph = ParagraphBlock(LocalizedText(language, args["text"]))
             editor.add_block(address.module_id, paragraph, index=args.get("index"))
             changed_id = paragraph.id
+        elif kind == "add_page_break":
+            page_break = PageBreakBlock()
+            editor.add_block(address.module_id, page_break, index=args.get("index"))
+            changed_id = page_break.id
+        elif kind == "add_photo":
+            # Reference existing validated project-owned media; never construct
+            # fake assets or import arbitrary local paths from a command.
+            photo = PhotoBlock(args["asset_id"], LocalizedText(language, ""))
+            editor.add_block(address.module_id, photo, index=args.get("index"))
+            changed_id = photo.id
         elif kind == "add_table":
             table = TableBlock([[LocalizedText(language, "") for _ in range(2)]
                                 for _ in range(2)])
