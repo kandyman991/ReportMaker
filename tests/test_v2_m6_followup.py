@@ -265,6 +265,44 @@ class ReferenceAndTranslationQtTests(unittest.TestCase):
             self.assertNotIn("DE · ", self.win.session.report_snapshot().title.original)
             self.assertTrue(self.win.branch.undo())
 
+    def test_actual_pdf_proof_has_real_pages_and_invalidates_after_edit(self):
+        preview = self.win.preview_tab
+        preview.refresh()
+        self.assertTrue(preview.show_pdf_proof())
+        self.assertTrue(preview.proof.is_current)
+        self.assertGreaterEqual(preview.proof.page_count, 1)
+        self.assertIsNotNone(preview.proof.picture.pixmap())
+        self.assertTrue(preview.proof.render_page(1))
+        report = self.win.session.report_snapshot()
+        self.win.gateway.execute(CommandIntent(
+            "rename_module",
+            __import__("reportmaker.v2.projections", fromlist=["NodeAddress"]).NodeAddress(
+                report.id, report.modules[0].id),
+            {"title": "New synthetic module title"},
+            self.win.session.revision, self.win.session.generation))
+        self.app.processEvents()
+        self.assertFalse(preview.proof.is_current)
+        self.assertFalse(preview.proof.isVisible())
+        self.assertTrue(preview.show_pdf_proof())
+
+    def test_manual_mode_retains_nonvisible_snapshot_details(self):
+        from reportmaker.v2.report_info import ReportInfoDialog
+        from reportmaker.reference import CustomerSnapshot
+        from dataclasses import replace
+        old = self.win.session.report_snapshot()
+        dialog = ReportInfoDialog(self.win.session, self.win.gateway, self.win)
+        dialog._snapshot = CustomerSnapshot(
+            customer_id="fake-db-customer", customer_name="Fictional",
+            customer_address="Fictional street",
+            customer_email="fabricated@example.invalid",
+            site_id="fake-db-site", site_name="Lab",
+            machine_id="fake-db-machine", machine_name="Lab pump")
+        self.assertTrue(dialog.use_manual())
+        self.assertIsNone(dialog._snapshot.customer_id)
+        self.assertIsNone(dialog._snapshot.machine_id)
+        self.assertEqual(dialog._snapshot.customer_address, "Fictional street")
+        self.assertEqual(dialog._snapshot.customer_email, "fabricated@example.invalid")
+        self.assertEqual(self.win.session.report_snapshot(), old)
     def test_manual_translation_dialog_preserves_unapplied_drafts(self):
         from reportmaker.v2.translation_dialog import TranslationDialog
         dialog = TranslationDialog(self.win.session, self.win.gateway, self.win)
