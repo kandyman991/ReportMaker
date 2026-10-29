@@ -126,7 +126,7 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertEqual(names[:3], (
             "heading.report_information", "heading.summary", "label.page"))
         self.assertNotIn("metadata.other_intervention_detail", names)
-        self.assertNotIn("field.ticket", names)  # empty in the synthetic fixture
+        self.assertIn("field.ticket", names)  # empty value, but exported label
         self.report.intervention_types = ["supervision", "other"]
         self.report.other_intervention_detail = "Synthetic remark"
         names = visible_metadata_keys(
@@ -141,6 +141,36 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertIn("preview.summary_detail", names)
         self.assertNotIn("preview.manual_page_break", names)
         self.assertEqual(len(names), len(set(names)))
+
+    def test_all_export_info_rows_require_localized_labels_even_when_blank(self):
+        from reportmaker.export import prepare_export
+        plan = prepare_export(self.project)
+        self.assertIn(("Ticket", ""), plan.info)
+        required = visible_metadata_keys(self.report)
+        for label, _value in plan.info:
+            semantic_keys = [
+                key for key, english in ENGLISH_LABELS.items()
+                if english == label
+            ]
+            self.assertEqual(len(semantic_keys), 1, label)
+            self.assertIn(semantic_keys[0], required)
+        # A missing label for a blank field must still fail strict export
+        # preflight rather than falling through to hardcoded English.
+        builder = MetadataLocale(self.report)
+        approvals = [
+            builder.approve(key, "fr", f"Label {i}")
+            for i, key in enumerate(required)
+            if key in ENGLISH_LABELS and key != "field.ticket"
+        ]
+        with self.assertRaisesRegex(MetadataTranslationRequiredError,
+                                    "field.ticket"):
+            MetadataLocale(self.report, approvals).resolve_many(required, "fr")
+
+    def test_absent_footer_must_not_borrow_report_writing_language(self):
+        with self.assertRaisesRegex(ValueError, "not declared"):
+            MetadataLocale(self.report).source("branding.footer_note")
+        with self.assertRaisesRegex(ValueError, "not declared"):
+            MetadataLocale(self.report).resolve("branding.footer_note", "en")
 
     def test_footer_note_is_translatable_but_company_identity_is_not(self):
         builder = MetadataLocale(self.report, footer_note="Synthetic care notice",
