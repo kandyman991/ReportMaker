@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from reportmaker.model import NestedModuleBlock, PageBreakBlock, Module, LocalizedText
 from reportmaker.project_io import VERSION, load_project, save_project
 from reportmaker.v2.metadata_locale import (
     ALL_KEYS, ENGLISH_LABELS, LocaleApproval, MetadataLocale,
@@ -131,21 +132,27 @@ class MetadataLocaleContractTests(unittest.TestCase):
         self.assertIn("intervention.other", names)
         self.assertIn("metadata.other_intervention_detail", names)
         self.assertIn("branding.footer_note", names)
+        self.assertIn("preview.footer_prefix", names)
+        self.assertIn("preview.summary_detail", names)
+        self.assertNotIn("preview.manual_page_break", names)
         self.assertEqual(len(names), len(set(names)))
 
     def test_footer_note_is_translatable_but_company_identity_is_not(self):
-        builder = MetadataLocale(self.report, footer_note="Synthetic care notice")
+        builder = MetadataLocale(self.report, footer_note="Synthetic care notice",
+                                 footer_source_language="en")
         self.assertEqual(builder.source("branding.footer_note"),
                          ("Synthetic care notice", "en"))
         with self.assertRaisesRegex(MetadataTranslationRequiredError, "Missing"):
             builder.resolve("branding.footer_note", "it")
         approved = builder.approve("branding.footer_note", "it", "Avviso sintetico")
         locale = MetadataLocale(self.report, [approved],
-                                footer_note="Synthetic care notice")
+                                footer_note="Synthetic care notice",
+                                footer_source_language="en")
         self.assertEqual(locale.resolve("branding.footer_note", "it"),
                          "Avviso sintetico")
         changed_footer = MetadataLocale(self.report, [approved],
-                                        footer_note="Different private warning")
+                                        footer_note="Different private warning",
+                                        footer_source_language="en")
         with self.assertRaisesRegex(MetadataTranslationRequiredError, "Outdated"):
             changed_footer.resolve("branding.footer_note", "it")
 
@@ -198,3 +205,65 @@ class MetadataLocaleContractTests(unittest.TestCase):
             MetadataLocale(self.report, [record] * 4097)
         with self.assertRaisesRegex(ValueError, "nonblank"):
             MetadataLocale(self.report).approve("field.customer", "de", "x" * 321)
+
+    def test_untrusted_approvals_reject_xml_invalid_codepoints(self):
+        builder = MetadataLocale(self.report)
+        good = builder.approve("field.customer", "de", "Kunde")
+        for invalid in ("K\\x00unde", "K\\ud800unde", "K\\ufffeunde"):
+            # Decode escapes inside the test: GitHub source stays UTF-8.
+            value = invalid.encode("ascii").decode("unicode_escape")
+            with self.subTest(character=repr(value)):
+                with self.assertRaisesRegex(ValueError, "nonblank|length"):
+                    builder.approve("field.customer", "de", value)
+                with self.assertRaisesRegex(ValueError, "length"):
+                    MetadataLocale(self.report, [LocaleApproval(
+                        good.key, good.language, value, good.source_sha256)])
+        with self.assertRaises(ValueError):
+            source_digest("heading.summary", "en", None)
+        with self.assertRaises(ValueError):
+            builder.resolve([], "de")
+
+    def test_forged_target_only_free_text_is_never_resolved(self):
+        builder = MetadataLocale(self.report)
+        key = "metadata.other_intervention_detail"
+        empty = builder.source(key)
+        self.assertFalse(empty[0])
+        forged = LocaleApproval(key, "de", "Fabricated only in German",
+                                source_digest(key, empty[1], empty[0]))
+        with self.assertRaisesRegex(MetadataTranslationRequiredError, "Fabricated"):
+            MetadataLocale(self.report, [forged]).resolve(key, "de")
+        # Whitespace-only source is not meaningful customer prose either.
+        foot = MetadataLocale(self.report, footer_note="   ",
+                              footer_source_language="en")
+        with self.assertRaisesRegex(ValueError, "invent"):
+            foot.approve("branding.footer_note", "de", "Invented")
+
+    def test_branding_source_language_must_be_declared_independently(self):
+        self.report.primary_language = "it"
+        with self.assertRaisesRegex(ValueError, "explicit source language"):
+            MetadataLocale(self.report, footer_note="English legal note")
+        builder = MetadataLocale(self.report, footer_note="English legal note",
+                                 footer_source_language="en")
+        self.assertEqual(builder.source("branding.footer_note"),
+                         ("English legal note", "en"))
+        record = builder.approve("branding.footer_note", "it", "Nota legale")
+        self.assertEqual(MetadataLocale(
+            self.report, [record], footer_note="English legal note",
+            footer_source_language="en").resolve("branding.footer_note", "it"),
+            "Nota legale")
+        with self.assertRaisesRegex(MetadataTranslationRequiredError, "Outdated"):
+            MetadataLocale(
+                self.report, [record], footer_note="English legal note",
+                footer_source_language="de").resolve("branding.footer_note", "it")
+
+    def test_preview_localization_follows_nested_manual_page_break(self):
+        self.assertNotIn("preview.manual_page_break",
+                         visible_metadata_keys(self.report, preview=True))
+        nested = Module(LocalizedText(self.report.primary_language, "Nested"),
+                        blocks=[PageBreakBlock()])
+        self.report.modules[0].blocks.append(NestedModuleBlock(nested))
+        keys = visible_metadata_keys(self.report, preview=True)
+        self.assertIn("preview.manual_page_break", keys)
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertNotIn("preview.manual_page_break",
+                         visible_metadata_keys(self.report, preview=False))
