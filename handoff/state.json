@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-29T20:22:39.074Z",
+  "generatedAt": "2026-10-29T21:48:04.208Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,11 +11,31 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "a0ceaf339bc2916b88b2915b9ed2923265406932",
-    "message": "docs: make independent audits repeatable and correct V2 QA policy (#108)\n\nReview findings F01–F03 corrected; exact-head M0/M1 Windows and continuity checks passed. Clarifies manual short-lived QA artifacts versus release publishing, explicit V2 launcher, and documentation-versus-release audit scopes.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/a0ceaf339bc2916b88b2915b9ed2923265406932"
+    "sha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
+    "message": "Security #104 — Pillow 13 upgrade and image decoder allowlists (#109)\n\n* security: require Pillow 13 and restrict five image decoder entry points (#104)\n\n* test: correct PNG signature assertion and cover oversized ICC rejection (#104)\n\n* fix: preserve clipboard unsupported-format diagnostic with parser allowlist (#104)",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/582ba5ec03a45fe5b933e20ddd24c75d5ec99248"
   },
   "openPullRequests": [
+    {
+      "number": 111,
+      "title": "V2: Save, Save As, New, Open and Close apply pending inline edits (ADR-0009, proposed)",
+      "draft": true,
+      "head": "v2-save-applies-drafts",
+      "headSha": "6cce29a4dfc065432f3f6855c7ededb5dc6e67ba",
+      "base": "feature/v2-m73-linux-toolbar-audit",
+      "updatedAt": "2026-10-29T21:24:37Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/111"
+    },
+    {
+      "number": 110,
+      "title": "V2: stop Ctrl+Shift+V swallowing text pastes, fix dead shortcuts, port customer manager",
+      "draft": false,
+      "head": "v2-shortcuts-customer-manager",
+      "headSha": "bc485d6536891e0093592478fc170b462a952570",
+      "base": "feature/v2-m73-linux-toolbar-audit",
+      "updatedAt": "2026-10-29T21:24:35Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/110"
+    },
     {
       "number": 107,
       "title": "M7.3 Linux audit — make V2 toolbars responsive and keep all actions reachable",
@@ -59,12 +79,6 @@
       "title": "Release security: lock complete Windows build dependency graph and pin action revisions",
       "updatedAt": "2026-10-29T19:35:40Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/105"
-    },
-    {
-      "number": 104,
-      "title": "Security: upgrade Pillow to 13.x and restrict untrusted image decoder entry points",
-      "updatedAt": "2026-10-29T19:35:38Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/104"
     },
     {
       "number": 103,
@@ -197,118 +211,124 @@
       "title": "Windows acceptance: editable report typography (family, size, emphasis, spacing) persisted and exported",
       "updatedAt": "2026-10-27T09:11:08Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/23"
+    },
+    {
+      "number": 2,
+      "title": "M0 acceptance: verify embedded ChatGPT browser on real Windows PC",
+      "updatedAt": "2026-10-26T14:02:18Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/2"
     }
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40948451840,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "a0ceaf339bc2916b88b2915b9ed2923265406932",
-      "event": "push",
-      "updatedAt": "2026-10-29T20:22:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948451840"
-    },
-    {
-      "id": 40948451825,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "a0ceaf339bc2916b88b2915b9ed2923265406932",
-      "event": "push",
-      "updatedAt": "2026-10-29T20:22:34Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948451825"
-    },
-    {
-      "id": 40948451818,
+      "id": 40960780116,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "a0ceaf339bc2916b88b2915b9ed2923265406932",
+      "headSha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
       "event": "push",
-      "updatedAt": "2026-10-29T20:22:34Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948451818"
+      "updatedAt": "2026-10-29T21:48:00Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40960780116"
     },
     {
-      "id": 40948142964,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "docs/repeatable-security-quality-audit",
-      "headSha": "319eed4e4dde020b72404bdddb0d66a9de283be2",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T20:22:08Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948142964"
+      "id": 40960780002,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
+      "event": "push",
+      "updatedAt": "2026-10-29T21:48:00Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40960780002"
     },
     {
-      "id": 40948142779,
-      "name": "V2 M6.5 staged metadata localization contract",
-      "status": "completed",
-      "conclusion": "skipped",
-      "branch": "docs/repeatable-security-quality-audit",
-      "headSha": "319eed4e4dde020b72404bdddb0d66a9de283be2",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T20:20:38Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948142779"
+      "id": 40960779925,
+      "name": "ReportMaker continuity contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
+      "event": "push",
+      "updatedAt": "2026-10-29T21:48:00Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40960779925"
     },
     {
-      "id": 40948142771,
+      "id": 40957563494,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "docs/repeatable-security-quality-audit",
-      "headSha": "319eed4e4dde020b72404bdddb0d66a9de283be2",
+      "branch": "v2-save-applies-drafts",
+      "headSha": "6cce29a4dfc065432f3f6855c7ededb5dc6e67ba",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T20:22:02Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948142771"
+      "updatedAt": "2026-10-29T21:26:14Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957563494"
     },
     {
-      "id": 40948142708,
+      "id": 40957559990,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "v2-shortcuts-customer-manager",
+      "headSha": "bc485d6536891e0093592478fc170b462a952570",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T21:25:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957559990"
+    },
+    {
+      "id": 40957509066,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/issue-104-pillow13-image-allowlists",
+      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T21:25:45Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957509066"
+    },
+    {
+      "id": 40957508887,
+      "name": "V2 M6.6 precise page and Word fidelity",
+      "status": "completed",
+      "conclusion": "skipped",
+      "branch": "security/issue-104-pillow13-image-allowlists",
+      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T21:24:19Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508887"
+    },
+    {
+      "id": 40957508876,
+      "name": "V2 M7.1 isolated Windows installer preflight",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/issue-104-pillow13-image-allowlists",
+      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T21:30:52Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508876"
+    },
+    {
+      "id": 40957508858,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "docs/repeatable-security-quality-audit",
-      "headSha": "319eed4e4dde020b72404bdddb0d66a9de283be2",
+      "branch": "security/issue-104-pillow13-image-allowlists",
+      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T20:20:35Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948142708"
+      "updatedAt": "2026-10-29T21:24:25Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508858"
     },
     {
-      "id": 40948142705,
-      "name": "V2 M6.6 precise page and Word fidelity",
-      "status": "completed",
-      "conclusion": "skipped",
-      "branch": "docs/repeatable-security-quality-audit",
-      "headSha": "319eed4e4dde020b72404bdddb0d66a9de283be2",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T20:20:34Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40948142705"
-    },
-    {
-      "id": 40947407332,
-      "name": "V2 M6.6 precise page and Word fidelity",
-      "status": "completed",
-      "conclusion": "skipped",
-      "branch": "docs/repeatable-security-quality-audit",
-      "headSha": "d9d3d9a31f7f3dfef3479e933cba1a9a9cce90a1",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T20:15:35Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40947407332"
-    },
-    {
-      "id": 40947407210,
+      "id": 40957508837,
       "name": "M0 architecture and model gates",
       "status": "completed",
       "conclusion": "success",
-      "branch": "docs/repeatable-security-quality-audit",
-      "headSha": "d9d3d9a31f7f3dfef3479e933cba1a9a9cce90a1",
+      "branch": "security/issue-104-pillow13-image-allowlists",
+      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T20:17:09Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40947407210"
+      "updatedAt": "2026-10-29T21:26:02Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508837"
     }
   ]
 }
