@@ -56,9 +56,11 @@ class GalleryTab(QWidget):
 
     def refresh(self):
         self.pictures.session_token = self.session.generation
-        self.pictures.populate(dict(self.session.media_library))
+        names = {key: self.session.media_library.get(key, "Placed project photo")
+                 for key in self.session.assets}
+        self.pictures.populate(names)
         self.hint.setText(
-            f"{len(self.session.media_library)} project-owned pictures"
+            f"{len(names)} project-owned pictures"
             " · imports remain local and undoable"
         )
 
