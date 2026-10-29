@@ -85,6 +85,8 @@ def _apply_report_metadata(report, args):
     # therefore requires explicit user confirmation and a safe provenance
     # migration, never a metadata-only relabel with mismatched field tags.
     new_language = args["primary_language"]
+    from ..model import validate_language_tag
+    validate_language_tag(new_language)
     if new_language.casefold() != report.primary_language.casefold():
         from .localized_export import localized_fields
         if args.get("relabel_source_language") is not True:
@@ -136,6 +138,8 @@ class CommandGateway:
                            for edit in edits)):
                 raise ValueError("Editor batch requires 1–256 validated field intents")
             addresses = [edit.target for edit in edits]
+            if any(not isinstance(address, NodeAddress) for address in addresses):
+                raise ValueError("Invalid document editor field address")
             if len(set(addresses)) != len(addresses):
                 raise ValueError("Duplicate field in document editor batch")
             for edit in edits:
