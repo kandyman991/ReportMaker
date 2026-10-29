@@ -126,6 +126,7 @@ class V2MainWindow(QMainWindow):
             ("v2SaveProject", "Save", self.save_project, "Ctrl+S"),
             ("v2SaveProjectAs", "Save As", self.save_project_as, "Ctrl+Shift+S"),
             ("v2ReportInfo", "Report info", self.edit_report_info, "Ctrl+Shift+R"),
+            ("v2ImportTemplate", "Layout template…", self.import_layout_template, ""),
             ("v2AddModule", "+ Module", self.branch.add_module, ""),
             ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
             ("v2AddParagraph", "+ Paragraph", self.branch.add_paragraph, ""),
@@ -264,6 +265,44 @@ class V2MainWindow(QMainWindow):
             self.statusBar().showMessage("Apply or Revert pending edits before revealing a match")
         else:
             self.statusBar().showMessage(f"Found {len(hits)} matching report blocks — F3 for next")
+
+    def import_layout_template(self, path: str | Path | None = None) -> bool:
+        """Import a local, bounded Word layout profile without changing report."""
+        from .layout_template import style_from_template
+        from ..template_import import import_word_template, load_template
+        try:
+            self.session.require_clean_drafts()
+        except PendingDraftError as exc:
+            self.statusBar().showMessage(str(exc))
+            return False
+        if path is None:
+            filename, _ = QFileDialog.getOpenFileName(
+                self, "Select a local Word layout",
+                "", "Word and ReportMaker templates (*.docx *.dotx *.rmtemplate)")
+            if not filename:
+                return False
+            path = filename
+        try:
+            local = Path(path)
+            warnings = ()
+            if local.suffix.lower() == ".rmtemplate":
+                template = load_template(local)
+            else:
+                imported = import_word_template(local)
+                template, warnings = imported.template, imported.warnings
+            style = style_from_template(template)
+            # Apply only after complete import/validation; never persist this
+            # presentation profile into report facts or project media.
+            self.editor_tab.set_style(style)
+            self.preview_tab.set_style(style)
+            self.statusBar().showMessage(
+                "Local template selected; " +
+                ("Some Word elements were not imported: " + "; ".join(warnings[:2])
+                 if warnings else "export page geometry and branding updated"))
+        except (OSError, ValueError, RuntimeError) as exc:
+            self.statusBar().showMessage("Template import rejected: " + str(exc))
+            return False
+        return True
 
     def edit_report_info(self) -> bool:
         """Apply metadata through the same guarded canonical command history."""
