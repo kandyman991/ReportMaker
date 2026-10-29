@@ -8,10 +8,11 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QTabWidget,
+    QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
+    QTabWidget, QToolButton,
 )
 
 from ..engine import module_outline
@@ -121,8 +122,15 @@ class V2MainWindow(QMainWindow):
         # reflect unapplied changes in the window's unsaved marker immediately.
         self.branch.drafts.subscribe_pending(lambda _pending: self._update_caption())
 
-        toolbar = self.addToolBar("Project and branch actions")
+        # Keep the primary commands visible at minimum window width. The
+        # previous 27-action single toolbar overflowed even at 1600 px;
+        # Qt silently hid critical insert and editing commands behind chevrons.
+        toolbar = self.addToolBar("Project")
         toolbar.setObjectName("v2BranchActions")
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        actions: dict[str, QAction] = {}
         for name, label, method, shortcut in (
             ("v2NewProject", "New", self.new_project, "Ctrl+N"),
             ("v2OpenProject", "Open", self.open_project, "Ctrl+O"),
@@ -157,12 +165,64 @@ class V2MainWindow(QMainWindow):
             if shortcut:
                 action.setShortcut(shortcut)
             action.triggered.connect(lambda checked=False, callback=method: callback())
-            toolbar.addAction(action)
-        # M5 navigation is separate so its controls are not buried behind
-        # all the editing actions on a normal Windows laptop screen.
+            # A menu-only QAction must still belong to the main window so
+            # its existing shortcut works even while that menu is closed.
+            self.addAction(action)
+            actions[name] = action
+
+        def menu_button(bar, title: str, object_name: str,
+                        keys: tuple[str, ...]) -> QToolButton:
+            button = QToolButton(bar)
+            button.setObjectName(object_name)
+            button.setAccessibleName(title + " commands")
+            button.setText(title)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            menu = QMenu(title, button)
+            menu.setObjectName(object_name + "Actions")
+            menu.setToolTipsVisible(True)
+            for key in keys:
+                menu.addAction(actions[key])
+            button.setMenu(menu)
+            bar.addWidget(button)
+            return button
+
+        for key in ("v2NewProject", "v2OpenProject", "v2SaveProject",
+                    "v2ReportInfo"):
+            toolbar.addAction(actions[key])
+        menu_button(toolbar, "Project ▾", "v2ProjectMenu", (
+            "v2SaveProjectAs", "v2ImportTemplate", "v2Contents"))
+        menu_button(toolbar, "Languages ▾", "v2LanguagesMenu", (
+            "v2Translations", "v2MetadataTranslations",
+            "v2FooterTranslation"))
+
+        self.addToolBarBreak()
+        editing = self.addToolBar("Module editing")
+        editing.setObjectName("v2BranchEditing")
+        editing.setMovable(False)
+        editing.setFloatable(False)
+        editing.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        for key in ("v2AddModule", "v2AddSubmodule", "v2AddParagraph"):
+            editing.addAction(actions[key])
+        menu_button(editing, "Insert ▾", "v2InsertMenu", (
+            "v2AddHeading", "v2AddTable", "v2AddPageBreak",
+            "v2AddExistingPhoto", "v2ImportPhoto", "v2PastePhoto"))
+        menu_button(editing, "Arrange ▾", "v2ArrangeMenu", (
+            "v2MoveUp", "v2MoveDown", "v2Indent", "v2Outdent",
+            "v2Duplicate", "v2Delete"))
+        for key in ("v2UndoChange", "v2RedoChange"):
+            # Short button labels; full descriptions remain in tooltips.
+            actions[key].setToolTip(actions[key].text())
+            actions[key].setText("Undo" if key == "v2UndoChange" else "Redo")
+            editing.addAction(actions[key])
+
         self.addToolBarBreak()
         navigation = self.addToolBar("Branch navigation")
         navigation.setObjectName("v2BranchNavigation")
+        navigation.setMovable(False)
+        navigation.setFloatable(False)
+        navigation.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        nav_actions: dict[str, QAction] = {}
         for name, label, method, shortcut in (
             ("v2Search", "Find", self.search_branches, "Ctrl+F"),
             ("v2NextMatch", "Next match", self.branch.next_match, "F3"),
@@ -185,7 +245,18 @@ class V2MainWindow(QMainWindow):
                 action.setShortcut(shortcut)
                 action.setToolTip(f"{label} ({shortcut})")
             action.triggered.connect(lambda checked=False, callback=method: callback())
-            navigation.addAction(action)
+            self.addAction(action)
+            nav_actions[name] = action
+        # Reuse the same menu helper with the navigation action registry.
+        actions.update(nav_actions)
+        for key in ("v2Search", "v2NextMatch", "v2ZoomOut",
+                    "v2ZoomIn", "v2ZoomReset"):
+            navigation.addAction(actions[key])
+        menu_button(navigation, "Navigate ▾", "v2NavigateMenu", (
+            "v2Focus", "v2ExitFocus", "v2PrevWindow", "v2NextWindow",
+            "v2SelectPrevious", "v2SelectNext",
+            "v2PanLeft", "v2PanRight"))
+        menu_button(navigation, "View ▾", "v2ViewMenu", ("v2Fit",))
         self.branch.selectionChanged.connect(self._update_move_actions)
         self.branch.visibilityChanged.connect(self._persist_live_view)
         self.branch.visibilityChanged.connect(self._update_move_actions)
