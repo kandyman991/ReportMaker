@@ -305,6 +305,17 @@ class V2MainWindow(QMainWindow):
             return False
         return True
 
+    def _reset_project_layout(self) -> None:
+        """Never reuse another project's transient logo/header/footer.
+
+        Until template profiles become explicit per-project data, a project
+        switch returns the page Editor and both preview/export surfaces to
+        safe defaults rather than leaking the prior customer's branding.
+        """
+        from ..export import ExportStyle
+        self.editor_tab.set_style(ExportStyle())
+        self.preview_tab.set_style(ExportStyle())
+
     def edit_translations(self) -> bool:
         """Edit explicit localized fields without changing the source writing."""
         from .translation_dialog import TranslationDialog
@@ -418,6 +429,7 @@ class V2MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot create report", str(exc))
             return False
         self._persist_previous_view(view)
+        self._reset_project_layout()
         self._synthetic_preview = False
         self._restore_presentation()
         self._update_caption()
@@ -448,6 +460,7 @@ class V2MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot open project", str(exc))
             return False
         self._persist_previous_view(view)
+        self._reset_project_layout()
         self._synthetic_preview = False
         self._restore_presentation()
         self._update_caption()
