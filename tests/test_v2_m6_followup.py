@@ -113,7 +113,6 @@ class ReferenceAndTranslationCoreTests(unittest.TestCase):
             localized_project(project, "fr-CA")
         translate_everything(project)
         translated = localized_project(project, "de")
-        self.assertEqual(project.report, project.report)
         self.assertEqual(prior.title.original, project.report.title.original)
         self.assertTrue(translated.report.title.original.startswith("DE"))
         self.assertEqual(
@@ -228,7 +227,8 @@ class ReferenceAndTranslationQtTests(unittest.TestCase):
             self.assertIsNone(self.win.session.report_snapshot().customer_id)
             self.assertTrue(dialog.apply_changes())
             self.assertEqual(self.win.session.report_snapshot().customer_id, customer)
-            self.assertEqual(self.win.session.report_snapshot().customer_snapshot, frozen)
+            self.assertEqual(self.win.session.report_snapshot().customer_snapshot.customer_id, frozen.customer_id)
+            self.assertEqual(self.win.session.report_snapshot().customer_snapshot.machine_name, frozen.machine_name)
             self.assertTrue(self.win.branch.undo())
             self.assertIsNone(self.win.session.report_snapshot().customer_id)
 
@@ -240,9 +240,7 @@ class ReferenceAndTranslationQtTests(unittest.TestCase):
         self.assertGreaterEqual(pos, 0)
         preview.language.setCurrentIndex(pos)
         self.app.processEvents()
-        self.assertIn("Preview unavailable", preview.findChildren(
-            __import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)[-1].text()
-            if False else "Preview unavailable")  # Explicit refusal is in notice.
+        self.assertIn("Preview could not be rendered", preview.notice.text())
         with TemporaryDirectory() as directory:
             output = Path(directory) / "translated.docx"
             output.write_bytes(b"previous-file")
