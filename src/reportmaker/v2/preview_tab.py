@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget,
 )
 
-from ..export import ExportError, export_project, prepare_export
+from ..export import ExportError, ExportStyle, export_project, prepare_export
 from .session import ReportSession
 from .visual_export import annotated_png
 
@@ -24,6 +24,7 @@ class PreviewTab(QWidget):
         super().__init__(parent)
         self.setObjectName("v2PreviewTab")
         self.session = session
+        self.style = ExportStyle()
         self._token = None
         outer = QVBoxLayout(self)
         self.notice = QLabel(
@@ -48,6 +49,11 @@ class PreviewTab(QWidget):
     def invalidate(self):
         self._token = None
 
+    def set_style(self, style: ExportStyle) -> None:
+        self.style = style
+        self.invalidate()
+        self.refresh()
+
     def refresh(self):
         token = (self.session.generation, self.session.revision,
                  self.session._draft_guard())
@@ -61,9 +67,13 @@ class PreviewTab(QWidget):
         page.setStyleSheet(
             "QFrame#v2PrintPreviewPaper { background: white; "
             "border: 1px solid #b7bcc4; color: #17212c; }")
-        page.setMaximumWidth(850)
+        page.setMaximumWidth(max(500, min(1100, round(850 * self.style.page_width_cm / 21))))
         flow = QVBoxLayout(page)
-        flow.setContentsMargins(35, 35, 35, 35)
+        flow.setContentsMargins(
+            max(18, round(35 * self.style.left_margin_cm / 2.1)),
+            max(18, round(35 * self.style.top_margin_cm / 3.0)),
+            max(18, round(35 * self.style.right_margin_cm / 2.1)),
+            max(18, round(35 * self.style.bottom_margin_cm / 2.5)))
         flow.setSpacing(8)
 
         def text(value, *, strong=False, margin=0):
@@ -79,6 +89,15 @@ class PreviewTab(QWidget):
         try:
             plan = prepare_export(
                 self.session.project_snapshot(), visual_renderer=annotated_png)
+            if self.style.logo:
+                logo = QPixmap()
+                if logo.loadFromData(self.style.logo):
+                    logo_label = QLabel(page)
+                    logo_label.setPixmap(logo.scaledToWidth(min(210, logo.width()),
+                        Qt.TransformationMode.SmoothTransformation))
+                    flow.addWidget(logo_label)
+            if self.style.company_name:
+                text(self.style.company_name)
             text(plan.title, strong=True)
             text("Report information", strong=True)
             for name, value in plan.info:
@@ -119,6 +138,8 @@ class PreviewTab(QWidget):
                         text(item.text)
                 elif item.kind == "page_break":
                     text("— Manual page break in exported document —")
+            if self.style.footer_note:
+                text("Footer: " + self.style.footer_note)
             self.notice.setText(
                 "Continuous schematic preview of applied content · DOCX/PDF "
                 "export uses real pagination. Unapplied drafts are not displayed."
@@ -136,7 +157,8 @@ class PreviewTab(QWidget):
         try:
             self.session.require_clean_drafts()
             project = self.session.project_snapshot()
-            export_project(project, path, format=format, visual_renderer=annotated_png)
+            export_project(project, path, format=format, style=self.style,
+                           visual_renderer=annotated_png)
         except (OSError, ValueError, RuntimeError) as exc:
             self.notice.setText("Export rejected; existing file left unchanged: " + str(exc))
             self.invalidate()  # Next visit refreshes the normal applied-content preview.
