@@ -248,8 +248,8 @@ class PreviewTab(QWidget):
                 text(labels["preview.footer_prefix"] + ": " +
                      labels["branding.footer_note"])
             self.notice.setText(
-                ("Language-specific content preview · metadata labels and report "
-                 "information are shown as stored; no automatic translation. "
+                ("Language-specific content and approved metadata preview · "
+                 "no automatic translation. "
                  if self._current_language() is not None else "") +
                 "Continuous schematic preview of applied content · DOCX/PDF "
                 "export uses real pagination. Unapplied drafts are not displayed."

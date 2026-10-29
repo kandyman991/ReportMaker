@@ -1,9 +1,8 @@
-"""Pure M6.5 metadata/boilerplate translation primitives (pre-schema gate).
+"""Pure M6.5 metadata/boilerplate translation primitives.
 
-This module deliberately has NO project-format, Qt, browser or export side
-effects. It establishes a typed semantic-key/source-provenance contract that
-can be reviewed independently before a v5 project migration is authorized.
-An approved entry is transient until project persistence is reviewed.
+The report-scoped v5 ledger contains durable manual approvals. This module
+validates semantic keys and source digests without Qt, browser, network or
+mutation; only separately declared template-footer approvals remain transient.
 """
 from __future__ import annotations
 
@@ -343,8 +342,13 @@ def resolve_export_metadata(report: Report, language: str, *, style=None,
                        if style is not None else None)
     footer_approvals = (getattr(style, "footer_locale_approvals", ())
                         if style is not None else ())
-    if not isinstance(footer_approvals, tuple):
-        raise ValueError("Invalid transient footer localization approvals")
+    if (not isinstance(footer_approvals, tuple) or
+            any(not isinstance(item, LocaleApproval) or
+                item.key != "branding.footer_note" for item in footer_approvals)):
+        # A transient ExportStyle is never an authority for report-owned
+        # metadata or generated labels. Without this boundary a fabricated
+        # style approval could bypass the durable, undoable v5 ledger.
+        raise ValueError("Transient style approvals must target only the footer")
     report_approvals = ledger_approvals(report.localization_ledger)
     locale = MetadataLocale(
         report, report_approvals + list(footer_approvals),

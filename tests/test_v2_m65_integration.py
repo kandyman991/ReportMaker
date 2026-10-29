@@ -232,6 +232,22 @@ class M65IntegrationTests(unittest.TestCase):
                     self.assertIn("Translated Report information", xml)
                     self.assertIn("Translated Summary", xml)
 
+    def test_transient_footer_approvals_cannot_replace_report_ledger(self):
+        project = locale_project()
+        report = project.report
+        approve_all(report, "de")
+        report.localization_ledger.pop("field.customer")
+        forged = MetadataLocale(report).approve("field.customer", "de", "Kunde")
+        # A crafted ExportStyle is presentation data, not a canonical
+        # metadata-approval command. Before this guard the forged approval
+        # could satisfy a missing report-owned translation during export.
+        style = ExportStyle(footer_locale_approvals=(forged,))
+        with self.assertRaisesRegex(ValueError, "only the footer"):
+            resolve_export_metadata(report, "de", style=style)
+        with self.assertRaisesRegex(MetadataTranslationRequiredError, "field.customer"):
+            resolve_export_metadata(report, "de")
+        self.assertNotIn("field.customer", report.localization_ledger)
+
     def test_transient_footer_source_language_is_never_inferred(self):
         project = locale_project()
         approve_all(project.report, "de")

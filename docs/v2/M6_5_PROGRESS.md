@@ -1,6 +1,6 @@
 # M6.5 — Metadata and generated-label localization implementation
 
-**Updated:** 2026-10-29. **Stacked draft PR:** [#84](https://github.com/kandyman991/ReportMaker/pull/84), base frozen M6.1–M6.4 [#83](https://github.com/kandyman991/ReportMaker/pull/83). **Last fully green code/test head:** `ba791d0bb68b2e23f5f2ae307a7d561cdc6639c1`. **Latest implementation head before curated docs:** `5d769d1428334142113a2ab8070982255acd5672` (new explicit v5 compatibility notice and footer source-only UI).
+**Updated:** 2026-10-29. **PR:** [#84](https://github.com/kandyman991/ReportMaker/pull/84). Its predecessor [#83](https://github.com/kandyman991/ReportMaker/pull/83) has been independently reviewed and merged into `main` at `ec27693819a72afb72d24464e803b112ae6aec9a`. PR #84 was reconciled without conflicts with live `main` `faaa25cb6dc26f5fde49bfbef7f3d9728f96c8b9`, via merge commit `fb4d8a89143b99c7e11f6aceaa780a3b2afa3251`. **Latest final-head hosted CI after reconciliation:** pending until its exact new code+docs SHA finishes. Prior green M6.5 feature head: `223556cd01dfc7ac2fe7ca42dd24cf5a2651e83f` (4/4 success).
 
 ## Implemented in the dedicated M6.5 PR
 
@@ -16,9 +16,18 @@
 - **Code/test SHA `ba791d0b...`: all 4 hosted workflows PASSED**, including the dedicated Windows M6.5 Python 3.11/3.12 matrix, full V2 inline Python 3.11/3.12 matrix, M1 Windows customer UI smoke, and M0 architecture/model gates. Subsequent GUI compatibility-notice/footer-source-only changes have **not** yet been independently declared green on their latest head. Earlier intermediate workflow failures were traced to old schema-v4 test expectations, an omitted explicit metadata-approval fixture, and Windows QtPdf cleanup; corrected tests preserve the new strict behavior.
 - **Feature implementation is complete for the M6.5 scoped ADR**, but **independent post-implementation review, final exact-head CI and explicit user authorization** are still required before marking M6.5 accepted or merging anything. Do not misrepresent hosted offscreen tests as physical installed-Windows acceptance, DOCX/Word pagination fidelity (M6.6), or full Checkpoint C (M6.7).
 - Source .rmproj/customer/photo/translation data is unchanged by export; V1 remains the production fallback. No customer data, credentials, browsers, CAD, or external API calls were involved.
-- Next: verify the exact documentation/checkpoint head's complete Windows matrix, independently review v5/data-integrity/export/Qt UI against this ADR, address findings, then request separate merge authorization. PR #83 remains frozen/unmerged; M6.6 and M6.7 remain inactive.
+- Next: verify the exact reconciled correction head's complete Windows matrix, then use the user's authorized PR #84 merge decision if green. PR #83 is already merged; M6.6 and M6.7 remain separate and inactive.
 
 ## Review history
 
 - Prior independent foundation reviews addressed Preview-key gaps, XML-invalid approval content, blank/fabricated metadata, transient footer provenance, overlarge digests, duplicate locale requests and exact-head staged CI scope.
 - This implementation replaces the former pre-schema checkpoint: claims that `project_io.VERSION` is still 4 or that no production export/UI localization exists are **historical only**. The v5 compatibility contract is detailed in [ADR_M6_5_METADATA_LOCALIZATION.md](ADR_M6_5_METADATA_LOCALIZATION.md).
+
+## Independent final implementation review and main reconciliation (2026-10-29)
+
+- **F1 / High — transient approval authority:** the original `resolve_export_metadata` combined `ExportStyle.footer_locale_approvals` with durable report-ledger approvals without restricting the transient keys. A constructed style could satisfy a missing report-owned label approval. Now only `branding.footer_note` is accepted through `ExportStyle`; persisted labels and metadata must originate from the canonical v5 ledger. Added synthetic negative test `test_transient_footer_approvals_cannot_replace_report_ledger` and retained valid detached footer tests.
+- **F2 / Medium — exact-head V2 regression trigger:** one path-filter item in `.github/workflows/v2-inline.yml` erroneously combined three test filenames into one path. Split into individual patterns so isolated M6.5 test changes trigger the full hosted V2 regression suite.
+- **F3 / Low — misleading Preview language notice:** removed old text claiming metadata remained English-only after M6.5 now validates/uses translated labels.
+- **Existing duplicate-key protection confirmed:** `project_io._unique_pairs` already rejects duplicated JSON object members, including forged v5 ledger records. No redundant parser change was made.
+- **Integration:** imported the reviewed PR #83 merge and current `main` into PR #84 via non-conflicting merge commit `fb4d8a89143b99c7e11f6aceaa780a3b2afa3251`. After retargeting, the PR diff must contain only M6.5-specific work; Windows workflows on the exact corrective HEAD remain the merge gate.
+- **Limits:** This review does not certify installed Windows GUI, Word pagination, complex templates (M6.6), complete M6 Checkpoint C (M6.7), any release, or default-V2 promotion.
