@@ -123,11 +123,24 @@ class ReportInfoDialog(QDialog):
         return True
 
     def use_manual(self):
-        # Only remove master linkage inside this dialog; master data is untouched.
-        self._snapshot = None
+        # Remove master linkage but retain all existing snapshot-only address,
+        # contact and machine fields, including those not visible in this form.
+        # No master record is edited or silently discarded.
+        if self._snapshot is not None:
+            from dataclasses import fields
+            from ..reference import CustomerSnapshot
+            details = {
+                item.name: getattr(self._snapshot, item.name)
+                for item in fields(CustomerSnapshot)
+                if item.name not in {
+                    "customer_name", "customer_id", "site_id", "machine_id",
+                    "captured_at", "schema_version"
+                }
+            }
+            self._snapshot = manual_snapshot(self._snapshot.customer_name, **details)
         self.status.setText(
-            "Manual customer mode staged. The current field text will be saved "
-            "without database identifiers only after Apply.")
+            "Manual customer mode staged. Existing snapshot details are retained "
+            "without database IDs only after Apply.")
         return True
 
     def _build_args(self):
