@@ -417,6 +417,31 @@ def _pdf_number_marker(kind: str, ordinal: int) -> str:
     return (label.upper() if kind == "upper-alpha" else label) + ". "
 
 
+def _word_fixed_table(table, widths_cm: tuple[float, ...]) -> None:
+    """Set *both* Word table grid and cell widths to the printable area.
+
+    python-docx's default autofit lets Word expand a table beyond the
+    selected template margins, unlike the explicitly sized PDF tables.
+    This keeps OOXML editable and deterministic across supported layouts.
+    """
+    from docx.shared import Cm
+    from docx.oxml.ns import qn
+
+    if len(widths_cm) != len(table.columns) or any(w <= 0 for w in widths_cm):
+        raise ExportError("Invalid printable Word table widths")
+    table.autofit = False
+    for col, width in zip(table.columns, widths_cm):
+        col.width = Cm(width)
+    for row in table.rows:
+        for cell, width in zip(row.cells, widths_cm):
+            cell.width = Cm(width)
+    table_width = table._tbl.tblPr.xpath("./w:tblW")
+    if len(table_width) != 1:
+        raise ExportError("Word table width definition is missing")
+    table_width[0].set(qn("w:type"), "dxa")
+    table_width[0].set(qn("w:w"), str(Cm(sum(widths_cm)).twips))
+
+
 def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None:
     from docx import Document
     from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
@@ -465,6 +490,8 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
     for label, value in plan.info:
         row = table.add_row().cells
         row[0].text, row[1].text = label, value
+    info_label_width = min(4.2, printable_width * .28)
+    _word_fixed_table(table, (info_label_width, printable_width - info_label_width))
     document.add_heading((plan.locale_labels or {}).get(
         "heading.summary", "Summary"), level=2)
     for entry in plan.outline:
@@ -557,6 +584,7 @@ def _write_docx(plan: ExportPlan, destination: Path, style: ExportStyle) -> None
             for i, row in enumerate(item.rows):
                 for j, value in enumerate(row):
                     table.cell(i, j).text = value
+            _word_fixed_table(table, (printable_width / width,) * width)
         elif item.kind == "photo":
             photo_w, photo_h = _photo_dimensions(
                 item.image, max_width_cm=min(

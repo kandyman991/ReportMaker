@@ -78,6 +78,13 @@ class NaturalPageTable(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.verticalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents)
+        # Resizing a cell must also resize the outer card immediately; no
+        # nested grid viewport may swallow a long edit until a window resize.
+        self.itemChanged.connect(self._content_changed)
+
+    def _content_changed(self, _item):
+        self.resizeRowsToContents()
+        self.updateGeometry()
 
     def sizeHint(self):
         size = super().sizeHint()
@@ -101,6 +108,44 @@ class NaturalPageTable(QTableWidget):
 
     def wheelEvent(self, event):
         event.ignore()
+
+
+class NaturalPagePaper(QFrame):
+    """Responsive paper outline: one physical scale for width and margins.
+
+    This is a *continuous* editable document, not simulated Word page breaks.
+    At narrow viewport widths the whole paper and its margins scale together,
+    rather than hiding fixed 500px content under a disabled scrollbar.
+    """
+
+    PIXELS_PER_CM = 40.0
+
+    def __init__(self, style: ExportStyle, parent=None):
+        super().__init__(parent)
+        self.setObjectName("v2DocumentPaper")
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(round(self.PIXELS_PER_CM * style.page_width_cm))
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.setStyleSheet("QFrame#v2DocumentPaper { background: white;"
+                           " border: 1px solid #b1b8c1; }")
+        self.style = style
+        self.flow = QVBoxLayout(self)
+        self.flow.setSpacing(8)
+        self._sync_margins()
+
+    def _sync_margins(self):
+        # The same cm-to-pixel scale is applied to all four printable margins.
+        # It is intentionally a responsive *projection*, not PDF pagination.
+        scale = max(1, self.width()) / self.style.page_width_cm
+        margins = tuple(round(scale * value) for value in (
+            self.style.left_margin_cm, self.style.top_margin_cm,
+            self.style.right_margin_cm, self.style.bottom_margin_cm))
+        if self.flow.getContentsMargins() != margins:
+            self.flow.setContentsMargins(*margins)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._sync_margins()
 
 
 class DocumentEditorTab(QWidget):
@@ -257,18 +302,8 @@ class DocumentEditorTab(QWidget):
                        self._module_id, self._page)
         shell = QWidget(self)
         root = QVBoxLayout(shell)
-        page = QFrame(shell)
-        page.setObjectName("v2DocumentPaper")
-        page.setMaximumWidth(max(500, min(1100, round(850 * self.style.page_width_cm / 21))))
-        page.setStyleSheet("QFrame#v2DocumentPaper { background: white;"
-                           " border: 1px solid #b1b8c1; }")
-        flow = QVBoxLayout(page)
-        flow.setContentsMargins(
-            max(18, round(35 * self.style.left_margin_cm / 2.1)),
-            max(18, round(35 * self.style.top_margin_cm / 3.0)),
-            max(18, round(35 * self.style.right_margin_cm / 2.1)),
-            max(18, round(35 * self.style.bottom_margin_cm / 2.5)))
-        flow.setSpacing(8)
+        page = NaturalPagePaper(self.style, shell)
+        flow = page.flow
         self._editors = {}
         self._tables = {}
 
@@ -321,6 +356,19 @@ class DocumentEditorTab(QWidget):
                         label("Heading", bold=True)
                 edit = NaturalPageText(page)
                 edit.setObjectName("v2DocumentField_" + row.stable_id)
+                # Present supported base font semantics consistently with
+                # the Word profile. Rich inline runs remain canonical and are
+                # edited in the Branch formatting toolbar, not silently lost.
+                font = edit.font()
+                family = (self.style.heading_font if row.kind == "heading"
+                          else self.style.normal_font)
+                if family:
+                    font.setFamily(family)
+                font.setPointSizeF(self.style.heading_size_pt if
+                                   row.kind == "heading" else
+                                   self.style.normal_size_pt)
+                font.setBold(row.kind == "heading")
+                edit.setFont(font)
                 edit.setPlainText(initial)
                 if self.branch.drafts.draft_owner(address) not in (None, "page-editor"):
                     edit.setReadOnly(True)
