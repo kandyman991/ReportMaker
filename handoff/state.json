@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-29T12:00:30.172Z",
+  "generatedAt": "2026-10-29T13:57:11.369Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "42806a3f0ecef0c3cd5f1c8ff34e0129f25efdce",
-    "message": "Merge PR #84: V2 M6.5 metadata localization\n\nReviewed and corrected metadata translation provenance, isolated transient footer approvals, repaired CI triggers; full local regressions and exact-head hosted Windows workflows green. M6.6/M6.7 and native acceptance remain separate.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/42806a3f0ecef0c3cd5f1c8ff34e0129f25efdce"
+    "sha": "5b41fd28718e4cb680b20085da5227229880f9b4",
+    "message": "V2 M6.6: responsive Page Editor and Word fidelity (#88)\n\nReviewed M6.6 A/B/C Word fidelity and page layout, including three independent-review corrections, 441 Linux/offscreen tests, all nine applicable final-head hosted Windows CI workflows, and user-reported native Word 16.0 synthetic A4 DOCX/PDF visual plus field-update acceptance. M6.7 and real installed V2 UI/complex Word matrix remain separate.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/5b41fd28718e4cb680b20085da5227229880f9b4"
   },
   "openPullRequests": [
     {
@@ -127,114 +127,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40869748102,
+      "id": 40886687610,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "42806a3f0ecef0c3cd5f1c8ff34e0129f25efdce",
+      "headSha": "5b41fd28718e4cb680b20085da5227229880f9b4",
       "event": "push",
-      "updatedAt": "2026-10-29T12:00:25Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869748102"
+      "updatedAt": "2026-10-29T13:57:06Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886687610"
     },
     {
-      "id": 40869748019,
+      "id": 40886687423,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
       "branch": "main",
-      "headSha": "42806a3f0ecef0c3cd5f1c8ff34e0129f25efdce",
+      "headSha": "5b41fd28718e4cb680b20085da5227229880f9b4",
       "event": "push",
-      "updatedAt": "2026-10-29T12:00:28Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869748019"
+      "updatedAt": "2026-10-29T13:57:10Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886687423"
     },
     {
-      "id": 40869747909,
+      "id": 40886687408,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "42806a3f0ecef0c3cd5f1c8ff34e0129f25efdce",
+      "headSha": "5b41fd28718e4cb680b20085da5227229880f9b4",
       "event": "push",
-      "updatedAt": "2026-10-29T12:00:27Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869747909"
+      "updatedAt": "2026-10-29T13:57:07Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886687408"
     },
     {
-      "id": 40869461642,
+      "id": 40886313613,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m6-5-metadata-localization",
-      "headSha": "3da23b415477dada8f615ae9c487ed2e4eb33bc9",
+      "branch": "feature/v2-m6-6-page-word-fidelity",
+      "headSha": "3042c9a350dc655e2053df615e886958240248e2",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T11:59:25Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869461642"
+      "updatedAt": "2026-10-29T13:56:12Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886313613"
     },
     {
-      "id": 40869461551,
+      "id": 40886313582,
+      "name": "V2 M1.1 Branch Editor shell",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-6-page-word-fidelity",
+      "headSha": "3042c9a350dc655e2053df615e886958240248e2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T13:55:35Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886313582"
+    },
+    {
+      "id": 40886313565,
+      "name": "V2 M6.5 staged metadata localization contract",
+      "status": "completed",
+      "conclusion": "skipped",
+      "branch": "feature/v2-m6-6-page-word-fidelity",
+      "headSha": "3042c9a350dc655e2053df615e886958240248e2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T13:54:42Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886313565"
+    },
+    {
+      "id": 40886313563,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-6-page-word-fidelity",
+      "headSha": "3042c9a350dc655e2053df615e886958240248e2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T13:54:48Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886313563"
+    },
+    {
+      "id": 40886313537,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/v2-m6-6-page-word-fidelity",
+      "headSha": "3042c9a350dc655e2053df615e886958240248e2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-29T13:56:21Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886313537"
+    },
+    {
+      "id": 40886313533,
       "name": "V2 M1.3 inline branch editing",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m6-5-metadata-localization",
-      "headSha": "3da23b415477dada8f615ae9c487ed2e4eb33bc9",
+      "branch": "feature/v2-m6-6-page-word-fidelity",
+      "headSha": "3042c9a350dc655e2053df615e886958240248e2",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T11:59:43Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869461551"
+      "updatedAt": "2026-10-29T13:56:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886313533"
     },
     {
-      "id": 40869461547,
-      "name": "M0 architecture and model gates",
+      "id": 40886313528,
+      "name": "V2 M6.6 precise page and Word fidelity",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feature/v2-m6-5-metadata-localization",
-      "headSha": "3da23b415477dada8f615ae9c487ed2e4eb33bc9",
+      "branch": "feature/v2-m6-6-page-word-fidelity",
+      "headSha": "3042c9a350dc655e2053df615e886958240248e2",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T11:59:21Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869461547"
-    },
-    {
-      "id": 40869461512,
-      "name": "V2 M6.5 staged metadata localization contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m6-5-metadata-localization",
-      "headSha": "3da23b415477dada8f615ae9c487ed2e4eb33bc9",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T11:59:06Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869461512"
-    },
-    {
-      "id": 40869452838,
-      "name": "V2 M6.5 staged metadata localization contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m6-5-metadata-localization",
-      "headSha": "3da23b415477dada8f615ae9c487ed2e4eb33bc9",
-      "event": "push",
-      "updatedAt": "2026-10-29T11:58:53Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869452838"
-    },
-    {
-      "id": 40869452832,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/v2-m6-5-metadata-localization",
-      "headSha": "3da23b415477dada8f615ae9c487ed2e4eb33bc9",
-      "event": "push",
-      "updatedAt": "2026-10-29T11:59:34Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40869452832"
-    },
-    {
-      "id": 40868226690,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "ec27693819a72afb72d24464e803b112ae6aec9a",
-      "event": "push",
-      "updatedAt": "2026-10-29T11:49:45Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40868226690"
+      "updatedAt": "2026-10-29T13:55:51Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40886313528"
     }
   ]
 }
