@@ -1,7 +1,9 @@
 name: V2 M7.1 isolated Windows installer preflight
 
 # The legacy V1 installer/release workflows are intentionally untouched.
-# M7.1 does not publish, upload, cache, or distribute binaries.
+# PR builds never upload installers. An explicitly opted-in M7.3 manual QA
+# workflow_dispatch can attach a short-lived, unsigned test-only installer.
+# This is not a V2 release or default promotion, and does not touch V1.
 on:
   pull_request:
     branches: [main]
@@ -17,6 +19,12 @@ on:
       - ".github/workflows/v2-m7-packaging.yml"
       - "pyproject.toml"
   workflow_dispatch:
+    inputs:
+      manual_qa_installer:
+        description: "Explicitly attach a 1-day unsigned V2 test installer for manual M7.3 QA"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -184,3 +192,37 @@ jobs:
               throw "V2 binaries remain after the silent uninstall"
             }
           }
+
+      # The user explicitly requested an installer for physical M7.3 testing.
+      # PR/push validation never reaches these steps. Manual opt-in only.
+      - name: Prepare M7.3 unsigned manual-test installer checksums
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.manual_qa_installer == true }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Join-Path $env:RUNNER_TEMP "m7-v2-setup/ReportMaker-V2-M7-Preview-Setup.exe"
+          if (!(Test-Path -LiteralPath $setup -PathType Leaf)) { throw "Test installer was not built" }
+          $hash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = Join-Path $env:RUNNER_TEMP "m7-v2-setup/M73-QA-CHECKSUMS.txt"
+          @(
+            "ReportMaker V2 M7.3 PREVIEW — UNSIGNED TEST INSTALLER, NOT A RELEASE"
+            "source_commit=${{ github.sha }}"
+            "installer_name=ReportMaker-V2-M7-Preview-Setup.exe"
+            "installer_sha256=$hash"
+            "Windows x64; V2-only isolated installation; V1 is unchanged"
+            "The hosted Windows install/uninstall smoke passed, but physical GUI acceptance is NOT complete."
+            "Do not use real customer reports or credentials when testing."
+          ) | Set-Content -LiteralPath $manifest -Encoding utf8
+          Write-Host "M7.3 manual test installer SHA-256: $hash"
+
+      - name: Attach 1-day M7.3 manual QA installer (opt-in only, NOT a release)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.manual_qa_installer == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReportMaker-V2-M73-TEST-ONLY-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/m7-v2-setup/ReportMaker-V2-M7-Preview-Setup.exe
+            ${{ runner.temp }}/m7-v2-setup/M73-QA-CHECKSUMS.txt
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

@@ -6,8 +6,8 @@
 
 ## Boundaries
 
-- This development slice adds **local build and local evidence tools**, not a release or 33 passed checks. The connected the connected Linux development device is Linux; it cannot run physical installed-Windows UI checks.
-- Preserve V1's executable, installer AppId and installation directory. The new build script reuses the **distinct V2 preview** Inno recipe; no release assets, workflow artifacts, distribution, update of V1 or V2-default promotion.
+- This development slice adds **local build and local evidence tools**, not a release or 33 passed checks. The connected development device is Linux and cannot run physical installed-Windows UI checks.
+- Preserve V1's executable, installer AppId and installation directory. The new build script reuses the **distinct V2 preview** Inno recipe; no GitHub Release, V1 update, or V2-default promotion. A user-requested one-day **unsigned manual QA workflow artifact** is permitted solely for M7.3 physical testing; ordinary PR validation still uploads no binary.
 - Report modules/editor/export use the same canonical report. Browser remains user-controlled; no OpenAI API, browser automation, scraping, cookie/profile copying or unattended transfer.
 - A full M7.3 review/merge requires explicit user authorization; M7.4 native Word, M7.5 live browser and M7.6 release/promotion remain independent.
 
@@ -69,3 +69,19 @@ The canonical matrix has **6 layout**, **7 editing**, **7 structural**, **7 usab
 - Acceptance files bind to the SHA-256 of the stable **ordered scenario IDs and manual acceptance descriptions**, rather than the mutable matrix status/evidence fields. Otherwise an approved matrix-status change would make its underlying native dossiers unreadable.
 - The local builder treats untracked source files as a dirty worktree and writes PyInstaller's `.spec` outside the repository, so exact SHA refers to the code being packaged and repeat runs do not create untracked build specs.
 - Hosted M7.1 preflight additionally parses the M7.3 PowerShell build script **without executing it**, protecting CI from syntax regressions without pretending to install it on a physical PC.
+
+## User-requested prebuilt installer for physical Windows testing
+
+The V2 M7.1 workflow now supports an **explicitly opted-in manual M7.3 QA installer artifact**, without changing the behavior of ordinary PR CI. The temporary ZIP contains only `ReportMaker-V2-M7-Preview-Setup.exe` and `M73-QA-CHECKSUMS.txt`. The artifact expires after **one day** and can be downloaded by users with access to the repository Actions run; because this is a public repository, treat this artifact as publicly accessible during its brief lifetime. This is an **unsigned test build**, not an official release, and is not evidence of physical GUI acceptance.
+
+The requested build is dispatched for the exact approved M7.3 PR head from GitHub Actions using the manual `manual_qa_installer=true` input, after source/frozen/installed smoke and full payload-hash validation. On your Windows PC:
+1. Open the successful workflow-run URL provided for the **exact source SHA**, scroll to **Artifacts**, and download the `ReportMaker-V2-M73-TEST-ONLY-...` ZIP.
+2. Extract it and inspect `M73-QA-CHECKSUMS.txt`. Use PowerShell to compare the extracted setup to its listed SHA-256:
+   ```powershell
+   Get-FileHash -Algorithm SHA256 ".\ReportMaker-V2-M7-Preview-Setup.exe"
+   ```
+   **Stop if the hashes do not match.** Do not disable Windows security protections.
+3. After verifying the test build is the expected one, launch the setup manually. It installs `ReportMaker V2 Preview` independently in the per-user `%LOCALAPPDATA%\Programs\ReportMaker V2 Preview` directory; existing V1 remains separate. Do not use real customer reports, account credentials or private media during the acceptance session.
+4. Record the installed V2 executable's checksum separately (the workflow manifest contains the installer hash). No claim of an automatically linked native-dossier `build-manifest` is made for a prebuilt setup; native evidence tracking on the physical Windows PC still requires the separate manual dossier and review process.
+
+If the download has expired, request a new manual QA workflow run; do not use a random third-party mirror. No installer is attached to an ordinary PR check and no release is published.

@@ -92,11 +92,23 @@ class M7PackageContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, workflow)
         for forbidden in (
-            "actions/upload-artifact", "gh release create",
-            "gh release upload", "gh release edit", "actions/cache@",
+            "gh release create", "gh release upload", "gh release edit",
+            "actions/cache@",
             "contents: write", "packaging/windows/launcher.py\n",
         ):
             self.assertNotIn(forbidden, workflow)
+        # PR/push runs still MUST NOT upload. The user-requested M7.3
+        # preview is a separate, explicitly opted-in manual QA artifact,
+        # short-lived, unsigned, and never a GitHub Release.
+        self.assertIn("default: false", workflow)
+        self.assertIn("manual_qa_installer:", workflow)
+        self.assertEqual(workflow.count("actions/upload-artifact@v4"), 1)
+        manual_gate = "if: ${{ github.event_name == 'workflow_dispatch' && inputs.manual_qa_installer == true }}"
+        self.assertEqual(workflow.count(manual_gate), 2)
+        self.assertIn("retention-days: 1", workflow)
+        self.assertLess(workflow.index(manual_gate), workflow.index("actions/upload-artifact@v4"))
+        self.assertLess(workflow.index("Silent install, compare binary, smoke and uninstall"),
+                        workflow.index("actions/upload-artifact@v4"))
         self.assertLess(workflow.index("Freeze actual V2 executable"),
                         workflow.index("Build local-only distinct per-user V2 installer"))
         self.assertLess(workflow.index("Build local-only distinct per-user V2 installer"),
