@@ -154,6 +154,10 @@ class ReferenceAndTranslationCoreTests(unittest.TestCase):
         self.assertEqual(session.report_snapshot().title.original, source.title.original)
 
     def test_translated_photo_annotation_and_table_cell_survive_export(self):
+        # Rendering text annotations asks Qt for fonts; initialise GUI services
+        # even for the core projection test (no display or browser required).
+        from PySide6.QtWidgets import QApplication
+        self._qt_app = QApplication.instance() or QApplication([])
         project = synthetic_project()
         photo = project.report.modules[0].blocks[2]
         photo.visual = PhotoVisual(marks=[
