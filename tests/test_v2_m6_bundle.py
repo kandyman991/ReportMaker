@@ -19,7 +19,25 @@ from reportmaker.v2.language_bundle import export_language_bundle
 from reportmaker.v2.localized_export import TranslationRequiredError
 from reportmaker.v2.projections import NodeAddress
 from test_v2_m6 import synthetic_project
-from test_v2_m6_followup import translate_everything
+from test_v2_m6_followup import translate_everything as translate_body
+from reportmaker.v2.metadata_locale import (
+    MetadataLocale, MetadataTranslationRequiredError, visible_metadata_keys,
+)
+
+
+def translate_everything(project, language="de"):
+    """M6.5 extends earlier content-only fixtures with explicit metadata approvals."""
+    translate_body(project, language)
+    locale = MetadataLocale(project.report)
+    for key in visible_metadata_keys(project.report):
+        original, source_language = locale.source(key)
+        if source_language.casefold() == language.casefold() or not original.strip():
+            continue
+        approved = locale.approve(key, language, "Translated " + original)
+        project.report.localization_ledger.setdefault(key, {})[language] = {
+            "text": approved.text, "source_sha256": approved.source_sha256,
+        }
+
 
 
 class LanguageBundlePureTests(unittest.TestCase):
@@ -38,7 +56,7 @@ class LanguageBundlePureTests(unittest.TestCase):
                 manifest = json.loads(package.read("manifest.json"))
                 self.assertEqual(manifest["languages"], ["en", "de"])
                 self.assertEqual(len(manifest["files"]), 4)
-                self.assertIn("English", manifest["metadata_localization"])
+                self.assertIn("Strict approved", manifest["metadata_localization"])
                 source = Document(BytesIO(package.read("report_en.docx")))
                 german = Document(BytesIO(package.read("report_de.docx")))
                 source_text = "\n".join(p.text for p in source.paragraphs)
@@ -56,7 +74,7 @@ class LanguageBundlePureTests(unittest.TestCase):
             directory = Path(d)
             destination = directory / "existing.zip"
             destination.write_bytes(b"previous verified output")
-            with self.assertRaisesRegex(TranslationRequiredError, "Missing"):
+            with self.assertRaisesRegex(ValueError, "Missing"):
                 export_language_bundle(project, destination)
             self.assertEqual(destination.read_bytes(), b"previous verified output")
             translate_everything(project)
@@ -128,8 +146,14 @@ class LanguageBundlePureTests(unittest.TestCase):
         project = synthetic_project()
         translate_everything(project)
         before = deepcopy(project)
+        footer_approval = MetadataLocale(
+            project.report, [], footer_note="Fabricated footer",
+            footer_source_language="en").approve(
+                "branding.footer_note", "de", "Synthetischer Hinweis")
         brand = ExportStyle(company_name="Fake Logo-free service",
-                            footer_note="Fabricated footer")
+                            footer_note="Fabricated footer",
+                            footer_source_language="en",
+                            footer_locale_approvals=(footer_approval,))
         with TemporaryDirectory() as d:
             target = Path(d) / "package.zip"
             export_language_bundle(project, target, formats=("docx",), style=brand)
@@ -138,8 +162,10 @@ class LanguageBundlePureTests(unittest.TestCase):
                     document = Document(BytesIO(archive.read(name)))
                     self.assertIn("Fake Logo-free service",
                                   document.sections[0].header.paragraphs[0].text)
-                    self.assertIn("Fabricated footer",
-                                  document.sections[0].footer.paragraphs[0].text)
+                    self.assertIn(
+                        "Fabricated footer" if name == "report_en.docx" else
+                        "Synthetischer Hinweis",
+                        document.sections[0].footer.paragraphs[0].text)
         self.assertEqual(project, before)
 
     def test_annotation_text_is_localized_in_package_with_explicit_renderer(self):
