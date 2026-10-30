@@ -443,10 +443,11 @@ class CustomerManagerDialog(QDialog):
 
     def _show_snapshot(self, snapshot):
         message = QMessageBox(self)
-        message.setWindowTitle("Immutable reference preview — M1")
+        message.setWindowTitle("Detached customer reference preview")
         message.setText(
-            "This is a detached reference preview. M2 will attach it to a saved report. "
-            "It is NOT yet a saved report.")
+            "This is a read-only reference preview, not a saved report. "
+            "To use a stored customer, choose it in Report info. "
+            "Existing reports retain their own frozen customer details.")
         message.setDetailedText(json.dumps(snapshot.to_dict(), indent=2, ensure_ascii=False))
         message.exec()
 

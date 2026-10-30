@@ -179,6 +179,20 @@ class ShortcutAndCustomerManagerQtTests(TestCase):
         self.assertEqual(seen["title"], "Customers, sites and machines")
         self.assertTrue(self.database.exists())
 
+    def test_preview_explains_current_v2_report_workflow(self):
+        from reportmaker.reference import manual_snapshot
+        from reportmaker.storage import CustomerStore
+        from reportmaker.v2.customer_manager import CustomerManagerDialog
+        with CustomerStore(self.database) as store:
+            dialog = CustomerManagerDialog(store, self.win)
+            with mock.patch("reportmaker.v2.customer_manager.QMessageBox") as message:
+                dialog._show_snapshot(manual_snapshot("Synthetic customer"))
+                text = message.return_value.setText.call_args.args[0]
+                self.assertIn("Report info", text)
+                self.assertIn("frozen customer details", text)
+                self.assertNotIn("M2", text)
+                message.return_value.exec.assert_called_once()
+
     def test_customer_manager_reports_an_unavailable_database(self):
         self.win.customer_database_path = self.folder  # a directory, not a database
         with mock.patch("reportmaker.v2.app.QMessageBox.critical") as critical:
