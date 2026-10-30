@@ -76,11 +76,13 @@ class V2MainWindow(QMainWindow):
                  presentation: PresentationStore | None = None,
                  load_website: bool = True,
                  browser_profile_root: Path | None = None,
-                 ephemeral_browser: bool = False) -> None:
+                 ephemeral_browser: bool = False,
+                 customer_database_path: Path | None = None) -> None:
         super().__init__()
         if report is not None and project is not None:
             raise ValueError("Pass either a Report or an existing project")
         self.setObjectName("reportmakerV2Window")
+        self.customer_database_path = customer_database_path
         self.resize(1280, 820)
         self.setMinimumSize(660, 460)
         self._synthetic_preview = report is None and project is None
@@ -137,6 +139,8 @@ class V2MainWindow(QMainWindow):
             ("v2SaveProject", "Save", self.save_project, "Ctrl+S"),
             ("v2SaveProjectAs", "Save As", self.save_project_as, "Ctrl+Shift+S"),
             ("v2ReportInfo", "Report info", self.edit_report_info, "Ctrl+Shift+R"),
+            ("v2CustomerManager", "Customers, sites and machines…",
+             self.open_customer_manager, ""),
             ("v2Translations", "Translations…", self.edit_translations, ""),
             ("v2MetadataTranslations", "Metadata languages…", self.edit_metadata_translations, ""),
             ("v2FooterTranslation", "Footer languages…", self.edit_branding_footer, ""),
@@ -149,7 +153,9 @@ class V2MainWindow(QMainWindow):
             ("v2AddPageBreak", "+ Page break", self.branch.add_page_break, ""),
             ("v2AddExistingPhoto", "+ Existing photo", self.branch.add_photo, ""),
             ("v2ImportPhoto", "+ Import photo", self.branch.import_photo_dialog, "Ctrl+Shift+I"),
-            ("v2PastePhoto", "Paste image", self.branch.paste_photo, "Ctrl+Shift+V"),
+            # Ctrl+Shift+V is "paste as plain text" in browsers and Office and is how
+            # text from an AI assistant is pasted. Never bind it to an action.
+            ("v2PastePhoto", "Paste image", self.branch.paste_photo, "Ctrl+Alt+V"),
             ("v2MoveUp", "↑ Move", self.branch.move_selected_up, "Alt+Up"),
             ("v2MoveDown", "↓ Move", self.branch.move_selected_down, "Alt+Down"),
             ("v2Indent", "→ Indent", self.branch.indent_selected, "Alt+Shift+Right"),
@@ -191,7 +197,7 @@ class V2MainWindow(QMainWindow):
                     "v2ReportInfo"):
             toolbar.addAction(actions[key])
         menu_button(toolbar, "Project ▾", "v2ProjectMenu", (
-            "v2SaveProjectAs", "v2ImportTemplate", "v2Contents"))
+            "v2SaveProjectAs", "v2CustomerManager", "v2ImportTemplate", "v2Contents"))
         menu_button(toolbar, "Languages ▾", "v2LanguagesMenu", (
             "v2Translations", "v2MetadataTranslations",
             "v2FooterTranslation"))
@@ -227,13 +233,15 @@ class V2MainWindow(QMainWindow):
             ("v2Search", "Find", self.search_branches, "Ctrl+F"),
             ("v2NextMatch", "Next match", self.branch.next_match, "F3"),
             ("v2Focus", "Focus", self.branch.focus_module, "Ctrl+Shift+F"),
-            ("v2ExitFocus", "Exit focus", self.branch.exit_focus, "Ctrl+Shift+Escape"),
+            # Ctrl+Shift+Esc is reserved by Windows for Task Manager and never reaches
+            # the application, so Exit focus uses Alt+Shift+F.
+            ("v2ExitFocus", "Exit focus", self.branch.exit_focus, "Alt+Shift+F"),
             ("v2ZoomOut", "Zoom −", lambda: self.branch.zoom_by(-10), "Ctrl+-"),
             ("v2ZoomIn", "Zoom +", lambda: self.branch.zoom_by(10), "Ctrl++"),
             ("v2ZoomReset", "100%", lambda: self.branch.set_zoom(100), "Ctrl+0"),
             ("v2Fit", "Fit width", self.branch.fit_to_screen, "Ctrl+Shift+0"),
-            ("v2PrevWindow", "Previous", lambda: self.branch.change_page(-1), "Ctrl+PageUp"),
-            ("v2NextWindow", "Next", lambda: self.branch.change_page(1), "Ctrl+PageDown"),
+            ("v2PrevWindow", "Previous", lambda: self.branch.change_page(-1), "Ctrl+PgUp"),
+            ("v2NextWindow", "Next", lambda: self.branch.change_page(1), "Ctrl+PgDown"),
             ("v2SelectPrevious", "Select above", lambda: self.branch.select_adjacent_module(-1), "Ctrl+Alt+Up"),
             ("v2SelectNext", "Select below", lambda: self.branch.select_adjacent_module(1), "Ctrl+Alt+Down"),
             ("v2PanLeft", "Pan ←", lambda: self.branch.pan_by(-160), "Ctrl+Alt+Left"),
@@ -267,6 +275,23 @@ class V2MainWindow(QMainWindow):
             "Edit inline; Save applies pending edits for you (Ctrl+Enter applies one, "
             "Esc reverts it). New/Open/Save/Save As use portable .rmproj files."
         )
+
+    def open_customer_manager(self) -> bool:
+        """Manage local customers, sites and machines.
+
+        Reports only ever keep a frozen copy of a record, so editing master
+        data here never changes an existing report.
+        """
+        import sqlite3
+        from ..storage import CustomerStore
+        from .customer_manager import CustomerManagerDialog
+        try:
+            with CustomerStore(self.customer_database_path) as store:
+                CustomerManagerDialog(store, self).exec()
+        except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
+            QMessageBox.critical(self, "Customer database unavailable", str(error))
+            return False
+        return True
 
     def _workspace_changed(self, change) -> None:
         # Lazily rebuild inactive document/preview panes. Draft-owning widgets
@@ -479,7 +504,8 @@ class V2MainWindow(QMainWindow):
         except PendingDraftError as exc:
             self.statusBar().showMessage(str(exc))
             return False
-        result = ReportInfoDialog(self.session, self.gateway, self).exec()
+        result = ReportInfoDialog(self.session, self.gateway, self,
+                                  database_path=self.customer_database_path).exec()
         return bool(result)
 
     def _update_caption(self) -> None:
