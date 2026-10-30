@@ -341,6 +341,14 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertGreaterEqual(step, 6)
         self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0,
                          self._geometry(window))
+        # Long hierarchical numbers must wrap visibly instead of forcing a
+        # Windows QLabel minimum width or disappearing entirely.
+        from PySide6.QtWidgets import QLabel
+        numbered = window.branch._host.findChildren(QLabel, "v2BranchNumbering")
+        self.assertTrue(numbered)
+        self.assertTrue(all(label.wordWrap() and label.width() >=
+                            label.minimumSizeHint().width()
+                            for label in numbered if label.isVisible()))
 
     def test_a_long_title_wraps_instead_of_being_cut_off(self):
         title = "Gearbox lubrication and bearing inspection " * 12

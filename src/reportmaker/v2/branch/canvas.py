@@ -2820,7 +2820,14 @@ class BranchCanvas(QScrollArea):
             numbered = (f"MODULE {numbers[identifier]}" if kind == "module"
                         else caption)
             label = QLabel(numbered, card)
+            label.setObjectName("v2BranchNumbering")
             label.setTextFormat(Qt.TextFormat.PlainText)
+            # A deep outline number grows with every nested level. Windows Qt
+            # measures an unwrapped QLabel as a hard minimum width, so the
+            # canvas overflowed even after indentation hit its 6px floor.
+            # Allow this number to wrap; never clip the actual card content.
+            label.setWordWrap(True)
+            label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
             label.setStyleSheet("color: #526c83; font-size: 10px; font-weight: bold;")
             header = QHBoxLayout()
             header.setContentsMargins(0, 0, 0, 0)
