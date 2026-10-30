@@ -240,6 +240,7 @@ class BackendBridge(QObject):
                 "report": {
                     "title": report.title.original if report.title else "Report of intervention",
                     "customer_name": snap.customer_name if snap else (report.customer_id or "Customer"),
+                    "customer_linked": bool(snap and snap.customer_id),
                     "site_name": snap.site_name if snap else "",
                     "machine_name": snap.machine_name if snap else "",
                     "ticket": report.ticket,

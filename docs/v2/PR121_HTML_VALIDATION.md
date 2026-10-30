@@ -119,3 +119,37 @@ are separate exact-tree validation gates. The hosted Windows installer
 gate and all physical M7 acceptance remain pending until the updated commit
 is pushed and its checks complete. There is **no** new installed-Windows
 acceptance, production V2 promotion, or merge authorization.
+
+## 2026-10-30 — final independent review, F09 linked identity integrity
+
+Final-review baseline: `0243c051a796d2a61c2be753402efa7187ac791c`
+against `main` `bfd5720e914b6b75f57b4a4260991bbe896abe13`.
+Fresh isolated Linux checkout: `pr121-final-independent-20261030`; synthetic data only.
+
+- **F09 (High, corrected before merge):** the HTML Report Header previously
+  accepted edits to a database-linked customer/site/machine name without
+  clearing its captured database IDs. The native V2 Report Information dialog
+  already rejects these changes until the user explicitly switches to manual
+  details. `field_intent` now rejects such mismatches without a canonical
+  mutation, while the HTML header visibly locks the three identity fields
+  for linked snapshots, directs users to Full Details > one-off manual mode,
+  and leaves unrelated header fields editable. Pure tests cover all three
+  identity fields, unchanged revision, ordinary metadata updates, Undo and
+  manual-customer edits; the real QtWebEngine regression checks the read-only
+  edit surface and malicious bridge request.
+- Pre-correction exact-head validation: native and HTML source offline smokes
+  passed; focused HTML/packaging tests **22 passed + 33 subtests**; full Linux
+  test discovery **643 passed, 1789 subtests, 16 warnings**, Python 3.14 and
+  Qt offscreen (183.77 seconds). After initial F09 backend/test correction,
+  focused tests **23 passed + 36 subtests**. These are not claims about the
+  subsequent final corrected SHA, which must be retested.
+- Pre-correction exact-head GitHub Windows jobs passed: M0 full suite, M1
+  full suite, and V2 M7 installer preflight `41101880963`, job `124220364458`;
+  this includes native/HTML frozen and *installed* offline smokes, archive
+  resource inventory, installed payload hashes and uninstall. **Fresh CI for
+  the final corrected SHA remains a separate required merge gate.**
+- The PR remains opt-in (`--html`); `--native` is available and remains the
+  default, while the V1 launcher is untouched. Hosted installed smoke is
+  not physical Windows acceptance or release permission. The 33-case M7
+  physical Windows matrix, GUI scaling/clipboard/Explorer validation and
+  Chromium update-policy audits are tracked separately.

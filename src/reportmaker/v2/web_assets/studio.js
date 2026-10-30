@@ -834,6 +834,9 @@ function renderAll() {
 
   // Report Header Card + Module Cards
   const container = document.getElementById("canvasContainer");
+  const linkedIdentity = r.customer_linked
+    ? 'readonly title="Database-linked identity. Use Full Details & Languages to select one-off manual details before renaming."'
+    : '';
   const metaCardHtml = `
     <div class="report-meta-card">
       <div class="meta-top-row">
@@ -855,15 +858,15 @@ function renderAll() {
       <div class="meta-grid">
         <div class="meta-field">
           <label>Customer Name</label>
-          <input type="text" id="metaCustomerInput" value="${escapeHtml(r.customer_name)}" data-ev-input="80">
+          <input type="text" id="metaCustomerInput" value="${escapeHtml(r.customer_name)}" ${linkedIdentity} data-ev-input="80">
         </div>
         <div class="meta-field">
           <label>Site / Location</label>
-          <input type="text" id="metaSiteInput" value="${escapeHtml(r.site_name)}" data-ev-input="81">
+          <input type="text" id="metaSiteInput" value="${escapeHtml(r.site_name)}" ${linkedIdentity} data-ev-input="81">
         </div>
         <div class="meta-field">
           <label>Machine / Line</label>
-          <input type="text" id="metaMachineInput" value="${escapeHtml(r.machine_name)}" data-ev-input="82">
+          <input type="text" id="metaMachineInput" value="${escapeHtml(r.machine_name)}" ${linkedIdentity} data-ev-input="82">
         </div>
         <div class="meta-field">
           <label>Ticket / Job ID</label>

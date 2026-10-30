@@ -66,6 +66,31 @@ class StudioTests(unittest.TestCase):
         self.js("window.testDone=false;sendStudio('get_state',[]).then(r=>{applyBackendResponse(r);window.testDone=true;});true")
         self.wait('window.testDone')
 
+    def test_linked_customer_fields_are_readonly_in_real_html_renderer(self):
+        from reportmaker.reference import CustomerSnapshot
+        project = sample()
+        linked = CustomerSnapshot(
+            'Linked customer', customer_id='customer-test',
+            site_id='site-test', site_name='Linked site',
+            machine_id='machine-test', machine_name='Linked machine')
+        project.report.customer_id = linked.customer_id
+        project.report.customer_snapshot = linked
+        self.window.core.session.replace_project(project, discard_unsaved=True)
+        self.refresh()
+        self.assertTrue(self.js("""['metaCustomerInput', 'metaSiteInput', 'metaMachineInput']
+            .every(id => document.getElementById(id).readOnly)"""))
+        self.assertFalse(self.js("document.getElementById('metaTicketInput').readOnly"))
+        self.assertTrue(self.js("document.getElementById('metaCustomerInput').title.includes('one-off manual')"))
+        before = self.window.core.session.report_snapshot()
+        request = json.dumps({'method': 'update_report_header',
+                              'args': [json.dumps({'customer_name': 'Spoofed name'})],
+                              'revision': self.window.core.session.revision,
+                              'generation': self.window.core.session.generation})
+        outcome = json.loads(self.window.bridge.dispatch(request))
+        self.assertIn('one-off manual', outcome['error'])
+        self.assertEqual(self.window.core.session.report_snapshot(), before)
+        self.assertEqual(self.window.core.session.revision, 0)
+
     def test_focused_ctrl_s_saves_and_preserves_caret(self):
         path = Path(self.temp.name) / 'focused.rmproj'
         save = lambda: bool(ProjectPersistence().save(self.window.core.session, path))

@@ -8,7 +8,7 @@ import unittest
 
 from reportmaker.model import HeadingBlock, LocalizedText, Module, ParagraphBlock, Report, TableBlock
 from reportmaker.project_io import ReportProject, load_project
-from reportmaker.reference import manual_snapshot
+from reportmaker.reference import CustomerSnapshot, manual_snapshot
 from reportmaker.rich_text import ParagraphStyle, RichFormatting, TextRun
 from reportmaker.v2.adapters.persistence import ProjectPersistence
 from reportmaker.v2.commands import CommandGateway, CommandIntent
@@ -153,6 +153,43 @@ class WebCommandTests(unittest.TestCase):
         self.gateway = CommandGateway(self.session)
         self.edit('update_report_header', json.dumps({'title': 'Changed title'}))
         self.assertEqual(self.session.report_snapshot().customer_snapshot, project.report.customer_snapshot)
+
+    def test_linked_customer_identity_cannot_change_inline_without_unlink(self):
+        project = sample()
+        linked = CustomerSnapshot('Linked customer', customer_id='cust-synthetic',
+                                  site_id='site-synthetic', site_name='Linked site',
+                                  machine_id='machine-synthetic', machine_name='Linked machine',
+                                  customer_address='Preserved address')
+        project.report.customer_id = linked.customer_id
+        project.report.customer_snapshot = linked
+        self.session = ReportSession(project)
+        self.gateway = CommandGateway(self.session)
+        baseline = self.session.report_snapshot()
+        for key, new_name in (('customer_name', 'Different customer'),
+                              ('site_name', 'Different site'),
+                              ('machine_name', 'Different machine')):
+            with self.subTest(field=key):
+                with self.assertRaisesRegex(ValueError, 'one-off manual'):
+                    self.edit('update_report_header', json.dumps({key: new_name}))
+                self.assertEqual(self.session.report_snapshot(), baseline)
+                self.assertEqual(self.session.revision, 0)
+        # Non-identity edits remain available for linked database references.
+        self.edit('update_report_header', json.dumps({'ticket': 'Safe update'}))
+        updated = self.session.report_snapshot()
+        self.assertEqual(updated.customer_snapshot, linked)
+        self.assertEqual(updated.customer_id, linked.customer_id)
+        self.assertEqual(updated.ticket, 'Safe update')
+        self.gateway.undo(self.session.generation, self.session.revision)
+        self.assertEqual(self.session.report_snapshot(), baseline)
+        # Explicit manual mode in the native dialog safely removes the IDs.
+        detached = sample()
+        detached.report.customer_snapshot = manual_snapshot('New customer', site_name='New site')
+        self.session = ReportSession(detached)
+        self.gateway = CommandGateway(self.session)
+        self.edit('update_report_header', json.dumps({'customer_name': 'Edited manual customer'}))
+        self.assertEqual(self.session.report_snapshot().customer_id, None)
+        self.assertEqual(self.session.report_snapshot().customer_snapshot.customer_name,
+                         'Edited manual customer')
 
     def test_table_shape_roundtrip_multilingual_word_and_pdf(self):
         from reportmaker.v2.localized_export import localized_fields, localized_project, TranslationRequiredError

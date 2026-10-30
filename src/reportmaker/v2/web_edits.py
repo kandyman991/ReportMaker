@@ -34,6 +34,16 @@ def field_intent(session, method, args, revision, generation):
         snap = report.customer_snapshot
         names = {k: data.get(k, getattr(snap, k, "") if snap else "")
                  for k in ("customer_name", "site_name", "machine_name")}
+        # A database snapshot captures a specific customer/site/machine identity.
+        # Keep HTML edits consistent with the native Report Information dialog:
+        # changing a linked identity requires an explicit switch to manual mode.
+        # Retaining the old IDs under new names would misattribute the report.
+        if snap is not None and snap.customer_id is not None and any(
+                names[key] != getattr(snap, key) for key in names):
+            raise ValueError(
+                "Database-linked customer/site/machine cannot be renamed inline. "
+                "Open Full Details & Languages, select 'Use one-off manual details' "
+                "to unlink the database IDs, then edit the names.")
         new_snap = replace(snap, **names) if snap is not None else manual_snapshot(**names)
         payload = dict(customer_id=report.customer_id if snap and snap.customer_id else None,
                        customer_snapshot=new_snap, created_date=report.created_date,
