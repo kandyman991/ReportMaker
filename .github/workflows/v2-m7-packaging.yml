@@ -74,6 +74,7 @@ jobs:
         run: |
           $env:QT_QPA_PLATFORM = "offscreen"
           $env:PYTHONPATH = "src"
+          python scripts/diag_fit.py 2>&1 | Write-Host
           foreach ($file in @("test_v2_m7_packaging.py","test_v2_retirement_boundary.py","test_v2_canvas_layout_stress.py","test_v2_m73_native_draft_recovery.py","test_v2_m73_photo_contrast.py","test_v2_m67_checkpoint.py")) {
             $out = (python -m unittest discover -s tests -p $file -v 2>&1 | Out-String)
             $code = $LASTEXITCODE
