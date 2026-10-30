@@ -50,7 +50,7 @@ class ResponsiveCommandToolbarTests(unittest.TestCase):
             self.assertIsInstance(button.menu(), QMenu)
             accessible.update(a.objectName() for a in button.menu().actions())
         self.assertEqual(all_names, accessible)
-        self.assertEqual(len(all_names), 41)
+        self.assertEqual(len(all_names), 42)
 
         for width in (660, 800, 1024, 1280, 1600):
             with self.subTest(width=width):
