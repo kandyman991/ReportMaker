@@ -1,7 +1,8 @@
 """Uncommitted inline text lives outside the canonical report.
 
 The only way to persist a draft is through M1.2's validated CommandGateway.
-Unresolved drafts block ordinary commands, Undo/Redo, Save and project switches.
+Unresolved drafts block ordinary commands and Undo/Redo. Save, Save As, New,
+Open and Close require an explicit Apply / Discard / Cancel decision (ADR-0009).
 Separate fields may be drafted concurrently, but a commit checks that the
 specific canonical source field has not changed since its draft began.
 """
@@ -60,6 +61,7 @@ class DraftCoordinator:
         self._committing = False
         self._owners: dict[NodeAddress, str] = {}
         self._state_listeners = []
+        self._change_listeners = []
         session.set_draft_guard(self._draft_guard)
 
     def _draft_guard(self) -> bool:
@@ -87,6 +89,33 @@ class DraftCoordinator:
                 self._state_listeners.remove(listener)
         return unsubscribe
 
+    def subscribe_changes(self, listener):
+        """Notify UI whenever one field's draft is staged, changed or resolved.
+
+        ``listener(address, owner, previous_owner)``: ``owner`` is the editor
+        that holds the draft afterwards (``None`` once it is resolved) and
+        ``previous_owner`` the one before. Like ``subscribe_pending`` it never
+        receives text; a view that needs the text asks ``text()``. This lets a
+        second visible editor mark a field read-only the moment another editor
+        starts changing it.
+        """
+        if not callable(listener):
+            raise TypeError("Draft-change listener must be callable")
+        self._change_listeners.append(listener)
+
+        def unsubscribe():
+            if listener in self._change_listeners:
+                self._change_listeners.remove(listener)
+        return unsubscribe
+
+    def _publish_change(self, address: NodeAddress, owner: str | None,
+                        previous_owner: str | None) -> None:
+        for listener in tuple(self._change_listeners):
+            try:
+                listener(address, owner, previous_owner)
+            except Exception:
+                continue
+
     def _publish_pending(self, previous: bool):
         if previous != bool(self._drafts):
             for listener in tuple(self._state_listeners):
@@ -103,6 +132,13 @@ class DraftCoordinator:
     def is_dirty(self, address: NodeAddress) -> bool:
         return address in self._drafts
 
+    def pending_addresses(self, *, owner: str | None = None) -> tuple[NodeAddress, ...]:
+        """Expose draft identities (never text) for explicit owner-scoped UI actions."""
+        if owner is not None and (not isinstance(owner, str) or not owner.strip()):
+            raise ValueError("Draft owner must be a nonempty string")
+        return tuple(address for address in self._drafts
+                     if owner is None or self._owners.get(address) == owner)
+
     def draft_owner(self, address: NodeAddress) -> str | None:
         """All views inspect one shared pending state, without copying a report."""
         return self._owners.get(address)
@@ -118,15 +154,20 @@ class DraftCoordinator:
     def _store(self, address: NodeAddress, draft: TextDraft | TableDraft,
                owner: str) -> None:
         previous = bool(self._drafts)
+        before = self._owners.get(address)
         self._drafts[address] = draft
         self._owners[address] = owner
         self._publish_pending(previous)
+        self._publish_change(address, owner, before)
 
     def _clear(self, address: NodeAddress) -> None:
         previous = bool(self._drafts)
+        before = self._owners.get(address)
         self._drafts.pop(address, None)
         self._owners.pop(address, None)
         self._publish_pending(previous)
+        if before is not None:
+            self._publish_change(address, None, before)
 
     def for_editor(self, owner: str) -> "EditorDraftPort":
         """Give a future Editor/Gallery tab guarded access to the same drafts."""
@@ -339,18 +380,39 @@ class DraftCoordinator:
         self._clear(address)
         return self.table_rows(address) if address.field == "table" else self.text(address)
 
-    def commit_batch(self, addresses, *, owner: str):
+    def discard_all(self) -> None:
+        """Discard drafts from every editor only after an explicit UI decision."""
+        for address in tuple(self._drafts):
+            self._clear(address)
+
+    def apply_all(self):
+        """Apply every pending draft, from any editor, as ONE undo step.
+
+        This is the confirmed "keep my typing" path used by lifecycle actions. Every baseline is
+        inspected before anything executes, so a draft that cannot be applied
+        leaves ALL drafts and the canonical report untouched. Returns the
+        change record, or None when nothing was pending.
+        """
+        keys = tuple(self._drafts)
+        if not keys:
+            return None
+        return self.commit_batch(keys, owner=None)
+
+    def commit_batch(self, addresses, *, owner: str | None):
         """Atomically apply a document editor's draft fields as ONE undo step.
 
         Inspect every baseline and owner before executing anything. A failed
         validation/commit retains all original drafts and canonical content.
+        ``owner=None`` is reserved for :meth:`apply_all`, which applies drafts
+        owned by every editor; named editors must still own all their fields.
         """
         keys = tuple(addresses)
         if not keys or len(set(keys)) != len(keys):
             raise ValueError("Editor batch must have distinct pending fields")
         edits = []
         for address in keys:
-            self._check_owner(address, owner)
+            if owner is not None:
+                self._check_owner(address, owner)
             draft = self._drafts.get(address)
             if draft is None or draft.generation != self.session.generation:
                 raise StaleIntentError("Editor batch has a missing or obsolete draft")

@@ -107,7 +107,8 @@ class V2BranchCanvasTests(unittest.TestCase):
                 [0, 1, 2, 3, 1],
             )
             self.assertFalse(window.findChildren(QTreeWidget))
-            self.assertFalse(window.findChildren(QSplitter))
+            self.assertEqual([s.objectName() for s in window.findChildren(QSplitter)
+                              if s.objectName() != "v2WorkspaceSplitter"], [])
             self.assertGreater(window.branch.viewport().width(), 500)
         finally:
             # M1.4 modal Close is tested separately; avoid blocking headless teardown.
@@ -162,7 +163,11 @@ class V2BranchCanvasTests(unittest.TestCase):
             matching = [g for g in window.branch.findChildren(ConnectorGutter)
                         if g._depth == deepest]
             self.assertEqual(len(matching), 1)
-            self.assertEqual(matching[0].width(), 18 + 25 * deepest)
+            # Indentation narrows to fit the window but levels never collapse
+            # onto one another, however deep the model is.
+            step = matching[0].step
+            self.assertGreaterEqual(step, 6)
+            self.assertEqual(matching[0].width(), 18 + step * deepest)
             self.assertEqual(len(matching[0]._ancestors), deepest - 1)
         finally:
             # M1.4 modal Close is tested separately; avoid blocking headless teardown.

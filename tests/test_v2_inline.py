@@ -213,7 +213,9 @@ class BranchQtTests(unittest.TestCase):
         from PySide6.QtWidgets import QLineEdit, QPlainTextEdit, QTreeWidget
         title = self.win.branch.editor_for(self.title)
         paragraph = self.win.branch.editor_for(self.paragraph)
-        self.assertIsInstance(title, QLineEdit)
+        # Titles wrap instead of being cut off, so they are not a one-line QLineEdit.
+        self.assertNotIsInstance(title, QLineEdit)
+        self.assertIsInstance(title, QPlainTextEdit)
         self.assertIsInstance(paragraph, QPlainTextEdit)
         self.assertFalse(self.win.findChildren(QTreeWidget))
         paragraph.setPlainText("Edited in branch: café \n東京")

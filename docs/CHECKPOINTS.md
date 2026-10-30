@@ -537,3 +537,27 @@ Next reproducible action:
 - Original PR head `3e2ac2d071a2f3869ad6f4beaba6957f831203e1` completed M0 (40902786794), M1 (40902786639), continuity (40902786784), M7.2 synthetic Windows 3.11/3.12 (40902787315), and M7.1 Windows frozen/installer/offline smoke (40902786864); M6.5/M6.6 conditionally skipped.
 - Review F01/F02/F03 corrected as targeted assertions and negative tests: non-default rich formatting for v4-v5 vs legacy defaults; v5 approved translation/provenance; dangerous ZIP member/compression and invalid-session rollback.
 - No physical native 33-case RM-BE signoff, live browser/Word compatibility or V2 publication. Exact **corrected** PR-head green CI still required before accepting merge. User explicitly requested this M7.2 review/fix/merge gate.
+
+## CP-V2-M73-START — 2026-10-29
+
+- Baseline: M7.2 PR #95 merged `1774cedb18ac53b60a04d298268f31c227655d19` after exact reviewed head `bc5848cf967108e1b1f53123039f1aa7a380c3a0` passed M0 (40904187349), M1 (40904187410), M7.2 Windows migration 3.11/3.12 (40904187553), continuity (40904187432) and M7.1 Windows isolated installer preflight (40904187422). `main` mechanical tip `f3e9e5e661f49ba5d3bacef6202d866aa3bdc621`.
+- Created M7.3 issue #96. The 33-case RM-BE matrix remains **0 accepted / 33 pending** until real physical Windows evidence. Current connected the connected Linux development device is **Linux**, not a qualifying native Windows test machine.
+- Initial draft preparation implements explicit opt-in local V2-only Windows build/install, source + installer SHA-256, and private per-case manual observation/evidence review tooling. Synthetic tooling tests are **not** physical GUI results. No V2 release or V1 replacement. Next: CI on draft PR; then obtain physical x64 Windows evidence and independently review every case; no M7.3 merge without separate explicit authorization.
+
+## CP-V2-M73-BLOCKER-98 — 2026-10-29
+
+- User installed and launched the physical Windows V2 QA installer from run 40911125858 (commit `9315a93ddce28277bb7c0ea7a1d6d5ab5ebec94a`); **installation/open confirmed**, no native RM-BE requirement accepted yet (0/33).
+- BE-L01 first physical attempt blocked: after inline text/format edit, adding modules/submodules/paragraphs/photos and drag appeared inoperative; Save showed Unapplied edits modal. Screenshot shows nearly invisible per-card Apply/Revert controls. Bug [#98](https://github.com/kandyman991/ReportMaker/issues/98).
+- Root cause in code: intentional `DraftCoordinator` guard rejects new canonical commands while drafts are pending, but the UI did not expose sufficiently prominent recovery. Corrective branch work introduces a yellow Apply all/Discard banner, explicit atomic batch apply and confirmed discard, contrasts for per-card buttons, and blocked-command guidance. The model guard remains intact; no automatic approval or loss of drafts.
+- Offscreen Qt regression exercises user-text editing, blocked actions, explicit apply then structural insertion/save/reopen, multi-edit Undo, Editor owner separation and rollback on failed batch. **Next gate:** reviewed exact-head hosted Windows CI, issue #98 physical retest on updated isolated V2 QA installer, and later independent per-case reviewer evidence. Do not merge M7.3 or promote/publish V2 on this evidence alone.
+
+## CP-V2-M73-WINDOWS-CONTRAST-99 — 2026-10-29
+
+- Physical Windows user screenshot exposed low-contrast V2 photo annotation tools and photo-card/caption commands (#99). Qt dark palette was being inherited by pale V2 buttons. No user photo data uploaded to GitHub.
+- V2-only scoped QSS sets paired foreground/background, hover, checked, disabled and focus colors in Picture Editor, Branch/photo cards, Gallery and Editor. Photo tool row separated from other actions; V1 image processing and customer content untouched.
+- Synthetic offscreen tests cover contrast with both Windows-like palettes, including all 10 annotation tools, selected state, disabled text, photo-caption placeholder and gallery/editor actions. Hosted Windows CI gate includes new `test_v2_m73_photo_contrast.py`.
+- Still gated: exact-head CI, rebuilt isolated unsigned preview installer, physical Windows screenshot/regression, independent security/architecture/data-integrity review, 33-case acceptance. Do **not** treat either issue #98 or #99 as physically accepted yet.
+
+- Windows CI on the initial issue #99 head `49afdc2` caught a genuine layout issue: photo editor auto-expanded to 1114 px under Windows text metrics, exceeding its 950 px intended width. No QA installer was produced by failing run 40921065239. Follow-up fix splits the inherited photo-property row; subsequent exact-head Windows checks remain required before manual retest.
+
+- Second issue #99 Windows run 40921503256 also failed minimum dialog width 1114px after splitting photo properties. V2 only now wraps the inherited long export note, a suspected remaining intrinsic width source; exact-head Windows regression must prove <=950 before installer generation.

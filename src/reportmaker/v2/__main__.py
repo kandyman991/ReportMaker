@@ -29,7 +29,14 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication.instance() or QApplication([sys.argv[0]])
     app.setOrganizationName("ReportMaker")
     app.setApplicationName("ReportMaker V2 Preview")
-    window = V2MainWindow()
+    if offline:
+        window = V2MainWindow()
+    else:
+        # The window layout (split on/off, which tool is in which tab) is a per-user
+        # preference, kept outside report projects. First run: two panes.
+        from .workspace import default_state, restore_state, store_state
+        window = V2MainWindow(workspace_state=restore_state() or default_state(split=True),
+                              workspace_saver=store_state)
 
     if offline:
         try:
@@ -43,7 +50,9 @@ def main(argv: list[str] | None = None) -> int:
             if (window.centralWidget() is not window.tabs
                     or window.tabs.currentWidget() is not window.branch):
                 raise RuntimeError("Branch Editor is not the initial primary workspace")
-            if window.findChildren(QSplitter):
+            # The workspace's own named splitter is V2; any other one is legacy.
+            if [s for s in window.findChildren(QSplitter)
+                    if s.objectName() != "v2WorkspaceSplitter"]:
                 raise RuntimeError("Legacy three-panel UI leaked into V2")
             if window.findChildren(QTreeWidget):
                 raise RuntimeError("Legacy module tree leaked into V2")

@@ -135,9 +135,16 @@ class OutlineQtTests(unittest.TestCase):
         self.assertTrue(self.win.branch.toggle_branch(a.id))
         self.pump()
         self.assertEqual(self.win.branch.visible_nodes, visible)
-        labels = [item.text() for item in self.win.branch.findChildren(QLabel)]
+        labels = [item.text().replace("\u200b", "")
+                  for item in self.win.branch.findChildren(QLabel)]
         for num in ("MODULE 1", "MODULE 1.1", "MODULE 2"):
             self.assertIn(num, labels)
+        # Soft wrap opportunities are display-only and do not change the
+        # accessible exact numbering or the canonical report.
+        numbered = self.win.branch.findChildren(QLabel, "v2BranchNumbering")
+        self.assertTrue(all(label.accessibleName() ==
+                            label.text().replace("\u200b", "")
+                            for label in numbered))
         self.assertEqual(self.win.branch.verticalScrollBarPolicy().name,
                          "ScrollBarAlwaysOff")
 

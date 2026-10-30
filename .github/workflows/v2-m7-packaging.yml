@@ -1,20 +1,31 @@
 name: V2 M7.1 isolated Windows installer preflight
 
 # The legacy V1 installer/release workflows are intentionally untouched.
-# M7.1 does not publish, upload, cache, or distribute binaries.
+# PR builds never upload installers. An explicitly opted-in M7.3 manual QA
+# workflow_dispatch can attach a short-lived, unsigned test-only installer.
+# This is not a V2 release or default promotion, and does not touch V1.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/v2-m7-3-native-acceptance]
     paths:
       # V2 also imports shared V1/core modules. Keep frozen/installed preflight
       # attached to ALL package/runtime changes, not only the V2 subpackage.
       - "packaging/windows/**"
+      - "scripts/verify_v2_frozen_archive.py"
       - "src/reportmaker/**"
       - "tests/test_v2_*.py"
       - "docs/v2/M7_ACCEPTANCE_MATRIX.json"
+      - "scripts/build_v2_m73_local.ps1"
+      - "scripts/m73_native_acceptance.py"
       - ".github/workflows/v2-m7-packaging.yml"
       - "pyproject.toml"
   workflow_dispatch:
+    inputs:
+      manual_qa_installer:
+        description: "Explicitly attach a 1-day unsigned V2 test installer for manual M7.3 QA"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,6 +47,18 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      - name: Parse native acceptance builder without execution
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "scripts/build_v2_m73_local.ps1").Path,
+            [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | Out-String | Write-Error
+            throw "M7.3 local Windows builder has invalid PowerShell syntax"
+          }
       - name: Install desktop and pinned offline packaging dependencies
         shell: pwsh
         run: |
@@ -50,13 +73,25 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $env:QT_QPA_PLATFORM = "offscreen"
-          python -m compileall -q src/reportmaker/v2 packaging/windows/v2_launcher.py tests/test_v2_m7_packaging.py
+          python -m compileall -q src/reportmaker/v2 packaging/windows/v2_launcher.py tests/test_v2_m7_packaging.py scripts/verify_v2_frozen_archive.py tests/test_v2_retirement_boundary.py
           if ($LASTEXITCODE -ne 0) { throw "V2 compilation failed" }
           python -m reportmaker.v2 --offline-self-test
           if ($LASTEXITCODE -ne 0) { throw "V2 source offline smoke failed" }
           $env:PYTHONPATH = "src"
           python -m unittest discover -s tests -p test_v2_m7_packaging.py -v
           if ($LASTEXITCODE -ne 0) { throw "M7 package contract failed" }
+          python -m unittest discover -s tests -p test_v2_retirement_boundary.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2-only import and packaging boundary failed" }
+          python -m unittest discover -s tests -p test_v2_canvas_layout_stress.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 canvas overlap/draft-interference regressions failed" }
+          python -m unittest discover -s tests -p test_v2_theme.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 rail/theme regression failed" }
+          python -m unittest discover -s tests -p test_v2_workspace.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 split/workspace draft regression failed" }
+          python -m unittest discover -s tests -p test_v2_m73_native_draft_recovery.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M7.3 Windows pending-edit recovery regression failed" }
+          python -m unittest discover -s tests -p test_v2_m73_photo_contrast.py -v
+          if ($LASTEXITCODE -ne 0) { throw "M7.3 V2 light/dark photo control contrast regression failed" }
           python -m unittest discover -s tests -p test_v2_m67_checkpoint.py -v
           if ($LASTEXITCODE -ne 0) { throw "M6.7 checkpoint regression failed" }
 
@@ -67,7 +102,18 @@ jobs:
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 `
             --hidden-import PySide6.QtWebEngineWidgets `
             --hidden-import PySide6.QtWebEngineCore `
-            --collect-submodules reportmaker `
+            --hidden-import PySide6.QtSvg `
+            --exclude-module reportmaker.__main__ `
+            --exclude-module reportmaker.ui `
+            --exclude-module reportmaker.visual_editor `
+            --exclude-module reportmaker.page_editor `
+            --exclude-module reportmaker.rich_editor `
+            --exclude-module reportmaker.template_dialog `
+            --exclude-module reportmaker.customer_ui `
+            --exclude-module reportmaker.customer_probe `
+            --exclude-module reportmaker.editor_probe `
+            --exclude-module reportmaker.export_probe `
+            --exclude-module reportmaker.layout_probe `
             --collect-all pillow_heif `
             packaging/windows/v2_launcher.py
           if ($LASTEXITCODE -ne 0) { throw "V2 PyInstaller failed" }
@@ -77,6 +123,8 @@ jobs:
           if (!(Test-Path "dist/ReportMakerV2/_internal")) {
             throw "Frozen dependencies missing"
           }
+          python scripts/verify_v2_frozen_archive.py "dist/ReportMakerV2/ReportMakerV2.exe"
+          if ($LASTEXITCODE -ne 0) { throw "V2 frozen module inventory gate failed" }
           $env:QT_QPA_PLATFORM = "offscreen"
           $exe = (Resolve-Path "dist/ReportMakerV2/ReportMakerV2.exe").Path
           $p = Start-Process -FilePath $exe -ArgumentList "--offline-self-test" -Wait -PassThru
@@ -170,3 +218,37 @@ jobs:
               throw "V2 binaries remain after the silent uninstall"
             }
           }
+
+      # The user explicitly requested an installer for physical M7.3 testing.
+      # PR/push validation never reaches these steps. Manual opt-in only.
+      - name: Prepare M7.3 unsigned manual-test installer checksums
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.manual_qa_installer == true }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Join-Path $env:RUNNER_TEMP "m7-v2-setup/ReportMaker-V2-M7-Preview-Setup.exe"
+          if (!(Test-Path -LiteralPath $setup -PathType Leaf)) { throw "Test installer was not built" }
+          $hash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = Join-Path $env:RUNNER_TEMP "m7-v2-setup/M73-QA-CHECKSUMS.txt"
+          @(
+            "ReportMaker V2 M7.3 PREVIEW — UNSIGNED TEST INSTALLER, NOT A RELEASE"
+            "source_commit=${{ github.sha }}"
+            "installer_name=ReportMaker-V2-M7-Preview-Setup.exe"
+            "installer_sha256=$hash"
+            "Windows x64; V2-only isolated installation; V1 is unchanged"
+            "The hosted Windows install/uninstall smoke passed, but physical GUI acceptance is NOT complete."
+            "Do not use real customer reports or credentials when testing."
+          ) | Set-Content -LiteralPath $manifest -Encoding utf8
+          Write-Host "M7.3 manual test installer SHA-256: $hash"
+
+      - name: Attach 1-day M7.3 manual QA installer (opt-in only, NOT a release)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.manual_qa_installer == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReportMaker-V2-M73-TEST-ONLY-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/m7-v2-setup/ReportMaker-V2-M7-Preview-Setup.exe
+            ${{ runner.temp }}/m7-v2-setup/M73-QA-CHECKSUMS.txt
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

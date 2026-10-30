@@ -13,9 +13,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRect, QSize, Qt, QTimer, Signal, QUrl
-from PySide6.QtGui import QColor, QDrag, QImage, QPixmap, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
+from PySide6.QtGui import QColor, QDrag, QImage, QPalette, QPixmap, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
 from PySide6.QtWidgets import (
-    QApplication, QFileDialog, QInputDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit,
+    QAbstractButton, QApplication, QFileDialog, QInputDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit,
     QPlainTextEdit, QDialog, QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QToolButton,
     QVBoxLayout, QWidget,
 )
@@ -24,12 +24,14 @@ from ...engine import module_outline, validate_report_tree
 from ...media_import import (INPUT_SUFFIXES, PictureImportError,
                              convert_picture, convert_picture_bytes, stage_pictures)
 from ...photo_gallery import clipboard_image_png, local_picture_paths
+from ..editing_keys import handle_plain_paste
 from ...photo_editor import render_photo
 from .photo_tools import V2PictureEditorDialog as PictureEditorDialog
 from ...rich_text import RichFormatting, style_at
 from ..adapters.formatting import (
     paragraph_uniform, selection_uniform, to_codepoint,
 )
+from ..contrast import BUTTON_CHROME, FIELD_CHROME
 from .rich_preview import paint_rich
 from ...model import (
     HeadingBlock, Module, NestedModuleBlock, PageBreakBlock,
@@ -44,6 +46,9 @@ from ..session import StaleIntentError, PendingDraftError, ReportSession
 from ..structure import plan_drop, plan_indent, plan_outdent, structural_node
 
 _STEP = 25
+# Indentation per nesting level may shrink to this (before zoom) so a deeply
+# nested module still leaves its card readable instead of scrolling off-screen.
+_MIN_STEP = 6
 _INTERNAL_MOVE_MIME = "application/x-reportmaker-v2-internal-move"
 
 
@@ -103,13 +108,31 @@ class ConnectorGutter(QWidget):
         self._depth = depth
         self._ancestors = ancestors
         self._has_next = has_next
-        self._step = max(1, round(_STEP * zoom_pct / 100))
+        self._base = max(1, round(18 * zoom_pct / 100))
         self._origin = max(1, round(11 * zoom_pct / 100))
-        self._elbow = max(1, round(16 * zoom_pct / 100))
-        # Never collapse connector geometry into the same position at depth.
-        self.setFixedWidth(max(1, round(18 * zoom_pct / 100))
-                           + self._step * max(0, depth))
+        self._full_elbow = max(1, round(16 * zoom_pct / 100))
+        self._step = 0
+        self.set_step(max(1, round(_STEP * zoom_pct / 100)))
         self.setMinimumHeight(48)
+
+    @property
+    def step(self) -> int:
+        return self._step
+
+    @property
+    def depth(self) -> int:
+        return self._depth
+
+    def set_step(self, step: int) -> None:
+        """Indentation per level; the canvas narrows it when the window is tight."""
+        step = max(1, int(step))
+        if step == self._step:
+            return
+        self._step = step
+        # Never collapse connector geometry into the same position at depth.
+        self.setFixedWidth(self._base + step * max(0, self._depth))
+        self._elbow = max(1, min(self._full_elbow, step + self._base - self._origin - 2))
+        self.update()
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)
@@ -130,17 +153,6 @@ class ConnectorGutter(QWidget):
         if self._has_next:
             painter.drawLine(x, middle, x, self.height())
         painter.end()
-
-
-class InlineTitle(QLineEdit):
-    cancelRequested = Signal()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
-            self.cancelRequested.emit()
-            event.accept()
-        else:
-            super().keyPressEvent(event)
 
 
 class InlineParagraph(QPlainTextEdit):
@@ -245,6 +257,8 @@ class InlineParagraph(QPlainTextEdit):
             self.updateGeometry()
 
     def keyPressEvent(self, event):
+        if handle_plain_paste(self, event):
+            return
         if event.key() == Qt.Key.Key_Escape:
             self.cancelRequested.emit()
             event.accept()
@@ -261,6 +275,78 @@ class InlineParagraph(QPlainTextEdit):
             event.accept()
         else:
             super().keyPressEvent(event)
+
+
+class InlineTitle(InlineParagraph):
+    """A module title: one logical line that wraps instead of being cut off.
+
+    A QLineEdit cannot wrap, so a long title was silently truncated by the
+    card. This reuses the natural-height paragraph editor and keeps the small
+    part of the QLineEdit API the canvas and its callers use (``text``,
+    ``setText``, ``selectedText``, ``setSelection``, ``textEdited``,
+    ``returnPressed``). Titles never contain line
+    breaks and carry no character formatting.
+    """
+
+    returnPressed = Signal()
+    textEdited = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._programmatic = False
+        self.setTabChangesFocus(True)
+        self.textChanged.connect(self._user_text_changed)
+
+    def text(self) -> str:
+        return self.toPlainText()
+
+    def setText(self, value: str) -> None:
+        # Like QLineEdit.setText: no textEdited signal, caret at the end.
+        self._programmatic = True
+        try:
+            self.setPlainText(_single_line(value))
+        finally:
+            self._programmatic = False
+        self.moveCursor(QTextCursor.MoveOperation.End)
+
+    def selectedText(self) -> str:
+        return self.textCursor().selectedText()
+
+    def setSelection(self, start: int, length: int) -> None:
+        cursor = self.textCursor()
+        cursor.setPosition(start)
+        cursor.setPosition(start + length, QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(cursor)
+
+    def _user_text_changed(self) -> None:
+        if not self._programmatic:
+            self.textEdited.emit(self.text())
+
+    def insertFromMimeData(self, source) -> None:
+        if source.hasText():
+            self.insertPlainText(_single_line(source.text()))
+
+    def keyPressEvent(self, event):
+        if handle_plain_paste(self, event):  # Ctrl+Shift+V pastes plain text
+            return
+        key = event.key()
+        if key == Qt.Key.Key_Escape:
+            self.cancelRequested.emit()
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.returnPressed.emit()
+        elif (event.modifiers() == Qt.KeyboardModifier.ControlModifier
+              and key in (Qt.Key.Key_B, Qt.Key.Key_I, Qt.Key.Key_U)):
+            pass  # titles have no bold/italic/underline
+        else:
+            QPlainTextEdit.keyPressEvent(self, event)
+            return
+        event.accept()
+
+
+def _single_line(value: str) -> str:
+    for separator in ("\r\n", "\r", "\n", "\u2028", "\u2029"):
+        value = value.replace(separator, " ")
+    return value
 
 
 class PhotoThumbnail(QWidget):
@@ -408,12 +494,40 @@ class DropRow(QWidget):
         self.update()
 
     def _place_indicator(self):
+        """Put the label where it hides none of this card's own buttons.
+
+        The coloured edge line is painted by the row itself; the label only
+        names the position. It prefers the right edge but slides left past any
+        button it would cover, and drops below the header if the row is too
+        narrow for that.
+        """
         if self._position is None:
             return
-        y = (0 if self._position == "before"
-             else self.height() - self.marker.height() if self._position == "after"
-             else (self.height() - self.marker.height()) // 2)
-        self.marker.move(max(0, self.width() - self.marker.width() - 6), max(0, y))
+        width, height = self.marker.width(), self.marker.height()
+        blocked = [QRect(button.mapTo(self, QPoint(0, 0)), button.size())
+                   for button in self.findChildren(QAbstractButton)
+                   if button.isVisibleTo(self)]
+        ideal = (0 if self._position == "before"
+                 else self.height() - height if self._position == "after"
+                 else (self.height() - height) // 2)
+        gap = 6
+        candidates = [max(0, ideal)]
+        # Below the lowest button that shares the ideal band, or above for "after".
+        band = [b for b in blocked if b.bottom() >= candidates[0]
+                and b.top() <= candidates[0] + height]
+        if band:
+            candidates.append(max(b.bottom() for b in band) + 2)
+            candidates.append(max(0, min(b.top() for b in band) - height - 2))
+        for y in candidates:
+            x = self.width() - width - gap
+            while x >= 0:
+                spot = QRect(x, y, width, height)
+                hit = next((b for b in blocked if b.intersects(spot)), None)
+                if hit is None:
+                    self.marker.move(x, y)
+                    return
+                x = hit.left() - width - gap
+        self.marker.move(gap, max(0, ideal))
 
     def clear_indicator(self):
         if self._position is not None:
@@ -461,8 +575,14 @@ class BranchCanvas(QScrollArea):
     selectionChanged = Signal()
     visibilityChanged = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, owner: str = "branch") -> None:
         super().__init__(parent)
+        if not isinstance(owner, str) or not owner.strip():
+            raise ValueError("A Modules canvas needs a nonempty draft owner id")
+        # The id under which this canvas stages drafts. Several canvases can show
+        # the same report at once; each stages under its own id so that two of
+        # them can never silently overwrite one field's draft.
+        self._owner = owner
         self.setObjectName("v2BranchCanvas")
         self.setWidgetResizable(True)
         # Long reports still scroll with wheel/touchpad, keyboard and focus;
@@ -486,11 +606,24 @@ class BranchCanvas(QScrollArea):
         self._gateway = None
         self.drafts = None
         self._unsubscribe = None
+        self._unsubscribe_pending = None
+        self._unsubscribe_changes = None
         self._editors = {}
         self._draft_bars = {}
+        self._pending_panel = None
+        self._pending_message = None
         self._table_cells = {}
         self._table_selected = {}
         self._ribbons = {}
+        self._gutters: list[ConnectorGutter] = []
+        # Another editor changed which fields it holds drafts for: redraw
+        # once typing pauses so those fields turn read-only here.
+        self._foreign_timer = QTimer(self)
+        self._foreign_timer.setSingleShot(True)
+        self._foreign_timer.setInterval(250)
+        self._foreign_timer.timeout.connect(self._refresh_foreign_state)
+        self._foreign_stale = False
+        self._card_min_width = 0
         self._selected_module_id = None
         self._collapsed: set[str] = set()
         # Transient navigation only. Never enter the canonical report or export.
@@ -870,15 +1003,40 @@ class BranchCanvas(QScrollArea):
     def editor_for(self, address: NodeAddress):
         return self._editors.get(address)
 
-    def bind_session(self, session: ReportSession, gateway: CommandGateway) -> None:
+    @property
+    def owner(self) -> str:
+        return self._owner
+
+    def bind_session(self, session: ReportSession, gateway: CommandGateway,
+                     drafts: DraftCoordinator | None = None) -> None:
+        """Show ``session``. A second canvas passes the first one's ``drafts`` so
+        that the session has one draft guard and one view of every pending edit."""
         if self.drafts is not None and self.drafts.pending:
             raise PendingDraftError("Resolve drafts before switching sessions")
-        if self._unsubscribe is not None:
-            self._unsubscribe()
+        self._detach()
         self._session, self._gateway = session, gateway
-        self.drafts = DraftCoordinator(session, gateway)
+        self.drafts = drafts if drafts is not None else DraftCoordinator(session, gateway)
+        self._unsubscribe_pending = self.drafts.subscribe_pending(
+            lambda _pending: self._update_pending_panel())
+        self._unsubscribe_changes = self.drafts.subscribe_changes(self._draft_changed)
         self._unsubscribe = session.subscribe(self._on_change)
         self._refresh()
+
+    def _detach(self) -> None:
+        for name in ("_unsubscribe", "_unsubscribe_pending", "_unsubscribe_changes"):
+            stop = getattr(self, name, None)
+            if stop is not None:
+                stop()
+                setattr(self, name, None)
+
+    def can_dispose(self) -> bool:
+        """False while this canvas still holds unapplied edits of its own."""
+        return self.drafts is None or not self.drafts.pending_addresses(owner=self._owner)
+
+    def dispose(self) -> None:
+        """Stop listening before a closed copy of this canvas is deleted."""
+        self._foreign_timer.stop()
+        self._detach()
 
     def _on_change(self, change) -> None:
         # New/Open changes generation: never restore selection or caret from
@@ -987,9 +1145,19 @@ class BranchCanvas(QScrollArea):
                     self.selectionChanged.emit()
         return super().eventFilter(watched, event)
 
+    def _blocked_by_pending_edits(self) -> bool:
+        """Offer visible recovery without auto-committing or discarding work."""
+        if self.drafts is None or not self.drafts.pending:
+            return False
+        self.verticalScrollBar().setValue(0)
+        self._update_pending_panel()
+        self.feedback.emit(
+            "Action blocked by unapplied edits — see the yellow Apply/Discard panel")
+        return True
+
     def _arm_drag(self, source: NodeAddress) -> QMimeData | None:
         """Create an internal move token only for a live clean canonical node."""
-        if self._session is None:
+        if self._session is None or self._blocked_by_pending_edits():
             return None
         try:
             self._session.require_clean_drafts()
@@ -1265,7 +1433,7 @@ class BranchCanvas(QScrollArea):
 
     def import_photo_dialog(self, *, module_id=None, index=None,
                             expected_revision=None, expected_generation=None):
-        if self._session is None:
+        if self._session is None or self._blocked_by_pending_edits():
             return False
         rev = self._session.revision if expected_revision is None else expected_revision
         gen = self._session.generation if expected_generation is None else expected_generation
@@ -1278,7 +1446,7 @@ class BranchCanvas(QScrollArea):
 
     def paste_photo(self, *, module_id=None, index=None):
         """Explicit native-image clipboard import; never parse browser HTML."""
-        if self._session is None:
+        if self._session is None or self._blocked_by_pending_edits():
             return False
         rev, gen = self._session.revision, self._session.generation
         owner = self._selected_module_id if module_id is None else module_id
@@ -1422,6 +1590,7 @@ class BranchCanvas(QScrollArea):
         ):
             button = QPushButton(caption, card)
             button.setObjectName(name)
+            button.setToolTip(caption + " (the pending edits must be applied first)")
             button.clicked.connect(lambda checked=False, cb=callback: cb())
             toolbar.addWidget(button)
         toolbar.addStretch(1)
@@ -1431,9 +1600,14 @@ class BranchCanvas(QScrollArea):
         caption_editor = InlineParagraph(card)
         caption_editor.setObjectName("v2PhotoCaption")
         caption_editor.setPlaceholderText("Photo caption (optional)")
+        # Native dark themes otherwise use a faint white placeholder on the
+        # white branch/photo card. Keep a readable subdued dark hint.
+        palette = caption_editor.palette()
+        palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#536375"))
+        caption_editor.setPalette(palette)
         caption_editor.setPlainText(self.drafts.text(caption_addr))
         stale = self.drafts.text_stale(caption_addr)
-        external = self.drafts.draft_owner(caption_addr) not in (None, "branch")
+        external = self.drafts.draft_owner(caption_addr) not in (None, self._owner)
         caption_editor.setReadOnly(stale or external)
         if stale or external:
             note = QLabel(("Caption changed while a draft was pending; copy text and Revert."
@@ -1452,6 +1626,7 @@ class BranchCanvas(QScrollArea):
         revert.setObjectName("v2RevertPhotoCaption")
         apply.setEnabled(not stale and not external)
         revert.setEnabled(not external)
+        self._style_draft_buttons(apply, revert)
         layout.addWidget(apply)
         layout.addWidget(revert)
         layout.addStretch(1)
@@ -1467,9 +1642,118 @@ class BranchCanvas(QScrollArea):
         card.layout().addWidget(caption_editor)
         card.layout().addWidget(buttons)
 
+    @staticmethod
+    def _style_draft_buttons(apply: QPushButton, revert: QPushButton) -> None:
+        """Keep Apply/Revert legible in native Windows light/dark themes."""
+        apply.setStyleSheet(
+            "QPushButton { color: #ffffff; background: #1d4ed8;"
+            " border: 1px solid #1e40af; border-radius: 4px;"
+            " padding: 5px 12px; font-weight: bold; }"
+            "QPushButton:disabled { color: #4b5563; background: #e5e7eb;"
+            " border-color: #9ca3af; }")
+        revert.setStyleSheet(
+            "QPushButton { color: #192d40; background: #ffffff;"
+            " border: 1px solid #64748b; border-radius: 4px;"
+            " padding: 5px 12px; font-weight: bold; }"
+            "QPushButton:disabled { color: #6b7280; background: #e5e7eb; }")
+
+    def _update_pending_panel(self) -> None:
+        panel, message = self._pending_panel, self._pending_message
+        if panel is None or message is None or self.drafts is None:
+            return
+        pending = self.drafts.pending_addresses()
+        own = self.drafts.pending_addresses(owner=self._owner)
+        if pending:
+            message.setText(
+                "UNAPPLIED EDITS — Insert, move, drag and Save are paused. "
+                + (f"{len(own)} change(s) in Modules: Apply all to keep them "
+                   "or Discard to revert them."
+                   if own else "Edits belong to another tab; resolve them there.")
+                + (" Pending Editor edits must also be resolved in Editor."
+                   if len(own) != len(pending) and own else ""))
+        panel.setVisible(bool(pending))
+        apply = panel.findChild(QPushButton, "v2ApplyAllBranchDrafts")
+        discard = panel.findChild(QPushButton, "v2DiscardAllBranchDrafts")
+        if apply is not None:
+            apply.setEnabled(bool(own))
+        if discard is not None:
+            discard.setEnabled(bool(own))
+
+    def apply_all_branch_drafts(self) -> bool:
+        """Atomic explicit approval; never auto-commit a toolbar or drag action."""
+        if self.drafts is None:
+            return False
+        own = self.drafts.pending_addresses(owner=self._owner)
+        if not own:
+            self.feedback.emit("No Modules drafts to apply; check the Editor tab")
+            return False
+        try:
+            self.drafts.commit_batch(own, owner=self._owner)
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Edits retained; cannot apply: " + str(exc))
+            self._update_pending_panel()
+            return False
+        self._refresh()
+        self.feedback.emit("Module edits applied; Insert, drag and Save are available")
+        return True
+
+    def apply_all_drafts(self) -> str | None:
+        """Apply every pending draft (all editors) as one undoable change.
+
+        Called only for an explicit Save / Save As / New / Open / Close.
+        Returns None when nothing is left pending, otherwise the reason the
+        drafts could not be applied. On failure every draft is kept untouched.
+        """
+        if self.drafts is None or not self.drafts.pending:
+            return None
+        for address, editor in self._editors.items():
+            if editor.hasFocus():
+                self._capture(address)
+                break
+        try:
+            self.drafts.apply_all()
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Edits retained; cannot apply: " + str(exc))
+            self._update_pending_panel()
+            return str(exc) or exc.__class__.__name__
+        self._refresh()
+        self._update_pending_panel()
+        self.feedback.emit("Pending edits applied as one change — Undo available")
+        return None
+
+    def discard_all_drafts(self) -> None:
+        """Remove only pending draft fields across editors after explicit choice."""
+        if self.drafts is None or not self.drafts.pending:
+            return
+        self.drafts.discard_all()
+        self._refresh()
+        self._update_pending_panel()
+        self.feedback.emit("Unapplied edits discarded by user request")
+
+    def discard_all_branch_drafts(self) -> bool:
+        """Require explicit confirmation before discarding uncommitted work."""
+        if self.drafts is None:
+            return False
+        own = self.drafts.pending_addresses(owner=self._owner)
+        if not own:
+            return False
+        answer = QMessageBox.question(
+            self, "Discard unapplied Modules edits?",
+            f"Discard {len(own)} unapplied edit(s) in Modules? "
+            "These changes have not been saved.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        for address in own:
+            self.drafts.discard(address, owner=self._owner)
+        self._refresh()
+        self.feedback.emit("Unapplied Modules edits discarded")
+        return True
+
     def _changed(self, address, text, buttons):
         try:
-            self.drafts.update(address, text)
+            self.drafts.update(address, text, owner=self._owner)
             # A native editor may inherit nearby visual character formatting
             # while typing; the staged Unicode ranges are authoritative.
             # Highlighter-only refresh does not mutate Qt's text undo stack.
@@ -1488,12 +1772,7 @@ class BranchCanvas(QScrollArea):
 
     def _capture(self, address):
         editor = self._editors.get(address)
-        if isinstance(editor, QLineEdit):
-            # Qt selection offsets use UTF-16 units, including emoji pairs.
-            selected_length = len(editor.selectedText().encode("utf-16-le")) // 2
-            self._restore = (address, editor.cursorPosition(),
-                             editor.selectionStart(), selected_length)
-        elif isinstance(editor, QPlainTextEdit):
+        if isinstance(editor, QPlainTextEdit):
             c = editor.textCursor()
             self._restore = (address, c.position(), c.anchor())
 
@@ -1501,16 +1780,9 @@ class BranchCanvas(QScrollArea):
         state, self._restore = self._restore, None
         if state is None:
             return
-        address, position, anchor, *selection = state
+        address, position, anchor = state
         editor = self._editors.get(address)
-        if isinstance(editor, QLineEdit):
-            editor.setFocus()
-            limit = len(editor.text().encode("utf-16-le")) // 2
-            editor.setCursorPosition(min(position, limit))
-            if selection and selection[0] and anchor >= 0:
-                start = min(anchor, limit)
-                editor.setSelection(start, min(selection[0], limit - start))
-        elif isinstance(editor, QPlainTextEdit):
+        if isinstance(editor, QPlainTextEdit):
             editor.setFocus()
             c = editor.textCursor()
             # QTextCursor offsets count UTF-16 code units, not Python code
@@ -1526,7 +1798,7 @@ class BranchCanvas(QScrollArea):
             return False
         self._capture(address)
         try:
-            change = self.drafts.commit(address)
+            change = self.drafts.commit(address, owner=self._owner)
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit("Draft retained: " + str(exc))
             return False
@@ -1538,7 +1810,7 @@ class BranchCanvas(QScrollArea):
         if self.drafts is None:
             return
         self._capture(address)
-        self.drafts.discard(address)
+        self.drafts.discard(address, owner=self._owner)
         self._refresh()
         self.feedback.emit("Draft reverted")
 
@@ -1556,6 +1828,10 @@ class BranchCanvas(QScrollArea):
                 kind, target, args,
                 self._session.revision if expected_revision is None else expected_revision,
                 self._session.generation if expected_generation is None else expected_generation))
+        except PendingDraftError:
+            # A blocked toolbar command must reveal explicit recovery controls.
+            self._blocked_by_pending_edits()
+            return False
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit(str(exc))
             return False
@@ -2075,7 +2351,8 @@ class BranchCanvas(QScrollArea):
     def _stage_format(self, address, start, end, field, value, *, paragraph=False):
         try:
             changed = self.drafts.format(
-                address, start, end, field, value, paragraph=paragraph)
+                address, start, end, field, value, paragraph=paragraph,
+                owner=self._owner)
             if changed:
                 editor = self._editors.get(address)
                 if editor is not None:
@@ -2169,7 +2446,7 @@ class BranchCanvas(QScrollArea):
 
     def _table_changed(self, address, row, column, text) -> None:
         try:
-            self.drafts.update_cell(address, row, column, text)
+            self.drafts.update_cell(address, row, column, text, owner=self._owner)
             self._draft_bars[address].setVisible(self.drafts.is_dirty(address))
             self.feedback.emit("Unapplied table edit — Apply or Revert before Save/Undo")
         except (ValueError, LookupError, RuntimeError) as exc:
@@ -2188,7 +2465,7 @@ class BranchCanvas(QScrollArea):
             return False
         self._capture_table_cell(address)
         try:
-            self.drafts.commit(address)
+            self.drafts.commit(address, owner=self._owner)
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit("Table draft retained: " + str(exc))
             return False
@@ -2200,7 +2477,7 @@ class BranchCanvas(QScrollArea):
         if self.drafts is None:
             return
         self._capture_table_cell(address)
-        self.drafts.discard(address)
+        self.drafts.discard(address, owner=self._owner)
         self._refresh()
         self.feedback.emit("Table draft reverted")
 
@@ -2218,7 +2495,7 @@ class BranchCanvas(QScrollArea):
                 index = selected_column
             else:
                 raise ValueError("Unsupported table operation")
-            if not self.drafts.modify_table(address, operation, index):
+            if not self.drafts.modify_table(address, operation, index, owner=self._owner):
                 return False
             next_rows = self.drafts.table_rows(address)
             row = max(0, min(selected_row + (operation == "insert_row"),
@@ -2238,7 +2515,7 @@ class BranchCanvas(QScrollArea):
 
     def _inline_table(self, card, address):
         rows, stale = self.drafts.table_preview(address)
-        external = self.drafts.draft_owner(address) not in (None, "branch")
+        external = self.drafts.draft_owner(address) not in (None, self._owner)
         if external:
             label = QLabel("Pending edits belong to the other editor; return there "
                            "to Apply or Revert.", card)
@@ -2332,6 +2609,7 @@ class BranchCanvas(QScrollArea):
         revert = QPushButton("Revert table", bar)
         revert.setObjectName("v2RevertTableDraft")
         revert.setEnabled(not external)
+        self._style_draft_buttons(apply, revert)
         apply.clicked.connect(lambda checked=False, a=address: self.apply_table_draft(a))
         revert.clicked.connect(lambda checked=False, a=address: self.revert_table_draft(a))
         buttons.addWidget(apply)
@@ -2364,7 +2642,7 @@ class BranchCanvas(QScrollArea):
                 # either the canonical model or the pending draft.
                 staged_rich = RichFormatting()
             paint_rich(editor, text, staged_rich)
-        external = self.drafts.draft_owner(address) not in (None, "branch")
+        external = self.drafts.draft_owner(address) not in (None, self._owner)
         stale = self.drafts.text_stale(address)
         if stale:
             message = ("Source changed while a draft was pending. Copy staged text "
@@ -2397,6 +2675,9 @@ class BranchCanvas(QScrollArea):
         revert.setObjectName("v2RevertDraft")
         apply.setEnabled(not external and not stale)
         revert.setEnabled(not external)
+        self._style_draft_buttons(apply, revert)
+        apply.setToolTip("Commit this edit before adding blocks or saving")
+        revert.setToolTip("Discard only this unapplied edit")
         bar.addWidget(apply)
         bar.addWidget(revert)
         bar.addStretch(1)
@@ -2404,7 +2685,7 @@ class BranchCanvas(QScrollArea):
         revert.clicked.connect(lambda checked=False, a=address: self.revert_draft(a))
         buttons.setVisible(self.drafts.is_dirty(address))
         self._draft_bars[address] = buttons
-        if isinstance(editor, QLineEdit):
+        if isinstance(editor, InlineTitle):
             editor.textEdited.connect(lambda t, a=address, b=buttons: self._changed(a, t, b))
             editor.returnPressed.connect(lambda a=address: self.apply_draft(a))
         else:
@@ -2456,16 +2737,46 @@ class BranchCanvas(QScrollArea):
                                      if r.kind in ("module", "conclusion")), None)
                 self._selected_module_id = first_module or first.parent_module_id
         scroll = self.verticalScrollBar().value()
+        self._pending_panel = None
+        self._pending_message = None
         self._editors.clear()
         self._draft_bars.clear()
         self._table_cells.clear()
         self._ribbons.clear()
+        self._gutters.clear()
         while self._body.count():
             item = self._body.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.setParent(None)
                 widget.deleteLater()
+        # Always visible above the report, including when drafts are in
+        # scrolled, collapsed or paged-away cards.
+        panel = QFrame(self._host)
+        panel.setObjectName("v2PendingDraftPanel")
+        panel.setStyleSheet(
+            "QFrame#v2PendingDraftPanel { background: #fff0c2;"
+            " border: 2px solid #9a6700; border-radius: 6px; }")
+        panel_row = QHBoxLayout(panel)
+        message = QLabel(panel)
+        message.setObjectName("v2PendingDraftMessage")
+        message.setWordWrap(True)
+        message.setStyleSheet("QLabel { color: #332400; font-size: 13px; font-weight: bold; }")
+        panel_row.addWidget(message, 1)
+        apply = QPushButton("Apply all edits", panel)
+        apply.setObjectName("v2ApplyAllBranchDrafts")
+        apply.setToolTip("Commit all Modules drafts together as one Undo step")
+        discard = QPushButton("Discard edits…", panel)
+        discard.setObjectName("v2DiscardAllBranchDrafts")
+        discard.setToolTip("Ask before discarding unapplied Modules edits")
+        self._style_draft_buttons(apply, discard)
+        apply.clicked.connect(lambda checked=False: self.apply_all_branch_drafts())
+        discard.clicked.connect(lambda checked=False: self.discard_all_branch_drafts())
+        panel_row.addWidget(apply)
+        panel_row.addWidget(discard)
+        self._body.addWidget(panel)
+        self._pending_panel, self._pending_message = panel, message
+        self._update_pending_panel()
         if self._page_count > 1:
             label = QLabel(f"Branch window {self._page + 1} of {self._page_count}"
                            f" — {len(rows)} visible report nodes", self._host)
@@ -2493,18 +2804,36 @@ class BranchCanvas(QScrollArea):
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
             line.setSpacing(0)
-            line.addWidget(ConnectorGutter(depth, ancestors, has_next, row,
-                                           zoom_pct=self._zoom_pct))
+            gutter = ConnectorGutter(depth, ancestors, has_next, row,
+                                     zoom_pct=self._zoom_pct)
+            self._gutters.append(gutter)
+            line.addWidget(gutter)
             card = QFrame(row)
             card.setObjectName("v2BranchCard")
-            card.setStyleSheet("QFrame#v2BranchCard { background: white; border: 1px solid #cbd5e1; border-radius: 8px; }")
+            card.setStyleSheet(
+                "QFrame#v2BranchCard { background: #ffffff;"
+                " border: 1px solid #cbd5e1; border-radius: 8px; }"
+                + BUTTON_CHROME + FIELD_CHROME)
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(15, 9, 15, 10)
             card_layout.setSpacing(3)
             numbered = (f"MODULE {numbers[identifier]}" if kind == "module"
                         else caption)
-            label = QLabel(numbered, card)
+            # Windows QLabel word wrapping does not split a continuous dotted
+            # outline like 1.1.1.1...; add break opportunities to this *view*
+            # string only. Never change the canonical module numbering.
+            display_numbered = (numbered.replace(".", ".\u200b")
+                                if kind == "module" else numbered)
+            label = QLabel(display_numbered, card)
+            label.setObjectName("v2BranchNumbering")
+            label.setAccessibleName(numbered)
             label.setTextFormat(Qt.TextFormat.PlainText)
+            # A deep outline number grows with every nested level. Windows Qt
+            # measures an unwrapped QLabel as a hard minimum width, so the
+            # canvas overflowed even after indentation hit its 6px floor.
+            # Allow this number to wrap; never clip the actual card content.
+            label.setWordWrap(True)
+            label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
             label.setStyleSheet("color: #526c83; font-size: 10px; font-weight: bold;")
             header = QHBoxLayout()
             header.setContentsMargins(0, 0, 0, 0)
@@ -2580,7 +2909,8 @@ class BranchCanvas(QScrollArea):
             self._zoom_row(row)
             if identifier == self._search_target:
                 card.setStyleSheet("QFrame#v2BranchCard { background: #fff5d1;"
-                                   " border: 2px solid #a36a00; border-radius: 8px; }")
+                                   " border: 2px solid #a36a00; border-radius: 8px; }"
+                                   + BUTTON_CHROME + FIELD_CHROME)
             self._body.addWidget(row)
         if self._page_count > 1 and self._page < self._page_count - 1:
             button = QPushButton(
@@ -2598,6 +2928,87 @@ class BranchCanvas(QScrollArea):
             (identifier, kind, depth, text)
             for identifier, kind, _, text, depth, _, _ in rows
         )
+        self._card_min_width = max(
+            (card.minimumSizeHint().width()
+             for card in self._host.findChildren(QFrame, "v2BranchCard")), default=0)
+        self._apply_indent()
         self.verticalScrollBar().setValue(scroll)
         if self._restore is not None:
             QTimer.singleShot(0, self._restore_cursor)
+
+    def _draft_changed(self, address, owner, previous_owner) -> None:
+        if owner in (None, self._owner) and previous_owner in (None, self._owner):
+            return  # this canvas's own drafts already redraw themselves
+        if owner is not None and owner != self._owner:
+            # The other pane's input guard is immediate, not timer-dependent.
+            # A delayed redraw updates its visible draft text and controls,
+            # but under Qt event-loop pressure it must never remain writable.
+            editor = self._editors.get(address)
+            if editor is not None:
+                editor.setReadOnly(True)
+                # Synchronize only this foreign-owned display in place. The
+                # 250ms deferred full redraw can be delayed by other Qt
+                # events; showing stale text beside the locked field is both
+                # misleading and the cause of intermittent full-suite fails.
+                # Block Qt change signals so presentation cannot create a
+                # second owner's draft or enter the source editor's handlers.
+                if self.drafts is not None:
+                    value = self.drafts.text(address)
+                    if editor.toPlainText() != value:
+                        blocked = editor.blockSignals(True)
+                        try:
+                            editor.setPlainText(value)
+                        finally:
+                            editor.blockSignals(blocked)
+            if address.field == "table":
+                for cell_address, cell_editor in tuple(self._editors.items()):
+                    if (cell_address.block_id == address.block_id
+                            and cell_address.module_id == address.module_id
+                            and cell_address.field == "cell"):
+                        cell_editor.setReadOnly(True)
+        self._foreign_stale = True
+        if self.isVisible():
+            self._foreign_timer.start()
+
+    def _refresh_foreign_state(self) -> None:
+        if not self._foreign_stale:
+            return
+        if any(editor.hasFocus() for editor in self._editors.values()):
+            # Never rebuild under the caret; try again shortly.
+            self._foreign_timer.start()
+            return
+        self._foreign_stale = False
+        self._refresh()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._foreign_stale:
+            self._foreign_timer.start()
+
+    def _apply_indent(self) -> None:
+        """Narrow the per-level indentation so the deepest card still fits.
+
+        Fixed indentation pushed a deeply nested card past the right edge of a
+        narrow window, where its buttons could not be reached (the canvas has
+        no horizontal scrollbar). The step shrinks, never below ``_MIN_STEP``,
+        until the deepest row fits; the connector lines shrink with it.
+        """
+        if not self._gutters:
+            return
+        factor = self._zoom_pct / 100
+        natural = max(1, round(_STEP * factor))
+        floor = max(1, round(_MIN_STEP * factor))
+        depth = max(gutter.depth for gutter in self._gutters)
+        step = natural
+        if depth:
+            margins = self._body.contentsMargins()
+            room = (self.viewport().width() - margins.left() - margins.right()
+                    - self._card_min_width - max(1, round(18 * factor)))
+            step = max(floor, min(natural, room // depth))
+        for gutter in self._gutters:
+            gutter.set_step(step)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if event.oldSize().width() != event.size().width():
+            self._apply_indent()
