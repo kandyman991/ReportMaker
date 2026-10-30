@@ -311,10 +311,18 @@ class SurfaceInterferenceTests(_QtCase):
 
 
 class AdaptiveLayoutTests(_QtCase):
+    def assert_fits(self, window, message="the canvas must end up with no horizontal overflow"):
+        """The layout settles over a few event-loop turns (more on a slow or busy machine,
+        and polishing the style sheet can change a card's width), so wait on the real
+        event loop for the final state instead of a fixed number of turns. The assertion
+        itself is unchanged: no horizontal overflow at all."""
+        self.wait_until(lambda: window.branch.horizontalScrollBar().maximum() == 0,
+                        message, timeout_ms=5000)
+        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
+
     def test_deep_nesting_fits_a_660px_window(self):
         window = self.make_window(_project([_deep(14)]), width=660)
-        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0,
-                         "indentation should shrink instead of pushing the canvas past the window")
+        self.assert_fits(window, "indentation should shrink instead of pushing the canvas past the window")
         self.assertEqual([p for p in measure(window) if p[0] in STRICT_KINDS], [])
 
     def test_indentation_only_shrinks_when_it_has_to(self):
@@ -333,7 +341,7 @@ class AdaptiveLayoutTests(_QtCase):
         window = self.make_window(_project([_deep(20)]), width=660)
         step = window.branch._gutters[-1].step
         self.assertGreaterEqual(step, 6)
-        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
+        self.assert_fits(window)
 
     def _cards(self, window):
         from PySide6.QtWidgets import QFrame
@@ -347,7 +355,7 @@ class AdaptiveLayoutTests(_QtCase):
             card.setMinimumWidth(card.minimumSizeHint().width() + 25)  # a wider font or style
         window.resize(660, 800)
         self.pump(10)
-        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
+        self.assert_fits(window)
         self.assertGreaterEqual(window.branch._gutters[-1].step, 6)
 
     def test_larger_application_fonts_still_fit_20_levels_at_660px(self):
@@ -361,7 +369,7 @@ class AdaptiveLayoutTests(_QtCase):
             window = self.make_window(_project([_deep(20)]), width=660)
             self.pump(10)
             with self.subTest(points=points):
-                self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
+                self.assert_fits(window)
                 self.assertGreaterEqual(window.branch._gutters[-1].step, 6)
 
     def test_the_side_margin_gives_room_back_only_when_the_step_is_already_at_its_floor(self):
@@ -379,7 +387,7 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertEqual(canvas._gutters[-1].step, 6, "the step goes to its floor first")
         self.assertEqual(canvas._body.contentsMargins().left(), 14, "then each side gives up 6 px")
         self.assertEqual(canvas._body.contentsMargins().right(), 14)
-        self.assertEqual(canvas.horizontalScrollBar().maximum(), 0)
+        self.assert_fits(window)
         window.resize(1400, 800)
         self.pump(10)
         self.assertEqual(canvas._body.contentsMargins().left(), 20, "and they come back when there is room")
@@ -424,7 +432,7 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertEqual(canvas._card_layouts[0].contentsMargins().left(), 8)
         self.assertEqual({h.text() for h in handles}, {"≡"})
         self.pump(10)  # the scroll range follows the layout
-        self.assertEqual(canvas.horizontalScrollBar().maximum(), 0)
+        self.assert_fits(window)
         self.assertEqual(handles[0].accessibleName(), "Drag branch node")
         self.assertTrue(handles[0].toolTip())
         window.resize(1400, 800)
@@ -445,7 +453,26 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertEqual({h.text() for h in canvas._host.findChildren(DragHandle)}, {"≡ Drag"},
                          "so the handle keeps its word")
         self.pump(10)
-        self.assertEqual(canvas.horizontalScrollBar().maximum(), 0)
+        self.assert_fits(window)
+
+    def test_a_deep_modules_numbered_caption_elides_instead_of_widening_its_card(self):
+        # "MODULE 1.1.1.1..." grows two characters per level; as a plain label it set the
+        # card's minimum width, which is what overflowed on machines with a wider font.
+        from reportmaker.v2.branch.canvas import ElidedLabel
+        window = self.make_window(_project([_deep(30)]), width=660)
+        self.assert_fits(window)
+        captions = [label for label in window.branch._host.findChildren(ElidedLabel)
+                    if label.full_text().startswith("MODULE ") and len(label.full_text()) > 40]
+        self.assertTrue(captions)
+        deepest = max(captions, key=lambda label: len(label.full_text()))
+        self.assertIn("…", deepest.text(), "long numbers are shortened in the middle")
+        self.assertEqual(deepest.toolTip(), deepest.full_text(), "and the full number is the tooltip")
+        self.assertEqual(deepest.accessibleName(), deepest.full_text())
+        self.assertLess(deepest.minimumSizeHint().width(), 150, "it can shrink to a few characters")
+        window.resize(1920, 900)
+        self.wait_until(lambda: deepest.text() == deepest.full_text(),
+                        "with room, the whole number is shown again")
+        self.assertEqual(deepest.toolTip(), "")
 
     def test_a_shallow_report_keeps_the_normal_step_and_margins(self):
         window = self.make_window(_project([_deep(3)]), width=660)
@@ -466,7 +493,7 @@ class AdaptiveLayoutTests(_QtCase):
     def test_an_unbroken_title_also_wraps(self):
         window = self.make_window(_project([_module("W" * 400, [ParagraphBlock(L("x"))])]), width=660)
         self.assertEqual([p for p in measure(window) if p[0] in STRICT_KINDS], [])
-        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
+        self.assert_fits(window)
 
     def test_a_title_stays_one_logical_line(self):
         from PySide6.QtCore import QMimeData, Qt
