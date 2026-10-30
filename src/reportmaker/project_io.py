@@ -366,7 +366,7 @@ def _image_signature(blob: bytes) -> dict:
     if not isinstance(blob, bytes) or not blob or len(blob) > MAX_ASSET:
         raise ValueError("Invalid project media bytes")
     try:
-        with Image.open(BytesIO(blob)) as image:
+        with Image.open(BytesIO(blob), formats=("JPEG", "PNG", "WEBP")) as image:
             fmt = image.format
             width, height = image.size
             if (fmt not in {"JPEG", "PNG", "WEBP"}
