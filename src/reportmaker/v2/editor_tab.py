@@ -271,7 +271,11 @@ class DocumentEditorTab(QWidget):
     def _draft_changed(self, address, owner, previous_owner):
         if owner in (None, "page-editor") and previous_owner in (None, "page-editor"):
             return  # this tab's own drafts
-        self._queue_sync()
+        # Lock (or unlock) right now, inside the notification. Nothing here waits for
+        # a timer or an event-loop turn, so a field another editor owns is never
+        # writable here even for an instant. Only a rebuild is deferred.
+        if self.lock_foreign_fields() or self._token is None:
+            self._queue_sync()
 
     def _queue_sync(self):
         if self._sync_queued or not self.isVisible():
@@ -287,7 +291,7 @@ class DocumentEditorTab(QWidget):
         return self.branch.drafts.draft_owner(address) not in (None, "page-editor")
 
     def sync_foreign_drafts(self):
-        """Make every field another editor holds a draft for read-only, in place.
+        """Bring the page up to date with fields other editors hold drafts for.
 
         The page is cached between session revisions, and staging a draft does
         not publish one, so without this a field being edited in Modules would
@@ -299,6 +303,18 @@ class DocumentEditorTab(QWidget):
             if self.isVisible():
                 self.refresh()  # canonical content changed: a rebuild shows everything
             return
+        if self.lock_foreign_fields() and not self._owned:
+            self._token = None
+            self.refresh()
+
+    def lock_foreign_fields(self) -> bool:
+        """Make every field another editor holds a draft for read-only, in place.
+
+        Synchronous and cheap (it only touches this page's own widgets), so it is
+        safe to call from a draft notification. Fields whose draft was resolved
+        elsewhere are unlocked. Returns True when a table changed shape and the
+        page must be rebuilt, which the caller defers.
+        """
         drafts = self.branch.drafts
         rebuild = False
         for address, edit in self._editors.items():
@@ -345,9 +361,7 @@ class DocumentEditorTab(QWidget):
                 table.blockSignals(False)
             table.resizeRowsToContents()
             table.updateGeometry()
-        if rebuild and not self._owned:
-            self._token = None
-            self.refresh()
+        return rebuild
 
     def _scope_changed(self, index):
         if index < 0:
@@ -390,6 +404,10 @@ class DocumentEditorTab(QWidget):
             self._pending_status()
         except (ValueError, LookupError, RuntimeError) as exc:
             self.info.setText("Edit rejected; original draft retained: " + str(exc))
+            # If a field turns out to be owned elsewhere, lock it and show the real
+            # draft on the next turn, even if its notification never reached this
+            # page. (Not inline: this runs inside the field's own textChanged.)
+            QTimer.singleShot(0, self.lock_foreign_fields)
 
     def _text_edited(self, address, widget):
         if address in self._foreign or widget.isReadOnly():

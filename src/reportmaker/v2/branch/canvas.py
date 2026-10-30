@@ -49,6 +49,10 @@ _STEP = 25
 # Indentation per nesting level may shrink to this (before zoom) so a deeply
 # nested module still leaves its card readable instead of scrolling off-screen.
 _MIN_STEP = 6
+# Side margin of the canvas (each side). It may shrink to this, but only after the
+# indentation is already at its minimum and the deepest card still does not fit.
+_SIDE_MARGIN = 20
+_MIN_SIDE_MARGIN = 8
 _INTERNAL_MOVE_MIME = "application/x-reportmaker-v2-internal-move"
 
 
@@ -608,6 +612,7 @@ class BranchCanvas(QScrollArea):
         self._table_selected = {}
         self._ribbons = {}
         self._gutters: list[ConnectorGutter] = []
+        self._rows: list[DropRow] = []
         # Another editor changed which fields it holds drafts for: redraw
         # once typing pauses so those fields turn read-only here.
         self._foreign_timer = QTimer(self)
@@ -615,7 +620,6 @@ class BranchCanvas(QScrollArea):
         self._foreign_timer.setInterval(250)
         self._foreign_timer.timeout.connect(self._refresh_foreign_state)
         self._foreign_stale = False
-        self._card_min_width = 0
         self._selected_module_id = None
         self._collapsed: set[str] = set()
         # Transient navigation only. Never enter the canonical report or export.
@@ -1578,6 +1582,8 @@ class BranchCanvas(QScrollArea):
         stale = self.drafts.text_stale(caption_addr)
         external = self.drafts.draft_owner(caption_addr) not in (None, "branch")
         caption_editor.setReadOnly(stale or external)
+        if external and not stale:
+            caption_editor.setProperty("foreignLocked", True)
         if stale or external:
             note = QLabel(("Caption changed while a draft was pending; copy text and Revert."
                            if stale and not external else
@@ -1738,6 +1744,10 @@ class BranchCanvas(QScrollArea):
             self.feedback.emit("Unapplied draft — Apply or Revert before Save/Undo")
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit(str(exc))
+            # A field owned by another editor must not keep rejected characters or stay
+            # writable, even if its notification never arrived. Next turn: this runs
+            # inside the editor's own textChanged.
+            QTimer.singleShot(0, self.lock_foreign_fields)
 
     def _capture(self, address):
         editor = self._editors.get(address)
@@ -2419,6 +2429,7 @@ class BranchCanvas(QScrollArea):
             self.feedback.emit("Unapplied table edit — Apply or Revert before Save/Undo")
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit("Table draft retained: " + str(exc))
+            QTimer.singleShot(0, self.lock_foreign_fields)
 
     def _capture_table_cell(self, address):
         row, column = self._table_selected.get(address, (0, 0))
@@ -2515,6 +2526,8 @@ class BranchCanvas(QScrollArea):
                 editor.setAccessibleName(f"Table row {i + 1}, column {j + 1}")
                 editor.setPlainText(cell.original)
                 editor.setReadOnly(stale or external)
+                if external and not stale:
+                    editor.setProperty("foreignLocked", True)
                 editor.setStyleSheet(
                     "color: #182b3a; background: #f9fbff;"
                     "border: 1px solid #aabbd0; border-radius: 3px;"
@@ -2630,6 +2643,8 @@ class BranchCanvas(QScrollArea):
             card.layout().addWidget(note)
         if stale or external:
             editor.setReadOnly(True)
+        if external and not stale:
+            editor.setProperty("foreignLocked", True)  # lock_foreign_fields may unlock it
         editor.setProperty("nodeId", address.block_id or address.module_id)
         editor.setProperty("moduleId", address.module_id)
         editor.installEventFilter(self)
@@ -2712,6 +2727,7 @@ class BranchCanvas(QScrollArea):
         self._table_cells.clear()
         self._ribbons.clear()
         self._gutters.clear()
+        self._rows.clear()
         while self._body.count():
             item = self._body.takeAt(0)
             widget = item.widget()
@@ -2775,6 +2791,7 @@ class BranchCanvas(QScrollArea):
             gutter = ConnectorGutter(depth, ancestors, has_next, row,
                                      zoom_pct=self._zoom_pct)
             self._gutters.append(gutter)
+            self._rows.append(row)
             line.addWidget(gutter)
             card = QFrame(row)
             card.setObjectName("v2BranchCard")
@@ -2883,10 +2900,10 @@ class BranchCanvas(QScrollArea):
             (identifier, kind, depth, text)
             for identifier, kind, _, text, depth, _, _ in rows
         )
-        self._card_min_width = max(
-            (card.minimumSizeHint().width()
-             for card in self._host.findChildren(QFrame, "v2BranchCard")), default=0)
         self._apply_indent()
+        # Stylesheets are polished when the rows are first shown, which can change
+        # a card's minimum width; measure once more after that.
+        QTimer.singleShot(0, self._apply_indent)
         self.verticalScrollBar().setValue(scroll)
         if self._restore is not None:
             QTimer.singleShot(0, self._restore_cursor)
@@ -2894,9 +2911,70 @@ class BranchCanvas(QScrollArea):
     def _draft_changed(self, address, owner, previous_owner) -> None:
         if owner in (None, "branch") and previous_owner in (None, "branch"):
             return  # this canvas's own drafts already redraw themselves
+        # Lock right now, inside the notification: never wait for a timer or an
+        # event-loop turn, so a field another editor owns is not writable here even
+        # for an instant. The redraw below only adds the notices and button states.
+        self.lock_foreign_fields()
         self._foreign_stale = True
         if self.isVisible():
             self._foreign_timer.start()
+
+    def _is_foreign(self, address) -> bool:
+        return self.drafts is not None and self.drafts.draft_owner(address) not in (None, "branch")
+
+    def lock_foreign_fields(self) -> None:
+        """Make this canvas agree with who owns each draft, in place.
+
+        A field another editor holds a draft for becomes read-only and shows that
+        draft; a field that editor let go of (applied or reverted) is writable again
+        with the committed text. Cheap and synchronous (it only touches this canvas's
+        own widgets), so it runs inside the draft notification, on show, and after a
+        rejected keystroke. The debounced redraw afterwards only adds notices and
+        tidies the rest, so no caller ever waits on it. Only fields this method
+        locked are unlocked here; a field read-only for another reason (a stale
+        draft) is left to the redraw.
+        """
+        if self.drafts is None:
+            return
+        for address, editor in self._editors.items():
+            owned_elsewhere = self._is_foreign(
+                NodeAddress(address.report_id, address.module_id, address.block_id, "table")
+                if address.field == "cell" else address)
+            locked = bool(editor.property("foreignLocked"))
+            if owned_elsewhere:
+                if not locked:
+                    editor.setProperty("foreignLocked", True)
+                if not editor.isReadOnly():
+                    editor.setReadOnly(True)
+                if address.field != "cell":
+                    self._show_draft_text(address, editor)
+                    self._lock_draft_bar(address, True)
+            elif locked:
+                editor.setProperty("foreignLocked", False)
+                editor.setReadOnly(False)
+                if address.field != "cell":
+                    self._show_draft_text(address, editor)
+                    self._lock_draft_bar(address, False)
+
+    def _show_draft_text(self, address, editor) -> None:
+        text = self.drafts.text(address)
+        current = editor.text() if isinstance(editor, InlineTitle) else editor.toPlainText()
+        if current != text:
+            editor.blockSignals(True)
+            try:
+                editor.setPlainText(text)
+            finally:
+                editor.blockSignals(False)
+
+    def _lock_draft_bar(self, address, locked: bool) -> None:
+        bar = self._draft_bars.get(address)
+        if bar is None:
+            return
+        bar.setVisible(self.drafts.is_dirty(address))
+        for name in ("v2ApplyDraft", "v2RevertDraft"):
+            button = bar.findChild(QPushButton, name)
+            if button is not None:
+                button.setEnabled(not locked)
 
     def _refresh_foreign_state(self) -> None:
         if not self._foreign_stale:
@@ -2910,31 +2988,63 @@ class BranchCanvas(QScrollArea):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        self._apply_indent()
+        self.lock_foreign_fields()  # before the user can type, not after a timer
         if self._foreign_stale:
             self._foreign_timer.start()
 
     def _apply_indent(self) -> None:
-        """Narrow the per-level indentation so the deepest card still fits.
+        """Fit every row inside the viewport by measuring, not estimating.
 
-        Fixed indentation pushed a deeply nested card past the right edge of a
-        narrow window, where its buttons could not be reached (the canvas has
-        no horizontal scrollbar). The step shrinks, never below ``_MIN_STEP``,
-        until the deepest row fits; the connector lines shrink with it.
+        A deeply nested card used to run past the right edge of a narrow window,
+        where its buttons could not be reached (the canvas has no horizontal
+        scrollbar). First the indentation per level shrinks, never below
+        ``_MIN_STEP``; only if the deepest row still does not fit does the side
+        margin shrink, never below ``_MIN_SIDE_MARGIN``. Each decision uses the
+        rows' live minimum widths, so it holds for whatever font, text size or
+        style sheet is in effect rather than for a width cached when the rows
+        were built. Connector lines shrink with the step and never collapse.
         """
-        if not self._gutters:
+        gutters, rows = self._gutters, self._rows
+        if not gutters or len(gutters) != len(rows):
             return
         factor = self._zoom_pct / 100
         natural = max(1, round(_STEP * factor))
         floor = max(1, round(_MIN_STEP * factor))
-        depth = max(gutter.depth for gutter in self._gutters)
-        step = natural
-        if depth:
+        viewport = self.viewport().width()
+
+        def set_side(side: int) -> None:
             margins = self._body.contentsMargins()
-            room = (self.viewport().width() - margins.left() - margins.right()
-                    - self._card_min_width - max(1, round(18 * factor)))
-            step = max(floor, min(natural, room // depth))
-        for gutter in self._gutters:
+            if margins.left() != side or margins.right() != side:
+                self._body.setContentsMargins(side, margins.top(), side, margins.bottom())
+
+        def worst_overflow(side: int) -> int:
+            inner = viewport - 2 * side
+            return max((row.minimumSizeHint().width() - inner for row in rows), default=0)
+
+        side = _SIDE_MARGIN
+        set_side(side)
+        step = natural
+        for gutter in gutters:
             gutter.set_step(step)
+        for _ in range(3):  # a cheap fixed-point loop: a row's width is linear in the step
+            inner = viewport - 2 * side
+            wanted = step
+            for gutter, row in zip(gutters, rows, strict=True):
+                if gutter.depth:
+                    over = row.minimumSizeHint().width() - inner
+                    if over > 0:
+                        wanted = min(wanted, step - -(-over // gutter.depth))
+            wanted = max(floor, wanted)
+            if wanted == step:
+                break
+            step = wanted
+            for gutter in gutters:
+                gutter.set_step(step)
+        overflow = worst_overflow(side)
+        if overflow > 0 and side > _MIN_SIDE_MARGIN:
+            side = max(_MIN_SIDE_MARGIN, side - -(-overflow // 2))
+            set_side(side)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
