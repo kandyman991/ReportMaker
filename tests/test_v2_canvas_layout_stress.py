@@ -384,6 +384,69 @@ class AdaptiveLayoutTests(_QtCase):
         self.pump(10)
         self.assertEqual(canvas._body.contentsMargins().left(), 20, "and they come back when there is room")
 
+    def _make_rows_too_wide_by(self, window, excess):
+        """Make every row with a drag handle ``excess`` px too wide at the minimum step.
+
+        The extra width goes into the card *header*, which is what a wider font would
+        grow, so the card padding and the handle's word can still give some back (a
+        fixed minimumWidth on the card itself would not shrink with either).
+        """
+        from PySide6.QtWidgets import QHBoxLayout, QWidget
+        canvas = window.branch
+        for gutter in canvas._gutters:
+            gutter.set_step(6)
+        inner = canvas.viewport().width() - 2 * 8  # the narrowest side margins
+        worst = max(row.minimumSizeHint().width() for row in canvas._rows)
+        extra = inner - worst + excess
+        for handle in canvas._handles:
+            card = handle.parentWidget()
+            for index in range(card.layout().count()):
+                header = card.layout().itemAt(index).layout()
+                if isinstance(header, QHBoxLayout) and header.indexOf(handle) >= 0:
+                    spacer = QWidget(card)
+                    spacer.setMinimumWidth(extra)
+                    header.addWidget(spacer)
+                    spacer.show()  # a widget added after the card is shown starts hidden
+
+    def test_cards_and_the_drag_handle_compact_only_after_step_and_margins_are_used_up(self):
+        from reportmaker.v2.branch.canvas import DragHandle
+        window = self.make_window(_project([_deep(20)]), width=660)
+        canvas = window.branch
+        handles = canvas._host.findChildren(DragHandle)
+        self.assertTrue(handles)
+        self.assertEqual({h.text() for h in handles}, {"≡ Drag"})
+        # 30 px over even with the minimum step and side margins: card padding gives 14 px
+        # back (15 -> 8 each side), which is not enough, so the handle shrinks to its glyph.
+        self._make_rows_too_wide_by(window, 30)
+        canvas._apply_indent()
+        self.assertEqual(canvas._gutters[-1].step, 6)
+        self.assertEqual(canvas._body.contentsMargins().left(), 8)
+        self.assertEqual(canvas._card_layouts[0].contentsMargins().left(), 8)
+        self.assertEqual({h.text() for h in handles}, {"≡"})
+        self.pump(10)  # the scroll range follows the layout
+        self.assertEqual(canvas.horizontalScrollBar().maximum(), 0)
+        self.assertEqual(handles[0].accessibleName(), "Drag branch node")
+        self.assertTrue(handles[0].toolTip())
+        window.resize(1400, 800)
+        self.pump(10)
+        self.assertEqual({h.text() for h in handles}, {"≡ Drag"}, "everything is restored")
+        self.assertEqual(canvas._card_layouts[0].contentsMargins().left(), 15)
+        self.assertEqual(canvas._body.contentsMargins().left(), 20)
+
+    def test_card_padding_alone_is_enough_for_a_small_excess(self):
+        from reportmaker.v2.branch.canvas import DragHandle
+        window = self.make_window(_project([_deep(20)]), width=660)
+        canvas = window.branch
+        self._make_rows_too_wide_by(window, 5)  # 5 px over even at the narrowest side margins
+        canvas._apply_indent()
+        self.assertEqual(canvas._body.contentsMargins().left(), 8)
+        self.assertEqual(canvas._card_layouts[0].contentsMargins().left(), 8,
+                         "the card padding (14 px) covers it")
+        self.assertEqual({h.text() for h in canvas._host.findChildren(DragHandle)}, {"≡ Drag"},
+                         "so the handle keeps its word")
+        self.pump(10)
+        self.assertEqual(canvas.horizontalScrollBar().maximum(), 0)
+
     def test_a_shallow_report_keeps_the_normal_step_and_margins(self):
         window = self.make_window(_project([_deep(3)]), width=660)
         self.assertEqual(window.branch._gutters[-1].step, 25)
