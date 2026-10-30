@@ -2968,7 +2968,7 @@ class BranchCanvas(QScrollArea):
             self._foreign_timer.start()
 
     def _is_foreign(self, address) -> bool:
-        return self.drafts is not None and self.drafts.draft_owner(address) not in (None, "branch")
+        return self.drafts is not None and self.drafts.draft_owner(address) not in (None, self._owner)
 
     def lock_foreign_fields(self) -> None:
         """Make this canvas agree with who owns each draft, in place.

@@ -507,13 +507,11 @@ class SameToolInBothPanesTests(_WorkspaceCase):
         self.type_into(left.editor_for(address), " LEFT")
         self.assertEqual(win.branch.drafts.draft_owner(address), left.owner)
 
-    def test_a_field_edited_in_one_modules_locks_in_the_other(self):
-        from PySide6.QtTest import QTest
+    def test_a_field_edited_in_one_modules_locks_in_the_other_at_once(self):
         _win, left, right, address = self.modules_pair()
         self.type_into(left.editor_for(address), " LEFT-EDIT")
-        QTest.qWait(450)  # the other copy redraws once typing pauses
         other = right.editor_for(address)
-        self.assertTrue(other.isReadOnly())
+        self.assertTrue(other.isReadOnly(), "no waiting: the lock is made inside the notification")
         self.assertIn("LEFT-EDIT", other.toPlainText())
         before = left.drafts.text(address)
         self.type_into(other, " RIGHT-EDIT")
@@ -522,33 +520,100 @@ class SameToolInBothPanesTests(_WorkspaceCase):
         self.assertEqual(left.drafts.draft_owner(address), left.owner)
 
     def test_applying_in_one_modules_updates_the_other_and_unlocks_it(self):
-        from PySide6.QtTest import QTest
         _win, left, right, address = self.modules_pair()
         self.type_into(left.editor_for(address), " LEFT-EDIT")
-        QTest.qWait(450)
         self.assertTrue(left.apply_draft(address))
-        QTest.qWait(450)
-        other = right.editor_for(address)
-        self.assertFalse(other.isReadOnly())
-        self.assertIn("LEFT-EDIT", other.toPlainText())
+        self.wait_until(
+            lambda: not right.editor_for(address).isReadOnly()
+            and "LEFT-EDIT" in right.editor_for(address).toPlainText(),
+            "the other copy never showed the applied text and unlocked")
         self.assertFalse(left.drafts.pending)
 
     def test_two_editors_lock_each_other_the_same_way(self):
-        from PySide6.QtTest import QTest
         win = self.make({"split": True, "left": ["editor"], "right": ["editor"]})
         first, second = win.tabs.left.currentWidget(), win.tabs.right.currentWidget()
         self.assertEqual({first.owner, second.owner}, {"page-editor", "page-editor-2"})
         address = next(iter(first._editors))
         self.type_into(first._editors[address], " FIRST")
-        QTest.qWait(80)
         locked = second._editors[address]
         self.assertTrue(locked.isReadOnly())
         self.assertIn("FIRST", locked.toPlainText())
         self.type_into(locked, " SECOND")
         self.assertNotIn("SECOND", win.branch.drafts.text(address))
 
+    def assert_single_writer(self, copies, address):
+        """Every copy that does not own the draft is read-only; if nobody owns it, all can write."""
+        owner = copies[0].drafts.draft_owner(address)
+        for copy in copies:
+            self.assertEqual(copy.editor_for(address).isReadOnly(),
+                             owner is not None and owner != copy.owner,
+                             f"copy {copy.owner}: owner of the draft is {owner}")
+
+    def test_the_lock_needs_neither_timers_nor_redraws_for_two_modules(self):
+        _win, left, right, address = self.modules_pair()
+        for copy in (left, right):  # take away everything that is allowed to be late
+            copy._refresh = lambda: None
+            copy._foreign_timer.stop()
+            copy._foreign_timer.start = lambda *a: None
+        self.type_into(left.editor_for(address), " LEFT")
+        self.assert_single_writer([left, right], address)
+        left.drafts.discard(address, owner=left.owner)
+        self.assert_single_writer([left, right], address)  # unlocked at once as well
+        self.type_into(right.editor_for(address), " RIGHT")
+        self.assert_single_writer([left, right], address)
+        self.assertIn("RIGHT", left.editor_for(address).toPlainText())
+
+    def test_only_the_other_copies_are_told_about_an_ownership_change(self):
+        _win, left, right, address = self.modules_pair()
+        calls = {left.owner: 0, right.owner: 0}
+        for copy in (left, right):
+            original = copy.lock_foreign_fields
+
+            def counted(copy=copy, original=original):
+                calls[copy.owner] += 1
+                original()
+            copy.lock_foreign_fields = counted
+        self.type_into(left.editor_for(address), "x")
+        self.assertGreaterEqual(calls[right.owner], 1, "the other copy was told, synchronously")
+        self.assertEqual(calls[left.owner], 0, "the owner's own edits are not 'foreign' to it")
+        before = calls[right.owner]
+        left.revert_draft(address)
+        self.assertGreater(calls[right.owner], before, "and told again when the draft was released")
+        self.assertEqual(calls[left.owner], 0)
+
+    def test_a_copy_in_a_background_tab_is_locked_before_it_is_shown(self):
+        win = self.make({"split": True, "left": ["modules"], "right": ["modules", "preview"]})
+        left, hidden = win.tabs.left.currentWidget(), win.tabs.right.widget(0)
+        win.tabs.right.setCurrentIndex(1)  # Preview on top; the second Modules is hidden
+        self.pump()
+        self.assertFalse(hidden.isVisible())
+        address = next(a for a in left._editors if a.field == "text")
+        self.type_into(left.editor_for(address), " LEFT")
+        self.assertTrue(hidden.editor_for(address).isReadOnly(), "locked while hidden")
+        win.tabs.right.setCurrentIndex(0)
+        self.assertTrue(hidden.editor_for(address).isReadOnly(), "and still locked the moment it shows")
+
+    def test_ownership_and_locks_agree_after_every_step_between_two_modules(self):
+        _win, left, right, address = self.modules_pair()
+        for round_number in range(4):
+            with self.subTest(round=round_number):
+                self.type_into(left.editor_for(address), f" L{round_number}")
+                self.assert_single_writer([left, right], address)
+                self.type_into(right.editor_for(address), " rejected")  # must change nothing
+                self.assertNotIn("rejected", left.drafts.text(address))
+                self.wait_until(lambda: right.editor_for(address).isReadOnly(), "right never locked")
+                left.revert_draft(address)
+                self.wait_until(lambda: not right.editor_for(address).isReadOnly(),
+                                "right never unlocked")
+                self.assert_single_writer([left, right], address)
+                self.type_into(right.editor_for(address), f" R{round_number}")
+                self.assert_single_writer([left, right], address)
+                right.revert_draft(address)
+                self.wait_until(lambda: not left.editor_for(address).isReadOnly(),
+                                "left never unlocked")
+                self.assert_single_writer([left, right], address)
+
     def test_both_previews_follow_an_applied_edit(self):
-        from PySide6.QtTest import QTest
         from PySide6.QtWidgets import QLabel
         win = self.make({"split": True, "left": ["modules"], "right": ["preview"]})
         win.tabs.new_tab(win.tabs.left)
@@ -559,10 +624,11 @@ class SameToolInBothPanesTests(_WorkspaceCase):
         address = NodeAddress(report.id, inner.id, inner.blocks[0].id, "text")
         win.branch.editor_for(address).setPlainText("Seal replaced twice")
         win.branch.apply_draft(address)
-        QTest.qWait(80)
         for preview in win.tabs.copies("preview"):
-            shown = " ".join(label.text() for label in preview.findChildren(QLabel))
-            self.assertIn("Seal replaced twice", shown)
+            self.wait_until(
+                lambda p=preview: "Seal replaced twice" in " ".join(
+                    label.text() for label in p.findChildren(QLabel)),
+                "a Preview copy never followed the applied edit")
 
     def test_a_new_copy_starts_with_the_current_page_style(self):
         from dataclasses import replace
