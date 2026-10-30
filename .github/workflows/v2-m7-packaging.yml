@@ -6,11 +6,12 @@ name: V2 M7.1 isolated Windows installer preflight
 # This is not a V2 release or default promotion, and does not touch V1.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/v2-m7-3-native-acceptance]
     paths:
       # V2 also imports shared V1/core modules. Keep frozen/installed preflight
       # attached to ALL package/runtime changes, not only the V2 subpackage.
       - "packaging/windows/**"
+      - "scripts/verify_v2_frozen_archive.py"
       - "src/reportmaker/**"
       - "tests/test_v2_*.py"
       - "docs/v2/M7_ACCEPTANCE_MATRIX.json"
@@ -72,13 +73,17 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $env:QT_QPA_PLATFORM = "offscreen"
-          python -m compileall -q src/reportmaker/v2 packaging/windows/v2_launcher.py tests/test_v2_m7_packaging.py
+          python -m compileall -q src/reportmaker/v2 packaging/windows/v2_launcher.py tests/test_v2_m7_packaging.py scripts/verify_v2_frozen_archive.py tests/test_v2_retirement_boundary.py
           if ($LASTEXITCODE -ne 0) { throw "V2 compilation failed" }
           python -m reportmaker.v2 --offline-self-test
           if ($LASTEXITCODE -ne 0) { throw "V2 source offline smoke failed" }
           $env:PYTHONPATH = "src"
           python -m unittest discover -s tests -p test_v2_m7_packaging.py -v
           if ($LASTEXITCODE -ne 0) { throw "M7 package contract failed" }
+          python -m unittest discover -s tests -p test_v2_retirement_boundary.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2-only import and packaging boundary failed" }
+          python -m unittest discover -s tests -p test_v2_canvas_layout_stress.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 canvas overlap/draft-interference regressions failed" }
           python -m unittest discover -s tests -p test_v2_m73_native_draft_recovery.py -v
           if ($LASTEXITCODE -ne 0) { throw "M7.3 Windows pending-edit recovery regression failed" }
           python -m unittest discover -s tests -p test_v2_m73_photo_contrast.py -v
@@ -93,7 +98,17 @@ jobs:
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 `
             --hidden-import PySide6.QtWebEngineWidgets `
             --hidden-import PySide6.QtWebEngineCore `
-            --collect-submodules reportmaker `
+            --exclude-module reportmaker.__main__ `
+            --exclude-module reportmaker.ui `
+            --exclude-module reportmaker.visual_editor `
+            --exclude-module reportmaker.page_editor `
+            --exclude-module reportmaker.rich_editor `
+            --exclude-module reportmaker.template_dialog `
+            --exclude-module reportmaker.customer_ui `
+            --exclude-module reportmaker.customer_probe `
+            --exclude-module reportmaker.editor_probe `
+            --exclude-module reportmaker.export_probe `
+            --exclude-module reportmaker.layout_probe `
             --collect-all pillow_heif `
             packaging/windows/v2_launcher.py
           if ($LASTEXITCODE -ne 0) { throw "V2 PyInstaller failed" }
@@ -103,6 +118,8 @@ jobs:
           if (!(Test-Path "dist/ReportMakerV2/_internal")) {
             throw "Frozen dependencies missing"
           }
+          python scripts/verify_v2_frozen_archive.py "dist/ReportMakerV2/ReportMakerV2.exe"
+          if ($LASTEXITCODE -ne 0) { throw "V2 frozen module inventory gate failed" }
           $env:QT_QPA_PLATFORM = "offscreen"
           $exe = (Resolve-Path "dist/ReportMakerV2/ReportMakerV2.exe").Path
           $p = Start-Process -FilePath $exe -ArgumentList "--offline-self-test" -Wait -PassThru
