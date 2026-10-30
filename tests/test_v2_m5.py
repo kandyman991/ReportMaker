@@ -191,21 +191,18 @@ class NavigationQtTests(unittest.TestCase):
         project = fixture()
         module = project.report.modules[0]
         cursor = module
-        for i in range(32):
+        # Deep enough to overflow even after the canvas has used every fitting stage
+        # (narrower indentation, margins, card padding, glyph-only drag handle).
+        for i in range(64):
             nested = Module(LocalizedText("en", f"Deep level {i}"))
             cursor.blocks.append(NestedModuleBlock(nested))
             cursor = nested
         other = V2MainWindow(project=project)
-        other.resize(660, 460)
+        other.resize(660, 460)  # Force a real horizontal overflow at safe nesting depth.
         other.show()
         self.pump()
         try:
             canvas = other.branch
-            # Adaptive indentation now keeps this depth inside the canvas at
-            # normal zoom. Exercise restoration at 160% instead, where the
-            # content still genuinely exceeds the narrow viewport.
-            self.assertTrue(canvas.set_zoom(160))
-            self.pump()
             horizontal = canvas.horizontalScrollBar()
             self.assertGreater(horizontal.maximum(), 0)
             saved = min(48, horizontal.maximum())
