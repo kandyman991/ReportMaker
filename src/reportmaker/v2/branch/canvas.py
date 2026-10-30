@@ -2933,6 +2933,20 @@ class BranchCanvas(QScrollArea):
             editor = self._editors.get(address)
             if editor is not None:
                 editor.setReadOnly(True)
+                # Synchronize only this foreign-owned display in place. The
+                # 250ms deferred full redraw can be delayed by other Qt
+                # events; showing stale text beside the locked field is both
+                # misleading and the cause of intermittent full-suite fails.
+                # Block Qt change signals so presentation cannot create a
+                # second owner's draft or enter the source editor's handlers.
+                if self.drafts is not None:
+                    value = self.drafts.text(address)
+                    if editor.toPlainText() != value:
+                        blocked = editor.blockSignals(True)
+                        try:
+                            editor.setPlainText(value)
+                        finally:
+                            editor.blockSignals(blocked)
             if address.field == "table":
                 for cell_address, cell_editor in tuple(self._editors.items()):
                     if (cell_address.block_id == address.block_id

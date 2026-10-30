@@ -503,8 +503,11 @@ class SameToolInBothPanesTests(_WorkspaceCase):
         # active pane synchronously, even when layout redraws are delayed.
         self.assertEqual(win.branch.drafts.draft_owner(address), left.owner)
         self.assertTrue(other.isReadOnly())
+        self.assertIn("LEFT-IMMEDIATE", other.toPlainText(),
+                      "The locked copy must display the owner's draft immediately")
         before = left.drafts.text(address)
         self.type_into(other, " RIGHT-NOT-ALLOWED")
+        self.assertNotIn("RIGHT-NOT-ALLOWED", other.toPlainText())
         self.assertEqual(left.drafts.text(address), before)
 
     def test_a_field_edited_in_one_modules_locks_in_the_other(self):
