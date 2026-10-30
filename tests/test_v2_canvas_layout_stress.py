@@ -301,10 +301,26 @@ class SurfaceInterferenceTests(_QtCase):
 
 
 class AdaptiveLayoutTests(_QtCase):
+    @staticmethod
+    def _geometry(window):
+        branch = window.branch
+        margins = branch._body.contentsMargins()
+        return (
+            f"window={window.width()} minimum={window.minimumWidth()} "
+            f"rail={window.rail.width()} style={window.rail.toolButtonStyle()} "
+            f"viewport={branch.viewport().width()} host={branch._host.width()} "
+            f"card_min={branch._card_min_width} "
+            f"indent={branch._gutters[-1].step if branch._gutters else 'none'} "
+            f"depth={max((g.depth for g in branch._gutters), default=0)} "
+            f"body_margins={margins.left()},{margins.right()} "
+            f"scroll_max={branch.horizontalScrollBar().maximum()}"
+        )
+
     def test_deep_nesting_fits_a_660px_window(self):
         window = self.make_window(_project([_deep(14)]), width=660)
         self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0,
-                         "indentation should shrink instead of pushing the canvas past the window")
+                         "indentation should shrink instead of pushing the canvas "
+                         "past the window: " + self._geometry(window))
         self.assertEqual([p for p in measure(window) if p[0] in STRICT_KINDS], [])
 
     def test_indentation_only_shrinks_when_it_has_to(self):
@@ -323,7 +339,8 @@ class AdaptiveLayoutTests(_QtCase):
         window = self.make_window(_project([_deep(20)]), width=660)
         step = window.branch._gutters[-1].step
         self.assertGreaterEqual(step, 6)
-        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
+        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0,
+                         self._geometry(window))
 
     def test_a_long_title_wraps_instead_of_being_cut_off(self):
         title = "Gearbox lubrication and bearing inspection " * 12
