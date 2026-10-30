@@ -349,6 +349,12 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertTrue(all(label.wordWrap() and label.width() >=
                             label.minimumSizeHint().width()
                             for label in numbered if label.isVisible()))
+        module_labels = [label for label in numbered
+                         if label.text().startswith("MODULE ")]
+        self.assertTrue(module_labels)
+        self.assertTrue(any("\u200b" in label.text() for label in module_labels))
+        self.assertTrue(all(label.accessibleName() == label.text().replace("\u200b", "")
+                            for label in module_labels))
 
     def test_a_long_title_wraps_instead_of_being_cut_off(self):
         title = "Gearbox lubrication and bearing inspection " * 12

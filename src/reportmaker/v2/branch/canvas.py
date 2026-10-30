@@ -2819,8 +2819,14 @@ class BranchCanvas(QScrollArea):
             card_layout.setSpacing(3)
             numbered = (f"MODULE {numbers[identifier]}" if kind == "module"
                         else caption)
-            label = QLabel(numbered, card)
+            # Windows QLabel word wrapping does not split a continuous dotted
+            # outline like 1.1.1.1...; add break opportunities to this *view*
+            # string only. Never change the canonical module numbering.
+            display_numbered = (numbered.replace(".", ".\u200b")
+                                if kind == "module" else numbered)
+            label = QLabel(display_numbered, card)
             label.setObjectName("v2BranchNumbering")
+            label.setAccessibleName(numbered)
             label.setTextFormat(Qt.TextFormat.PlainText)
             # A deep outline number grows with every nested level. Windows Qt
             # measures an unwrapped QLabel as a hard minimum width, so the
