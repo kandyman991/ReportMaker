@@ -5,7 +5,8 @@ layouts own geometry, cards never overlap, nothing scrolls inside a card, and
 nested modules never clip.
 
 Test file: `tests/test_v2_canvas_layout_stress.py` (offscreen Qt, synthetic data,
-about 35 seconds).
+about 35 seconds). The hosted Windows V2 packaging preflight runs these tests
+before freezing; test and workflow changes both trigger the preflight.
 
 **This is not Windows acceptance.** It checks Qt geometry offscreen. Real DPI,
 ClearType and font fallback still need the native Windows run (AGENTS.md rule 2).
@@ -17,8 +18,11 @@ ClearType and font fallback still need the native Windows run (AGENTS.md rule 2)
 | `test_no_overlap_or_clipping_across_scenarios_widths_and_zoom` | Sibling cards overlapping, a card shorter than its content, clipped text (paragraphs and titles), tables that scroll inside the card, rows past the canvas edge. Five content scenarios (long text incl. CJK and emoji, wide tables, photos, deep nesting, everything) x 660/1100/1920 px x 55/100/160 % zoom. |
 | `test_larger_system_text_does_not_cause_overlap_or_clipping` | Same checks with the application font at 150 %, a stand-in for Windows text scaling. |
 | `test_typing_a_long_paragraph_settles_without_overlap_and_keeps_the_caret_visible` | Layout lagging behind typing; caret scrolled out of view. Checked after the layout settles, not on the single frame in which a row may be a few pixels short. |
-| `test_resizing_with_an_open_draft_never_overlaps`, `test_collapsing_and_expanding_repeatedly_keeps_the_layout_clean` | Resize with a draft open; collapse/expand cycles. |
-| `test_preview_never_shows_unapplied_text`, `test_a_field_has_exactly_one_draft_owner` | Preview showing draft text; two surfaces owning one draft. |
+| `test_resizing_with_an_open_draft_never_overlaps` | Resize while a draft is open. |
+| `test_collapsing_and_expanding_repeatedly_keeps_the_layout_clean` | Collapse/expand cycles. |
+| `test_preview_never_shows_unapplied_text` | Preview showing text that is still a draft. Inspect **rendered report QLabel content**, assert approved source text is actually present, and reject staged text; checking editable text widgets would pass vacuously. |
+| `test_a_field_has_exactly_one_draft_owner` | Two surfaces owning one draft. Explicitly attempts to steal the same field using another editor owner and asserts refusal, retained draft and unchanged canonical report. |
+| `test_the_editor_tab_cannot_change_a_draft_owned_by_modules` | The Editor tab silently overwriting a Modules draft. |
 
 ### Fixed after the 2026-10-29 review
 
