@@ -60,13 +60,25 @@ try {
     & $python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 --specpath $specDir `
         --hidden-import PySide6.QtWebEngineWidgets `
         --hidden-import PySide6.QtWebEngineCore `
-        --collect-submodules reportmaker `
+        --exclude-module reportmaker.__main__ `
+        --exclude-module reportmaker.ui `
+        --exclude-module reportmaker.visual_editor `
+        --exclude-module reportmaker.page_editor `
+        --exclude-module reportmaker.rich_editor `
+        --exclude-module reportmaker.template_dialog `
+        --exclude-module reportmaker.customer_ui `
+        --exclude-module reportmaker.customer_probe `
+        --exclude-module reportmaker.editor_probe `
+        --exclude-module reportmaker.export_probe `
+        --exclude-module reportmaker.layout_probe `
         --collect-all pillow_heif `
         packaging/windows/v2_launcher.py
     if ($LASTEXITCODE -ne 0) { throw "V2 freezing failed" }
     $frozen = Join-Path $root "dist\ReportMakerV2"
     $frozenExe = Join-Path $frozen "ReportMakerV2.exe"
     if (-not (Test-Path $frozenExe)) { throw "Frozen V2 executable missing" }
+    & $python scripts/verify_v2_frozen_archive.py $frozenExe
+    if ($LASTEXITCODE -ne 0) { throw "V2-only frozen archive check failed" }
     $smoke = Start-Process -FilePath $frozenExe -ArgumentList "--offline-self-test" -Wait -PassThru
     if ($smoke.ExitCode -ne 0) { throw "Frozen V2 offline test failed" }
     Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
