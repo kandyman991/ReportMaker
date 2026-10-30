@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-29T21:48:04.208Z",
+  "generatedAt": "2026-10-30T12:47:26.915Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,50 +11,50 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
-    "message": "Security #104 — Pillow 13 upgrade and image decoder allowlists (#109)\n\n* security: require Pillow 13 and restrict five image decoder entry points (#104)\n\n* test: correct PNG signature assertion and cover oversized ICC rejection (#104)\n\n* fix: preserve clipboard unsupported-format diagnostic with parser allowlist (#104)",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/582ba5ec03a45fe5b933e20ddd24c75d5ec99248"
+    "sha": "4a9fde4aaaa5b317c9992b75b0630a9307d9880f",
+    "message": "V2 M7.3 — Windows acceptance preparation, V2 two-pane workspace and V1-retirement Phase 1 (#97)\n\nSquash of the M7.3 development branch (46 commits since main 7d2d9f9): M7.3 native-acceptance preparation (local builder, 33-case ledger, opt-in manual-QA installer workflow), responsive toolbars (#107), shortcuts and customer manager (#110), explicit Save Apply/Discard/Cancel (#111), canvas layout stress tests (#113), the V2-only frozen archive boundary (#117), and the V2 two-pane workspace with per-tab tools, the same tool in both panes, toolbars scoped to the visible Modules, and the tokenised theme and rail (#119).\n\nMerged on the repository owner's explicit instruction. Gates still open at merge time: physical installed-Windows acceptance 0/33 signed off; 160% zoom in a half-width pane; issues #98/#99 physical retests; real dual-Chromium Assistant check.\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01GpUFmsSudMBdvff6pPzLpT",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/4a9fde4aaaa5b317c9992b75b0630a9307d9880f"
   },
   "openPullRequests": [
     {
-      "number": 111,
-      "title": "V2: Save, Save As, New, Open and Close apply pending inline edits (ADR-0009, proposed)",
+      "number": 118,
+      "title": "V2: same tool in both panes; toolbars act only on the visible Modules",
       "draft": true,
-      "head": "v2-save-applies-drafts",
-      "headSha": "6cce29a4dfc065432f3f6855c7ededb5dc6e67ba",
-      "base": "feature/v2-m73-linux-toolbar-audit",
-      "updatedAt": "2026-10-29T21:24:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/111"
+      "head": "v2-workspace-instances",
+      "headSha": "ed706f116698725562d05000003d7cef823a2e6a",
+      "base": "v2-integration-preview",
+      "updatedAt": "2026-10-30T11:35:51Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/118"
     },
     {
-      "number": 110,
-      "title": "V2: stop Ctrl+Shift+V swallowing text pastes, fix dead shortcuts, port customer manager",
-      "draft": false,
-      "head": "v2-shortcuts-customer-manager",
-      "headSha": "bc485d6536891e0093592478fc170b462a952570",
-      "base": "feature/v2-m73-linux-toolbar-audit",
-      "updatedAt": "2026-10-29T21:24:35Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/110"
-    },
-    {
-      "number": 107,
-      "title": "M7.3 Linux audit — make V2 toolbars responsive and keep all actions reachable",
-      "draft": false,
-      "head": "feature/v2-m73-linux-toolbar-audit",
-      "headSha": "e1346e41f2d62917fc901a9f0e147da1e838771d",
+      "number": 114,
+      "title": "V2 canvas: fix deep-nesting overflow, wrapped titles, drop-indicator overlap, Editor/Modules interference",
+      "draft": true,
+      "head": "v2-canvas-defect-fixes",
+      "headSha": "c63f42a1d39e3b55d8fb5b99d0201b059e95b609",
       "base": "feature/v2-m7-3-native-acceptance",
-      "updatedAt": "2026-10-29T19:40:10Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/107"
+      "updatedAt": "2026-10-30T11:35:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/114"
     },
     {
-      "number": 97,
-      "title": "V2 M7.3 — Native Windows 33-case acceptance preparation",
+      "number": 115,
+      "title": "V2: two-pane workspace with a tool picker per tab (option A)",
       "draft": true,
-      "head": "feature/v2-m7-3-native-acceptance",
-      "headSha": "805b482b65efa0f17d4d306a374a734e84357966",
-      "base": "main",
-      "updatedAt": "2026-10-29T17:39:41Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/97"
+      "head": "v2-split-workspace",
+      "headSha": "e359f620c631d69856207048bc2cabe2484733b5",
+      "base": "v2-modern-theme-rail",
+      "updatedAt": "2026-10-30T10:23:29Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/115"
+    },
+    {
+      "number": 112,
+      "title": "V2: tokenised light theme for the chrome and a left workspace rail (draft)",
+      "draft": true,
+      "head": "v2-modern-theme-rail",
+      "headSha": "10e71a24b630f3e6d6b01d851c89a19bde11a48e",
+      "base": "feature/v2-m7-3-native-acceptance",
+      "updatedAt": "2026-10-30T10:23:27Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/112"
     },
     {
       "number": 21,
@@ -68,6 +68,12 @@
     }
   ],
   "openIssues": [
+    {
+      "number": 116,
+      "title": "Plan safe V1 retirement: preserve V2 shared engines, imports, media and Windows data",
+      "updatedAt": "2026-10-30T07:02:53Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/116"
+    },
     {
       "number": 106,
       "title": "Quality follow-up: Linux CI, security scanning, repo metadata and maintainability backlog",
@@ -113,7 +119,7 @@
     {
       "number": 98,
       "title": "M7.3 Windows: pending inline drafts leave insert, photo, drag and save apparently unusable; Apply/Revert barely visible",
-      "updatedAt": "2026-10-29T17:09:10Z",
+      "updatedAt": "2026-10-30T05:24:33Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/98"
     },
     {
@@ -211,124 +217,118 @@
       "title": "Windows acceptance: editable report typography (family, size, emphasis, spacing) persisted and exported",
       "updatedAt": "2026-10-27T09:11:08Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/23"
-    },
-    {
-      "number": 2,
-      "title": "M0 acceptance: verify embedded ChatGPT browser on real Windows PC",
-      "updatedAt": "2026-10-26T14:02:18Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/2"
     }
   ],
   "recentWorkflowRuns": [
     {
-      "id": 40960780116,
-      "name": "M0 architecture and model gates",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
-      "event": "push",
-      "updatedAt": "2026-10-29T21:48:00Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40960780116"
-    },
-    {
-      "id": 40960780002,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
-      "event": "push",
-      "updatedAt": "2026-10-29T21:48:00Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40960780002"
-    },
-    {
-      "id": 40960779925,
+      "id": 41057995018,
       "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "582ba5ec03a45fe5b933e20ddd24c75d5ec99248",
+      "headSha": "4a9fde4aaaa5b317c9992b75b0630a9307d9880f",
       "event": "push",
-      "updatedAt": "2026-10-29T21:48:00Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40960779925"
+      "updatedAt": "2026-10-30T12:47:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41057995018"
     },
     {
-      "id": 40957563494,
+      "id": 41057994949,
+      "name": "M0 architecture and model gates",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "4a9fde4aaaa5b317c9992b75b0630a9307d9880f",
+      "event": "push",
+      "updatedAt": "2026-10-30T12:47:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41057994949"
+    },
+    {
+      "id": 41057994943,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "4a9fde4aaaa5b317c9992b75b0630a9307d9880f",
+      "event": "push",
+      "updatedAt": "2026-10-30T12:47:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41057994943"
+    },
+    {
+      "id": 41048064071,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "v2-save-applies-drafts",
-      "headSha": "6cce29a4dfc065432f3f6855c7ededb5dc6e67ba",
+      "branch": "v2-workspace-instances",
+      "headSha": "ed706f116698725562d05000003d7cef823a2e6a",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T21:26:14Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957563494"
+      "updatedAt": "2026-10-30T11:27:16Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41048064071"
     },
     {
-      "id": 40957559990,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "v2-shortcuts-customer-manager",
-      "headSha": "bc485d6536891e0093592478fc170b462a952570",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T21:25:49Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957559990"
-    },
-    {
-      "id": 40957509066,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "security/issue-104-pillow13-image-allowlists",
-      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T21:25:45Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957509066"
-    },
-    {
-      "id": 40957508887,
-      "name": "V2 M6.6 precise page and Word fidelity",
-      "status": "completed",
-      "conclusion": "skipped",
-      "branch": "security/issue-104-pillow13-image-allowlists",
-      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T21:24:19Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508887"
-    },
-    {
-      "id": 40957508876,
+      "id": 41048058182,
       "name": "V2 M7.1 isolated Windows installer preflight",
       "status": "completed",
       "conclusion": "success",
-      "branch": "security/issue-104-pillow13-image-allowlists",
-      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T21:30:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508876"
+      "branch": "v2-workspace-instances",
+      "headSha": "ed706f116698725562d05000003d7cef823a2e6a",
+      "event": "workflow_dispatch",
+      "updatedAt": "2026-10-30T11:33:02Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41048058182"
     },
     {
-      "id": 40957508858,
-      "name": "ReportMaker continuity contract",
+      "id": 41047074343,
+      "name": "V2 M7.1 isolated Windows installer preflight",
       "status": "completed",
       "conclusion": "success",
-      "branch": "security/issue-104-pillow13-image-allowlists",
-      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
-      "event": "pull_request",
-      "updatedAt": "2026-10-29T21:24:25Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508858"
+      "branch": "diag-windows-combined",
+      "headSha": "2d28d32571e07e4335294959809bc464f1a3c565",
+      "event": "workflow_dispatch",
+      "updatedAt": "2026-10-30T11:25:33Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41047074343"
     },
     {
-      "id": 40957508837,
-      "name": "M0 architecture and model gates",
+      "id": 41046222272,
+      "name": "V2 M7.1 isolated Windows installer preflight",
+      "status": "completed",
+      "conclusion": "failure",
+      "branch": "diag-windows-combined",
+      "headSha": "0d1e108c41441381e1a28238611231a5c720e0f5",
+      "event": "workflow_dispatch",
+      "updatedAt": "2026-10-30T11:15:06Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41046222272"
+    },
+    {
+      "id": 41045837838,
+      "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "security/issue-104-pillow13-image-allowlists",
-      "headSha": "14085dde4e8040ccf5fa0f79ac2d35edcb4cf725",
+      "branch": "v2-workspace-instances",
+      "headSha": "ee91a985d2b96e1a56d083b26781c155fde961fd",
       "event": "pull_request",
-      "updatedAt": "2026-10-29T21:26:02Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/40957508837"
+      "updatedAt": "2026-10-30T11:09:39Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41045837838"
+    },
+    {
+      "id": 41045831268,
+      "name": "V2 M7.1 isolated Windows installer preflight",
+      "status": "completed",
+      "conclusion": "failure",
+      "branch": "v2-workspace-instances",
+      "headSha": "ee91a985d2b96e1a56d083b26781c155fde961fd",
+      "event": "workflow_dispatch",
+      "updatedAt": "2026-10-30T11:10:22Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41045831268"
+    },
+    {
+      "id": 41044347721,
+      "name": "V2 M7.1 isolated Windows installer preflight",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "diag-windows-stress",
+      "headSha": "5a0c1f19f0740789f16473204af83348981001fb",
+      "event": "workflow_dispatch",
+      "updatedAt": "2026-10-30T11:02:49Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41044347721"
     }
   ]
 }
