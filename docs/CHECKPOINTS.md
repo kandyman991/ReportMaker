@@ -561,3 +561,9 @@ Next reproducible action:
 - Windows CI on the initial issue #99 head `49afdc2` caught a genuine layout issue: photo editor auto-expanded to 1114 px under Windows text metrics, exceeding its 950 px intended width. No QA installer was produced by failing run 40921065239. Follow-up fix splits the inherited photo-property row; subsequent exact-head Windows checks remain required before manual retest.
 
 - Second issue #99 Windows run 40921503256 also failed minimum dialog width 1114px after splitting photo properties. V2 only now wraps the inherited long export note, a suspected remaining intrinsic width source; exact-head Windows regression must prove <=950 before installer generation.
+
+## CP-V2-M73-RECONCILE-CANVAS — 2026-10-30
+
+- After M7.3 PR #97 merged (`4a9fde4`), reconciled the later canvas/lock work with the reviewer's already-merged corrections (PR #119) on branch `v2-reconcile-canvas-fixes`, code head `fee78bc2efbd1bb989ea7357175aa47dc39dd684`, based on main `bfd5720`. Kept main's soft-wrapped module numbers and their tests; replaced the cached card-width fit with a measured, staged fit; replaced timer-dependent cross-editor locks with synchronous ones; removed fixed sleeps from tests. Superseded PRs #112, #114, #115, #118 are closed with a pointer here.
+- Verified on Linux offscreen: full `unittest discover -s tests` 640 tests OK. Measured on main before the change: 20 levels, 160% zoom, half-width pane (960 px window) overflowed by 77 px; after: 9 px (minimum step scales with zoom, documented in `docs/v2/CANVAS_LAYOUT_STRESS.md`). Exact-head hosted Windows CI is still required.
+- Still open and unchanged by this PR: physical Windows acceptance 0/33, #98/#99 physical retests, dual-Chromium check, 160% half-pane residual of ~9 px at 20 levels. No release, installer upload or default promotion.
