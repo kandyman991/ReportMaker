@@ -142,25 +142,53 @@ class PendingDraftRecoveryQtTests(unittest.TestCase):
 
     def test_toolbar_action_and_save_warning_reveal_recovery_banner(self):
         from PySide6.QtGui import QAction
-        from PySide6.QtWidgets import QMessageBox
         win = self.window
         self._stage_title()
         initial_count = len(win.session.report_snapshot().modules)
         win.findChild(QAction, "v2AddModule").trigger()
         self.assertEqual(len(win.session.report_snapshot().modules), initial_count)
         self.assertTrue(self._panel().isVisible())
-        with mock.patch("reportmaker.v2.app.QMessageBox.warning") as warning:
-            self.assertFalse(win.save_project(
-                __import__("pathlib", fromlist=["Path"]).Path(self.temp.name) / "blocked.rmproj"))
-            warning.assert_called_once()
-            self.assertIn("Apply all edits", warning.call_args.args[2])
-        win.branch.findChild(
-            __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton,
-            "v2ApplyAllBranchDrafts").click()
-        self.app.processEvents()
+        # Save is an explicit user action: it applies the pending edit as one
+        # undoable change and saves (docs/adr/0009-save-applies-pending-edits.md).
+        from pathlib import Path
+        target = Path(self.temp.name) / "saved-with-pending-edit.rmproj"
+        with mock.patch.object(win, "_prompt_pending_edits",
+                               return_value="apply") as prompt, \
+             mock.patch("reportmaker.v2.app.QMessageBox.warning") as warning:
+            self.assertTrue(win.save_project(target))
+            prompt.assert_called_once_with(saving=True)
+            warning.assert_not_called()
         self.assertFalse(win.branch.drafts.pending)
+        self.assertFalse(self._panel().isVisible())
+        self.assertEqual(load_project(target).report.modules[0].title.original,
+                         "Mechanical Inspection")
         win.findChild(QAction, "v2AddModule").trigger()
         self.assertEqual(len(win.session.report_snapshot().modules), initial_count + 1)
+
+    def test_save_that_cannot_apply_keeps_edits_and_points_at_the_panel(self):
+        from pathlib import Path
+        from PySide6.QtWidgets import QPushButton
+        from reportmaker.v2.session import StaleIntentError
+        win = self.window
+        address = self._stage_title()
+        target = Path(self.temp.name) / "must-not-exist.rmproj"
+        failure = StaleIntentError("Source changed since editing began; draft preserved")
+        with mock.patch.object(win, "_prompt_pending_edits",
+                               return_value="apply"), \
+             mock.patch.object(win.branch.drafts, "apply_all", side_effect=failure), \
+             mock.patch("reportmaker.v2.app.QMessageBox.warning") as warning:
+            self.assertFalse(win.save_project(target))
+            warning.assert_called_once()
+            self.assertIn("Source changed", warning.call_args.args[2])
+            self.assertIn("UNAPPLIED EDITS", warning.call_args.args[2])
+        self.assertFalse(target.exists())
+        self.assertTrue(win.branch.drafts.pending)
+        self.assertEqual(win.branch.drafts.text(address), "Mechanical Inspection")
+        self.assertTrue(self._panel().isVisible())
+        # The explicit panel button still works exactly as before.
+        win.branch.findChild(QPushButton, "v2ApplyAllBranchDrafts").click()
+        self.app.processEvents()
+        self.assertFalse(win.branch.drafts.pending)
 
     def test_drag_and_photo_import_reveal_recovery_without_os_dialog(self):
         win = self.window
