@@ -5,14 +5,10 @@ Windows DPI / font-rendering acceptance. Display scaling (devicePixelRatio) made
 no difference when probed offscreen, so it is not parametrised here; text size
 is, by scaling the application font.
 
-Two kinds of test live here:
-
-* strict tests describe behaviour that holds today and must keep holding;
-* ``KnownDefect*`` tests assert the behaviour we WANT for problems found in the
-  2026-10-29 review. They are marked ``expectedFailure`` so CI stays green, and
-  they turn into an "unexpected success" (a failure) the day someone fixes the
-  problem, which is the signal to delete the marker and keep the test as a
-  strict one. See ``docs/v2/CANVAS_LAYOUT_STRESS.md``.
+Found in the 2026-10-29 review and fixed since (see
+``docs/v2/CANVAS_LAYOUT_STRESS.md``): deeply nested modules overflowing a narrow
+window, long module titles cut off, the drop indicator covering a card's own
+buttons, and the Editor tab accepting typing into a field being edited in Modules.
 """
 from __future__ import annotations
 
@@ -304,73 +300,233 @@ class SurfaceInterferenceTests(_QtCase):
         self.assertEqual(self.window.branch.drafts.draft_owner(self.address), "branch")
 
 
-class KnownDefectLayoutTests(_QtCase):
-    """Behaviour we WANT, currently failing. Remove ``expectedFailure`` when fixed."""
+class AdaptiveLayoutTests(_QtCase):
+    @staticmethod
+    def _geometry(window):
+        branch = window.branch
+        margins = branch._body.contentsMargins()
+        return (
+            f"window={window.width()} minimum={window.minimumWidth()} "
+            f"rail={window.rail.width()} style={window.rail.toolButtonStyle()} "
+            f"viewport={branch.viewport().width()} host={branch._host.width()} "
+            f"card_min={branch._card_min_width} "
+            f"indent={branch._gutters[-1].step if branch._gutters else 'none'} "
+            f"depth={max((g.depth for g in branch._gutters), default=0)} "
+            f"body_margins={margins.left()},{margins.right()} "
+            f"scroll_max={branch.horizontalScrollBar().maximum()}"
+        )
 
-    @unittest.expectedFailure
-    def test_known_defect_deep_nesting_fits_a_660px_window(self):
-        # 2026-10-29: 10 levels already overflow by 34px at 660px; 14 makes it unmistakable.
+    def test_deep_nesting_fits_a_660px_window(self):
         window = self.make_window(_project([_deep(14)]), width=660)
         self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0,
-                         "indentation should shrink instead of pushing the canvas past the window")
+                         "indentation should shrink instead of pushing the canvas "
+                         "past the window: " + self._geometry(window))
+        self.assertEqual([p for p in measure(window) if p[0] in STRICT_KINDS], [])
 
-    @unittest.expectedFailure
-    def test_known_defect_long_module_titles_are_fully_visible(self):
-        # Titles are single-line fields, so a long one is silently cut off.
+    def test_indentation_only_shrinks_when_it_has_to(self):
+        shallow = self.make_window(_project([_deep(3)]), width=1100)
+        self.assertEqual(shallow.branch._gutters[-1].step, 25)  # the normal step
+        deep = self.make_window(_project([_deep(14)]), width=660)
+        steps = {gutter.step for gutter in deep.branch._gutters}
+        self.assertEqual(len(steps), 1, "every row must use the same step so levels line up")
+        self.assertLess(steps.pop(), 25)
+        deep.resize(1500, 800)
+        self.pump()
+        self.assertEqual({g.step for g in deep.branch._gutters}, {25}, "wider window restores it")
+
+    def test_connector_lines_stay_distinct_at_the_narrowest_step(self):
+        # 20 levels at 660 px: still fits when a 90 px rail takes width from the canvas.
+        window = self.make_window(_project([_deep(20)]), width=660)
+        step = window.branch._gutters[-1].step
+        self.assertGreaterEqual(step, 6)
+        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0,
+                         self._geometry(window))
+        # Long hierarchical numbers must wrap visibly instead of forcing a
+        # Windows QLabel minimum width or disappearing entirely.
+        from PySide6.QtWidgets import QLabel
+        numbered = window.branch._host.findChildren(QLabel, "v2BranchNumbering")
+        self.assertTrue(numbered)
+        self.assertTrue(all(label.wordWrap() and label.width() >=
+                            label.minimumSizeHint().width()
+                            for label in numbered if label.isVisible()))
+        module_labels = [label for label in numbered
+                         if label.text().startswith("MODULE ")]
+        self.assertTrue(module_labels)
+        self.assertTrue(any("\u200b" in label.text() for label in module_labels))
+        self.assertTrue(all(label.accessibleName() == label.text().replace("\u200b", "")
+                            for label in module_labels))
+
+    def test_a_long_title_wraps_instead_of_being_cut_off(self):
         title = "Gearbox lubrication and bearing inspection " * 12
         window = self.make_window(_project([_module(title, [ParagraphBlock(L("x"))])]), width=1100)
-        self.assertEqual([p for p in measure(window) if p[0] == "title-truncated"], [],
-                         "a long title should wrap, not be cut off")
+        report = window.session.report_snapshot()
+        editor = window.branch.editor_for(NodeAddress(report.id, report.modules[0].id))
+        self.assertEqual(editor.text(), title)
+        line = editor.fontMetrics().lineSpacing()
+        self.assertGreater(editor.height(), 2 * line, "a 500-character title needs several lines")
+        self.assertLessEqual(editor.document().size().height(), editor.viewport().height() + 4)
+        self.assertEqual([p for p in measure(window) if p[0] in STRICT_KINDS | {"title-truncated"}], [])
 
-    @unittest.expectedFailure
-    def test_known_defect_drop_indicator_never_covers_card_controls(self):
+    def test_an_unbroken_title_also_wraps(self):
+        window = self.make_window(_project([_module("W" * 400, [ParagraphBlock(L("x"))])]), width=660)
+        self.assertEqual([p for p in measure(window) if p[0] in STRICT_KINDS], [])
+        self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
+
+    def test_a_title_stays_one_logical_line(self):
+        from PySide6.QtCore import QMimeData, Qt
+        from PySide6.QtTest import QTest
+        window = self.make_window(_project([_module("Plain", [ParagraphBlock(L("x"))])]))
+        report = window.session.report_snapshot()
+        address = NodeAddress(report.id, report.modules[0].id)
+        title = window.branch.editor_for(address)
+        emitted, returned = [], []
+        title.textEdited.connect(emitted.append)
+        title.returnPressed.connect(lambda: returned.append(True))
+        title.setText("Set by code")
+        self.assertEqual(emitted, [], "setText must not look like typing")
+        title.setFocus()
+        title.moveCursor(title.textCursor().MoveOperation.End)
+        QTest.keyClicks(title, "!")
+        self.assertEqual(emitted[-1], "Set by code!")
+        QTest.keyClick(title, Qt.Key.Key_Return)
+        self.assertEqual(returned, [True])
+        self.assertNotIn("\n", title.text())
+        data = QMimeData()
+        data.setText("first\nsecond\r\nthird")
+        title.insertFromMimeData(data)
+        self.assertNotIn("\n", title.text())
+        self.assertTrue(title.text().endswith("first second third"))
+
+    def test_the_drop_indicator_never_covers_card_controls(self):
         from PySide6.QtCore import QPoint, QRect
-        from PySide6.QtWidgets import QToolButton
+        from PySide6.QtWidgets import QAbstractButton
 
         from reportmaker.v2.branch.canvas import DropRow
-        window = self.make_window(_project(SCENARIOS["everything"]()))
-        covered = []
-        for row in window.branch._host.findChildren(DropRow):
-            if not row.isVisible():
-                continue
-            buttons = [b for b in row.findChildren(QToolButton) if b.isVisible()]
-            for position in ("before", "after", "inside"):
-                try:
-                    row.show_indicator(position, True)
-                except KeyError:
+        for width in (660, 1100):
+            window = self.make_window(_project(SCENARIOS["everything"]()), width=width)
+            covered = []
+            for row in window.branch._host.findChildren(DropRow):
+                if not row.isVisible():
                     continue
-                self.pump(1)
-                marker = QRect(row.marker.mapTo(row, QPoint(0, 0)), row.marker.size())
-                for button in buttons:
-                    if row.marker.isVisible() and marker.intersects(QRect(button.mapTo(row, QPoint(0, 0)), button.size())):
-                        covered.append(f"{row.property('nodeKind')}/{position} covers {button.objectName()}")
-                row.marker.hide()
-        self.assertEqual(sorted(set(covered)), [])
+                buttons = [b for b in row.findChildren(QAbstractButton) if b.isVisible()]
+                for position in ("before", "after", "inside"):
+                    try:
+                        row.show_indicator(position, True)
+                    except KeyError:
+                        continue
+                    self.pump(1)
+                    marker = QRect(row.marker.mapTo(row, QPoint(0, 0)), row.marker.size())
+                    for button in buttons:
+                        area = QRect(button.mapTo(row, QPoint(0, 0)), button.size())
+                        if row.marker.isVisible() and marker.intersects(area):
+                            covered.append(f"{row.property('nodeKind')}/{position} covers {button.text()!r}")
+                    row.marker.hide()
+            with self.subTest(width=width):
+                self.assertEqual(sorted(set(covered)), [])
 
-    @unittest.expectedFailure
-    def test_known_defect_editor_tab_does_not_accept_typing_into_a_field_edited_in_modules(self):
+
+class LiveInterferenceTests(_QtCase):
+    """Modules and Editor visible at the same time (the split workspace)."""
+
+    def setUp(self):
+        project = _project([_module("Inspection", [ParagraphBlock(L("Original text. " + SENTENCE)),
+                                                   _table(3)])])
+        self.window = self.make_window(project, width=1280)
+        report = self.window.session.report_snapshot()
+        module = report.modules[0]
+        self.text = NodeAddress(report.id, module.id, module.blocks[0].id, "text")
+        self.table = NodeAddress(report.id, module.id, module.blocks[1].id, "table")
+        self.window.tabs.setCurrentWidget(self.window.editor_tab)
+        self.pump()
+
+    def type_in_modules(self, text=" BRANCH-EDIT"):
         from PySide6.QtTest import QTest
-        project = _project([_module("Inspection", [ParagraphBlock(L("Original text. " + SENTENCE))])])
-        window = self.make_window(project)
-        report = window.session.report_snapshot()
-        address = NodeAddress(report.id, report.modules[0].id, report.modules[0].blocks[0].id, "text")
-        editor = window.branch.editor_for(address)
+        editor = self.window.branch.editor_for(self.text)
         editor.setFocus()
         editor.moveCursor(editor.textCursor().MoveOperation.End)
-        QTest.keyClicks(editor, " BRANCH-EDIT")
-        self.pump()
-        window.tabs.setCurrentWidget(window.editor_tab)
-        self.pump()
-        page_editor = window.editor_tab._editors[address]
-        page_editor.setFocus()
-        page_editor.moveCursor(page_editor.textCursor().MoveOperation.End)
-        QTest.keyClicks(page_editor, " PAGE-EDIT")
-        self.pump()
-        # Wanted: the page editor shows the Modules draft, is read-only, and never
-        # keeps characters the model rejected.
-        self.assertTrue(page_editor.isReadOnly(), "should be read-only while Modules owns the draft")
-        self.assertIn("BRANCH-EDIT", page_editor.toPlainText(), "should show the draft being edited in Modules")
-        self.assertNotIn("PAGE-EDIT", page_editor.toPlainText(), "must not keep text the model rejected")
+        QTest.keyClicks(editor, text)
+
+    def page_editor(self):
+        return self.window.editor_tab._editors[self.text]
+
+    def test_the_editor_tab_shows_a_modules_draft_read_only(self):
+        from PySide6.QtTest import QTest
+        self.type_in_modules()
+        # The tab was built before the draft existed and is still showing; it must catch up.
+        self.window.editor_tab.sync_foreign_drafts()
+        QTest.qWait(30)
+        edit = self.page_editor()
+        self.assertTrue(edit.isReadOnly(), "should be read-only while Modules owns the draft")
+        self.assertIn("BRANCH-EDIT", edit.toPlainText())
+        before = self.window.branch.drafts.text(self.text)
+        edit.setFocus()
+        QTest.keyClicks(edit, " PAGE-EDIT")
+        self.assertNotIn("PAGE-EDIT", edit.toPlainText())
+        self.assertEqual(self.window.branch.drafts.text(self.text), before)
+        self.assertEqual(self.window.branch.drafts.draft_owner(self.text), "branch")
+
+    def test_the_editor_tab_updates_without_a_manual_sync(self):
+        from PySide6.QtTest import QTest
+        self.type_in_modules()
+        QTest.qWait(50)  # the tab reacts on the next event-loop turn
+        self.assertTrue(self.page_editor().isReadOnly())
+        self.assertIn("BRANCH-EDIT", self.page_editor().toPlainText())
+
+    def test_the_field_becomes_editable_again_when_modules_reverts(self):
+        from PySide6.QtTest import QTest
+        self.type_in_modules()
+        QTest.qWait(50)
+        self.window.branch.revert_draft(self.text)
+        self.assertFalse(self.window.branch.drafts.is_dirty(self.text))
+        QTest.qWait(50)
+        edit = self.page_editor()
+        self.assertFalse(edit.isReadOnly())
+        self.assertNotIn("BRANCH-EDIT", edit.toPlainText())
+        self.assertEqual(edit.toolTip(), "")
+
+    def test_applying_in_modules_refreshes_the_editor_tab(self):
+        from PySide6.QtTest import QTest
+        self.type_in_modules()
+        QTest.qWait(50)
+        self.assertTrue(self.window.branch.apply_draft(self.text))
+        QTest.qWait(80)
+        edit = self.page_editor()
+        self.assertFalse(edit.isReadOnly())
+        self.assertIn("BRANCH-EDIT", edit.toPlainText())
+
+    def test_modules_marks_a_field_read_only_while_the_editor_tab_holds_a_draft(self):
+        from PySide6.QtTest import QTest
+        edit = self.page_editor()
+        edit.setFocus()
+        edit.moveCursor(edit.textCursor().MoveOperation.End)
+        QTest.keyClicks(edit, " PAGE-EDIT")
+        self.assertEqual(self.window.branch.drafts.draft_owner(self.text), "page-editor")
+        self.window.tabs.setCurrentWidget(self.window.branch)
+        QTest.qWait(400)  # Modules redraws once typing pauses
+        field = self.window.branch.editor_for(self.text)
+        self.assertTrue(field.isReadOnly())
+        self.assertIn("PAGE-EDIT", field.toPlainText())
+
+    def test_a_table_draft_in_modules_locks_the_editor_tab_grid(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QAbstractItemView
+        self.assertTrue(self.window.branch.drafts.update_cell(self.table, 0, 0, "edited"))
+        QTest.qWait(50)
+        grid = self.window.editor_tab._tables[self.table]
+        self.assertEqual(grid.editTriggers(), QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.assertEqual(grid.item(0, 0).text(), "edited")
+
+    def test_draft_change_notifications_carry_no_text(self):
+        events = []
+        unsubscribe = self.window.branch.drafts.subscribe_changes(
+            lambda address, owner, previous: events.append((address, owner, previous)))
+        self.type_in_modules("!")
+        self.window.branch.revert_draft(self.text)
+        unsubscribe()
+        self.assertEqual(events[0], (self.text, "branch", None))
+        self.assertEqual(events[-1], (self.text, None, "branch"))
+        self.assertTrue(all(isinstance(value, (type(None), str, NodeAddress))
+                            for event in events for value in event))
 
 
 if __name__ == "__main__":

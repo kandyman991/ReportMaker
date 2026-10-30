@@ -102,7 +102,7 @@ class ShortcutAndCustomerManagerQtTests(TestCase):
 
     def test_ctrl_shift_v_pastes_plain_text_in_branch_editors(self):
         from PySide6.QtCore import Qt
-        from PySide6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit
+        from PySide6.QtWidgets import QApplication, QPlainTextEdit
         report, module, address = self._paragraph_address()
 
         paragraph = self.win.branch.editor_for(address)
@@ -113,7 +113,8 @@ class ShortcutAndCustomerManagerQtTests(TestCase):
         self.assertIn("Corrected by the assistant", paragraph.toPlainText())
 
         title = self.win.branch.editor_for(NodeAddress(report.id, module.id))
-        self.assertIsInstance(title, QLineEdit)
+        # Module titles wrap, so they are a text editor with a QLineEdit-style text().
+        self.assertIsInstance(title, QPlainTextEdit)
         title.clear()
         title.setFocus()
         QApplication.clipboard().setText("Pasted title")

@@ -75,7 +75,10 @@ class ProjectLifecycleQtTests(unittest.TestCase):
 
     def _assert_no_legacy_views(self, win):
         from PySide6.QtWidgets import QSplitter, QTreeWidget
-        self.assertFalse(win.findChildren(QSplitter))
+        # The legacy three-panel splitters must not leak; the workspace's own
+        # named splitter (two panes of tabs) is the only one V2 may have.
+        self.assertEqual([s.objectName() for s in win.findChildren(QSplitter)
+                          if s.objectName() != "v2WorkspaceSplitter"], [])
         self.assertFalse(win.findChildren(QTreeWidget))
         self.assertIs(win.centralWidget(), win.tabs)
         self.assertIs(win.tabs.currentWidget(), win.branch)

@@ -60,6 +60,7 @@ try {
     & $python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 --specpath $specDir `
         --hidden-import PySide6.QtWebEngineWidgets `
         --hidden-import PySide6.QtWebEngineCore `
+        --hidden-import PySide6.QtSvg `
         --exclude-module reportmaker.__main__ `
         --exclude-module reportmaker.ui `
         --exclude-module reportmaker.visual_editor `
