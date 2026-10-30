@@ -196,11 +196,16 @@ class NavigationQtTests(unittest.TestCase):
             cursor.blocks.append(NestedModuleBlock(nested))
             cursor = nested
         other = V2MainWindow(project=project)
-        other.resize(660, 460)  # Force a real horizontal overflow at safe nesting depth.
+        other.resize(660, 460)
         other.show()
         self.pump()
         try:
             canvas = other.branch
+            # Adaptive indentation now keeps this depth inside the canvas at
+            # normal zoom. Exercise restoration at 160% instead, where the
+            # content still genuinely exceeds the narrow viewport.
+            self.assertTrue(canvas.set_zoom(160))
+            self.pump()
             horizontal = canvas.horizontalScrollBar()
             self.assertGreater(horizontal.maximum(), 0)
             saved = min(48, horizontal.maximum())
