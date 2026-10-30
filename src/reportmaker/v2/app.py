@@ -390,23 +390,25 @@ class V2MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, rail)
         self.rail = rail
 
+    def _update_rail_density(self, width: int) -> None:
+        if not hasattr(self, "rail"):
+            return
+        # Windows font metrics can make text-under-icon rail ~157px wide,
+        # leaving less than 400px per pane at a 960px split minimum. The
+        # compact rail preserves working areas at narrow single AND split
+        # widths; labels remain accessible and return on wider windows.
+        compact = (width <= 1100 if self.tabs.is_split else width <= 720)
+        style = (Qt.ToolButtonStyle.ToolButtonIconOnly if compact
+                 else Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        if self.rail.toolButtonStyle() != style:
+            self.rail.setToolButtonStyle(style)
+            # The themed 64px minimum would otherwise waste compact width.
+            self.rail.setStyleSheet(
+                "QToolBar#workspaceRail QToolButton { min-width: 34px; "
+                "padding: 5px 3px; }" if compact else "")
+
     def resizeEvent(self, event) -> None:
-        # On a 660px single-pane window, the labelled rail steals the last
-        # pixels needed to keep deeply nested cards inside the canvas. Switch
-        # to icon-only at narrow widths; every action retains its accessible
-        # label and tooltip. Full labels return on wider windows.
-        if hasattr(self, "rail"):
-            style = (Qt.ToolButtonStyle.ToolButtonIconOnly
-                     if event.size().width() <= 720 and not self.tabs.is_split
-                     else Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-            if self.rail.toolButtonStyle() != style:
-                self.rail.setToolButtonStyle(style)
-                # The theme's normal 64px button minimum otherwise keeps an
-                # icon-only rail at its old 89px width, wasting canvas space.
-                self.rail.setStyleSheet(
-                    "QToolBar#workspaceRail QToolButton { min-width: 34px; "
-                    "padding: 5px 3px; }"
-                    if style == Qt.ToolButtonStyle.ToolButtonIconOnly else "")
+        self._update_rail_density(event.size().width())
         super().resizeEvent(event)
 
     def _sync_rail(self, _index: int = -1) -> None:
@@ -421,6 +423,7 @@ class V2MainWindow(QMainWindow):
 
     def _workspace_layout_changed(self) -> None:
         self.setMinimumWidth(SPLIT_MIN_WIDTH if self.tabs.is_split else SINGLE_MIN_WIDTH)
+        self._update_rail_density(self.width())
         if hasattr(self, "split_action"):
             self._sync_rail()
         if self.workspace_saver is not None:

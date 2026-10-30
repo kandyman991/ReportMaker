@@ -460,6 +460,25 @@ class SideBySideInterferenceTests(_WorkspaceCase):
         self.assertTrue(field.isReadOnly())
         self.assertIn("RIGHT-EDIT", field.toPlainText())
 
+    def test_split_rail_compacts_at_minimum_width_and_restores_when_wide(self):
+        from PySide6.QtCore import Qt
+        win = self.make({"split": True, "left": ["modules"],
+                         "right": ["preview"]}, width=960)
+        self.pump(10)
+        self.assertEqual(win.rail.toolButtonStyle(),
+                         Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.assertLessEqual(win.rail.width(), 65)
+        self.assertGreaterEqual(win.branch.viewport().width(), 400)
+        win.resize(1366, 800)
+        self.pump(10)
+        self.assertEqual(win.rail.toolButtonStyle(),
+                         Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        win.resize(960, 800)
+        self.pump(10)
+        self.assertEqual(win.rail.toolButtonStyle(),
+                         Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.assertLessEqual(win.rail.width(), 65)
+
     def test_modules_fits_its_half_of_the_window(self):
         for width in (960, 1100, 1366):
             win = self.make({"split": True, "left": ["modules"], "right": ["preview"]}, width=width)
