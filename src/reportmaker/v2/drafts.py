@@ -61,6 +61,7 @@ class DraftCoordinator:
         self._committing = False
         self._owners: dict[NodeAddress, str] = {}
         self._state_listeners = []
+        self._change_listeners = []
         session.set_draft_guard(self._draft_guard)
 
     def _draft_guard(self) -> bool:
@@ -87,6 +88,33 @@ class DraftCoordinator:
             if listener in self._state_listeners:
                 self._state_listeners.remove(listener)
         return unsubscribe
+
+    def subscribe_changes(self, listener):
+        """Notify UI whenever one field's draft is staged, changed or resolved.
+
+        ``listener(address, owner, previous_owner)``: ``owner`` is the editor
+        that holds the draft afterwards (``None`` once it is resolved) and
+        ``previous_owner`` the one before. Like ``subscribe_pending`` it never
+        receives text; a view that needs the text asks ``text()``. This lets a
+        second visible editor mark a field read-only the moment another editor
+        starts changing it.
+        """
+        if not callable(listener):
+            raise TypeError("Draft-change listener must be callable")
+        self._change_listeners.append(listener)
+
+        def unsubscribe():
+            if listener in self._change_listeners:
+                self._change_listeners.remove(listener)
+        return unsubscribe
+
+    def _publish_change(self, address: NodeAddress, owner: str | None,
+                        previous_owner: str | None) -> None:
+        for listener in tuple(self._change_listeners):
+            try:
+                listener(address, owner, previous_owner)
+            except Exception:
+                continue
 
     def _publish_pending(self, previous: bool):
         if previous != bool(self._drafts):
@@ -126,15 +154,20 @@ class DraftCoordinator:
     def _store(self, address: NodeAddress, draft: TextDraft | TableDraft,
                owner: str) -> None:
         previous = bool(self._drafts)
+        before = self._owners.get(address)
         self._drafts[address] = draft
         self._owners[address] = owner
         self._publish_pending(previous)
+        self._publish_change(address, owner, before)
 
     def _clear(self, address: NodeAddress) -> None:
         previous = bool(self._drafts)
+        before = self._owners.get(address)
         self._drafts.pop(address, None)
         self._owners.pop(address, None)
         self._publish_pending(previous)
+        if before is not None:
+            self._publish_change(address, None, before)
 
     def for_editor(self, owner: str) -> "EditorDraftPort":
         """Give a future Editor/Gallery tab guarded access to the same drafts."""

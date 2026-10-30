@@ -84,6 +84,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "V2-only import and packaging boundary failed" }
           python -m unittest discover -s tests -p test_v2_canvas_layout_stress.py -v
           if ($LASTEXITCODE -ne 0) { throw "V2 canvas overlap/draft-interference regressions failed" }
+          python -m unittest discover -s tests -p test_v2_theme.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 rail/theme regression failed" }
+          python -m unittest discover -s tests -p test_v2_workspace.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 split/workspace draft regression failed" }
           python -m unittest discover -s tests -p test_v2_m73_native_draft_recovery.py -v
           if ($LASTEXITCODE -ne 0) { throw "M7.3 Windows pending-edit recovery regression failed" }
           python -m unittest discover -s tests -p test_v2_m73_photo_contrast.py -v
@@ -98,6 +102,7 @@ jobs:
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 `
             --hidden-import PySide6.QtWebEngineWidgets `
             --hidden-import PySide6.QtWebEngineCore `
+            --hidden-import PySide6.QtSvg `
             --exclude-module reportmaker.__main__ `
             --exclude-module reportmaker.ui `
             --exclude-module reportmaker.visual_editor `

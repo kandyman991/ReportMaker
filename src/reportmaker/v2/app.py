@@ -5,14 +5,15 @@ canonical session, command gateway and atomic .rmproj persistence adapter.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
-    QTabWidget, QToolButton,
+    QSizePolicy, QToolBar, QToolButton, QWidget,
 )
 
 from ..engine import module_outline
@@ -23,7 +24,9 @@ from .adapters.persistence import ProjectPersistence, _same_path
 from .branch.canvas import BranchCanvas
 from .commands import CommandGateway
 from .presentation import PresentationStore
+from .theme import LIGHT, stylesheet
 from .session import PendingDraftError, ReportSession
+from .workspace import SINGLE_MIN_WIDTH, SPLIT_MIN_WIDTH, TOOLS, Workspace, default_state
 
 
 def example_report() -> Report:
@@ -68,6 +71,26 @@ def blank_report(customer_name: str, *, today: date | None = None) -> Report:
     )
 
 
+# Toolbar actions that belong to the project, not to the Modules tool. Everything else
+# registered on the Module-editing and navigation toolbars acts on the visible Modules.
+_PROJECT_ACTIONS = frozenset({
+    "v2NewProject", "v2OpenProject", "v2SaveProject", "v2SaveProjectAs", "v2ReportInfo",
+    "v2CustomerManager", "v2Translations", "v2MetadataTranslations", "v2FooterTranslation",
+    "v2ImportTemplate",
+})
+
+
+class _ModulesCommands:
+    """What the Photos tool calls to insert a picture: the visible Modules, never a hidden one."""
+
+    def __init__(self, window: V2MainWindow) -> None:
+        self._window = window
+
+    def add_photo(self, **kwargs) -> bool:
+        target = self._window.modules_target()
+        return bool(target is not None and target.add_photo(**kwargs))
+
+
 class V2MainWindow(QMainWindow):
     """One canonical session shared by Branch Editor and file actions."""
 
@@ -77,7 +100,9 @@ class V2MainWindow(QMainWindow):
                  load_website: bool = True,
                  browser_profile_root: Path | None = None,
                  ephemeral_browser: bool = False,
-                 customer_database_path: Path | None = None) -> None:
+                 customer_database_path: Path | None = None,
+                 workspace_state: dict | None = None,
+                 workspace_saver: Callable[[dict], None] | None = None) -> None:
         super().__init__()
         if report is not None and project is not None:
             raise ValueError("Pass either a Report or an existing project")
@@ -100,29 +125,52 @@ class V2MainWindow(QMainWindow):
         # No V1 three-pane shell or second data tree is imported.
         from .editor_tab import DocumentEditorTab
         from .gallery_tab import GalleryTab
-        from .chat_tab import ChatTab
+        from .chat_tab import ChatTab  # noqa: F401  (used by _make_chat)
         from .preview_tab import PreviewTab
-        self.tabs = QTabWidget(self)
-        self.tabs.setObjectName("v2WorkspaceTabs")
+        # Each tab of the workspace holds its own copy of a tool. The attributes
+        # below are the window's first copy of each; the factories make more when
+        # the same tool is opened in a second tab. Every copy of Modules and of
+        # Editor stages drafts under its own owner id in the one shared coordinator.
+        from itertools import count
+        from .chat_tab import SharedBrowserProfile
+        self.tabs = Workspace(self)
+        self._copy_ids = count(2)
+        self._browser_profile = SharedBrowserProfile(
+            self, ephemeral=ephemeral_browser, root=browser_profile_root)
+        self._modules_commands = _ModulesCommands(self)
+        self._chat_options = {"load_website": load_website,
+                              "browser_profile_root": browser_profile_root,
+                              "ephemeral_browser": ephemeral_browser}
         self.editor_tab = DocumentEditorTab(self.session, self.branch, self.tabs)
-        self.gallery_tab = GalleryTab(self.session, self.gateway, self.branch, self.tabs)
-        self.chat_tab = ChatTab(
-            load_website=load_website, browser_profile_root=browser_profile_root,
-            ephemeral_browser=ephemeral_browser, parent=self.tabs)
+        self.gallery_tab = GalleryTab(self.session, self.gateway, self._modules_commands, self.tabs)
+        self.chat_tab = self._make_chat()
         self.preview_tab = PreviewTab(self.session, self.tabs)
-        self.tabs.addTab(self.branch, "Modules")
-        self.tabs.addTab(self.editor_tab, "Editor")
-        self.tabs.addTab(self.gallery_tab, "Photo Gallery")
-        self.tabs.addTab(self.chat_tab, "ChatGPT")
-        self.tabs.addTab(self.preview_tab, "Preview")
-        self.gallery_tab.on_inserted = lambda: self.tabs.setCurrentWidget(self.branch)
-        self.tabs.currentChanged.connect(self._tab_changed)
+        self.tabs.register_tools(
+            {"modules": self.branch, "editor": self.editor_tab, "photos": self.gallery_tab,
+             "assistant": self.chat_tab, "preview": self.preview_tab},
+            {"modules": self._make_modules, "editor": self._make_editor,
+             "photos": self._make_gallery, "assistant": self._make_chat,
+             "preview": self._make_preview})
+        self.gallery_tab.on_inserted = lambda: self.tabs.show_tool("modules")
+        self.workspace_saver = workspace_saver
         self.setCentralWidget(self.tabs)
+        self._refresh_queued = False
+        self.tabs.toolShown.connect(self._tool_shown)
+        self.tabs.layoutChanged.connect(self._workspace_layout_changed)
+        self.tabs.notice.connect(self.statusBar().showMessage)
+        self.tabs.apply_state(workspace_state if workspace_state is not None
+                              else default_state(split=False))
+        self._build_rail()
+        self.tabs.currentChanged.connect(self._sync_rail)
+        self.setStyleSheet(stylesheet(LIGHT))
+        self._sync_rail()
+        self._workspace_layout_changed()
         self.session.subscribe(self._workspace_changed)
         self.session.subscribe(lambda _: self._update_caption())
         # Staging a draft does not publish a canonical revision; separately
         # reflect unapplied changes in the window's unsaved marker immediately.
         self.branch.drafts.subscribe_pending(lambda _pending: self._update_caption())
+        self.branch.drafts.subscribe_pending(lambda _pending: self._queue_visible_refresh())
 
         # Keep the primary commands visible at minimum window width. The
         # previous 27-action single toolbar overflowed even at 1600 px;
@@ -145,26 +193,26 @@ class V2MainWindow(QMainWindow):
             ("v2MetadataTranslations", "Metadata languages…", self.edit_metadata_translations, ""),
             ("v2FooterTranslation", "Footer languages…", self.edit_branding_footer, ""),
             ("v2ImportTemplate", "Layout template…", self.import_layout_template, ""),
-            ("v2AddModule", "+ Module", self.branch.add_module, ""),
-            ("v2AddSubmodule", "+ Submodule", self.branch.add_nested_module, ""),
-            ("v2AddParagraph", "+ Paragraph", self.branch.add_paragraph, ""),
-            ("v2AddHeading", "+ Heading", self.branch.add_heading, ""),
-            ("v2AddTable", "+ Table", self.branch.add_table, ""),
-            ("v2AddPageBreak", "+ Page break", self.branch.add_page_break, ""),
-            ("v2AddExistingPhoto", "+ Existing photo", self.branch.add_photo, ""),
-            ("v2ImportPhoto", "+ Import photo", self.branch.import_photo_dialog, "Ctrl+Shift+I"),
+            ("v2AddModule", "+ Module", self._cmd("add_module"), ""),
+            ("v2AddSubmodule", "+ Submodule", self._cmd("add_nested_module"), ""),
+            ("v2AddParagraph", "+ Paragraph", self._cmd("add_paragraph"), ""),
+            ("v2AddHeading", "+ Heading", self._cmd("add_heading"), ""),
+            ("v2AddTable", "+ Table", self._cmd("add_table"), ""),
+            ("v2AddPageBreak", "+ Page break", self._cmd("add_page_break"), ""),
+            ("v2AddExistingPhoto", "+ Existing photo", self._cmd("add_photo"), ""),
+            ("v2ImportPhoto", "+ Import photo", self._cmd("import_photo_dialog"), "Ctrl+Shift+I"),
             # Ctrl+Shift+V is "paste as plain text" in browsers and Office and is how
             # text from an AI assistant is pasted. Never bind it to an action.
-            ("v2PastePhoto", "Paste image", self.branch.paste_photo, "Ctrl+Alt+V"),
-            ("v2MoveUp", "↑ Move", self.branch.move_selected_up, "Alt+Up"),
-            ("v2MoveDown", "↓ Move", self.branch.move_selected_down, "Alt+Down"),
-            ("v2Indent", "→ Indent", self.branch.indent_selected, "Alt+Shift+Right"),
-            ("v2Outdent", "← Outdent", self.branch.outdent_selected, "Alt+Shift+Left"),
-            ("v2Duplicate", "Duplicate", self.branch.duplicate_selected, "Alt+Shift+D"),
-            ("v2Delete", "Delete…", self.branch.delete_selected, "Ctrl+Shift+Delete"),
+            ("v2PastePhoto", "Paste image", self._cmd("paste_photo"), "Ctrl+Alt+V"),
+            ("v2MoveUp", "↑ Move", self._cmd("move_selected_up"), "Alt+Up"),
+            ("v2MoveDown", "↓ Move", self._cmd("move_selected_down"), "Alt+Down"),
+            ("v2Indent", "→ Indent", self._cmd("indent_selected"), "Alt+Shift+Right"),
+            ("v2Outdent", "← Outdent", self._cmd("outdent_selected"), "Alt+Shift+Left"),
+            ("v2Duplicate", "Duplicate", self._cmd("duplicate_selected"), "Alt+Shift+D"),
+            ("v2Delete", "Delete…", self._cmd("delete_selected"), "Ctrl+Shift+Delete"),
             ("v2Contents", "Contents", self.show_contents, "Ctrl+Shift+T"),
-            ("v2UndoChange", "Undo change", self.branch.undo, "Ctrl+Alt+Z"),
-            ("v2RedoChange", "Redo change", self.branch.redo, "Ctrl+Alt+Shift+Z"),
+            ("v2UndoChange", "Undo change", self._cmd("undo"), "Ctrl+Alt+Z"),
+            ("v2RedoChange", "Redo change", self._cmd("redo"), "Ctrl+Alt+Shift+Z"),
         ):
             action = QAction(label, self)
             action.setObjectName(name)
@@ -231,21 +279,21 @@ class V2MainWindow(QMainWindow):
         nav_actions: dict[str, QAction] = {}
         for name, label, method, shortcut in (
             ("v2Search", "Find", self.search_branches, "Ctrl+F"),
-            ("v2NextMatch", "Next match", self.branch.next_match, "F3"),
-            ("v2Focus", "Focus", self.branch.focus_module, "Ctrl+Shift+F"),
+            ("v2NextMatch", "Next match", self._cmd("next_match"), "F3"),
+            ("v2Focus", "Focus", self._cmd("focus_module"), "Ctrl+Shift+F"),
             # Ctrl+Shift+Esc is reserved by Windows for Task Manager and never reaches
             # the application, so Exit focus uses Alt+Shift+F.
-            ("v2ExitFocus", "Exit focus", self.branch.exit_focus, "Alt+Shift+F"),
-            ("v2ZoomOut", "Zoom −", lambda: self.branch.zoom_by(-10), "Ctrl+-"),
-            ("v2ZoomIn", "Zoom +", lambda: self.branch.zoom_by(10), "Ctrl++"),
-            ("v2ZoomReset", "100%", lambda: self.branch.set_zoom(100), "Ctrl+0"),
-            ("v2Fit", "Fit width", self.branch.fit_to_screen, "Ctrl+Shift+0"),
-            ("v2PrevWindow", "Previous", lambda: self.branch.change_page(-1), "Ctrl+PgUp"),
-            ("v2NextWindow", "Next", lambda: self.branch.change_page(1), "Ctrl+PgDown"),
-            ("v2SelectPrevious", "Select above", lambda: self.branch.select_adjacent_module(-1), "Ctrl+Alt+Up"),
-            ("v2SelectNext", "Select below", lambda: self.branch.select_adjacent_module(1), "Ctrl+Alt+Down"),
-            ("v2PanLeft", "Pan ←", lambda: self.branch.pan_by(-160), "Ctrl+Alt+Left"),
-            ("v2PanRight", "Pan →", lambda: self.branch.pan_by(160), "Ctrl+Alt+Right"),
+            ("v2ExitFocus", "Exit focus", self._cmd("exit_focus"), "Alt+Shift+F"),
+            ("v2ZoomOut", "Zoom −", self._cmd("zoom_by", -10), "Ctrl+-"),
+            ("v2ZoomIn", "Zoom +", self._cmd("zoom_by", 10), "Ctrl++"),
+            ("v2ZoomReset", "100%", self._cmd("set_zoom", 100), "Ctrl+0"),
+            ("v2Fit", "Fit width", self._cmd("fit_to_screen"), "Ctrl+Shift+0"),
+            ("v2PrevWindow", "Previous", self._cmd("change_page", -1), "Ctrl+PgUp"),
+            ("v2NextWindow", "Next", self._cmd("change_page", 1), "Ctrl+PgDown"),
+            ("v2SelectPrevious", "Select above", self._cmd("select_adjacent_module", -1), "Ctrl+Alt+Up"),
+            ("v2SelectNext", "Select below", self._cmd("select_adjacent_module", 1), "Ctrl+Alt+Down"),
+            ("v2PanLeft", "Pan ←", self._cmd("pan_by", -160), "Ctrl+Alt+Left"),
+            ("v2PanRight", "Pan →", self._cmd("pan_by", 160), "Ctrl+Alt+Right"),
         ):
             action = QAction(label, self)
             action.setObjectName(name)
@@ -268,6 +316,10 @@ class V2MainWindow(QMainWindow):
         self.branch.selectionChanged.connect(self._update_move_actions)
         self.branch.visibilityChanged.connect(self._persist_live_view)
         self.branch.visibilityChanged.connect(self._update_move_actions)
+        self.tabs.currentChanged.connect(self._update_move_actions)
+        self.tabs.layoutChanged.connect(self._update_move_actions)
+        self._module_action_names = tuple(
+            name for name in actions if name not in _PROJECT_ACTIONS)
         self._update_move_actions()
         self._restore_presentation()
         self._update_caption()
@@ -293,45 +345,220 @@ class V2MainWindow(QMainWindow):
             return False
         return True
 
+    def _build_rail(self) -> None:
+        """Left rail: one action per tool, plus the split toggle at the bottom.
+
+        A tool that is open in a tab is selected; one that is not opens in a new
+        tab of the active pane. Each tab's own menu picks its tool in place.
+        """
+        from .icons import icon
+
+        def rail_icon(name: str):
+            return icon(name, normal=LIGHT["text2"], checked=LIGHT["accent-soft-ink"],
+                        disabled=LIGHT["text3"])
+
+        rail = QToolBar("Workspaces", self)
+        rail.setObjectName("workspaceRail")
+        rail.setOrientation(Qt.Orientation.Vertical)
+        rail.setMovable(False)
+        rail.setFloatable(False)
+        rail.setIconSize(QSize(22, 22))
+        rail.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        group = QActionGroup(self)
+        group.setExclusionPolicy(QActionGroup.ExclusionPolicy.ExclusiveOptional)
+        self._rail_actions: dict[str, QAction] = {}
+        for spec in TOOLS:
+            action = QAction(rail_icon(spec.icon), spec.label, self)
+            action.setObjectName("rail_" + spec.id)
+            action.setCheckable(True)
+            action.setToolTip(spec.tooltip)
+            action.triggered.connect(lambda checked=False, tool=spec.id: self.tabs.show_tool(tool))
+            group.addAction(action)
+            rail.addAction(action)
+            self._rail_actions[spec.id] = action
+        spacer = QWidget(rail)
+        spacer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        rail.addWidget(spacer)
+        split = QAction(rail_icon("columns"), "Split", self)
+        split.setObjectName("rail_split")
+        split.setCheckable(True)
+        split.setShortcut("Ctrl+\\")
+        split.setToolTip("Split view — two panes side by side, each with its own tabs (Ctrl+\\)")
+        split.toggled.connect(self.tabs.set_split)
+        rail.addAction(split)
+        self.split_action = split
+        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, rail)
+        self.rail = rail
+
+    def resizeEvent(self, event) -> None:
+        # On a 660px single-pane window, the labelled rail steals the last
+        # pixels needed to keep deeply nested cards inside the canvas. Switch
+        # to icon-only at narrow widths; every action retains its accessible
+        # label and tooltip. Full labels return on wider windows.
+        if hasattr(self, "rail"):
+            style = (Qt.ToolButtonStyle.ToolButtonIconOnly
+                     if event.size().width() <= 720 and not self.tabs.is_split
+                     else Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            if self.rail.toolButtonStyle() != style:
+                self.rail.setToolButtonStyle(style)
+                # The theme's normal 64px button minimum otherwise keeps an
+                # icon-only rail at its old 89px width, wasting canvas space.
+                self.rail.setStyleSheet(
+                    "QToolBar#workspaceRail QToolButton { min-width: 34px; "
+                    "padding: 5px 3px; }"
+                    if style == Qt.ToolButtonStyle.ToolButtonIconOnly else "")
+        super().resizeEvent(event)
+
+    def _sync_rail(self, _index: int = -1) -> None:
+        current = self.tabs.current_tool()
+        for tool_id, action in self._rail_actions.items():
+            if action.isChecked() != (tool_id == current):
+                action.setChecked(tool_id == current)
+        if self.split_action.isChecked() != self.tabs.is_split:
+            self.split_action.blockSignals(True)
+            self.split_action.setChecked(self.tabs.is_split)
+            self.split_action.blockSignals(False)
+
+    def _workspace_layout_changed(self) -> None:
+        self.setMinimumWidth(SPLIT_MIN_WIDTH if self.tabs.is_split else SINGLE_MIN_WIDTH)
+        if hasattr(self, "split_action"):
+            self._sync_rail()
+        if self.workspace_saver is not None:
+            self.workspace_saver(self.tabs.state())
+
     def _workspace_changed(self, change) -> None:
         # Lazily rebuild inactive document/preview panes. Draft-owning widgets
         # are never thrown away during a native Qt text-change callback.
-        self.preview_tab.invalidate()
-        if self.tabs.currentWidget() is self.gallery_tab:
-            self.gallery_tab.refresh()
+        self._invalidate_previews()
+        self._queue_visible_refresh()
 
-    def _tab_changed(self, index: int) -> None:
-        pane = self.tabs.widget(index)
-        if pane is self.editor_tab:
-            self.editor_tab.activate()
-        elif pane is self.gallery_tab:
-            self.gallery_tab.refresh()
-        elif pane is self.chat_tab:
-            self.chat_tab.activate()
-        elif pane is self.preview_tab:
-            self.preview_tab.refresh()
+    def _queue_visible_refresh(self) -> None:
+        """Bring the tools that are on screen up to date, once, after the current event."""
+        if self._refresh_queued:
+            return
+        self._refresh_queued = True
+        QTimer.singleShot(0, self._refresh_visible_tools)
+
+    def _refresh_visible_tools(self) -> None:
+        self._refresh_queued = False
+        for tool_id, widget in self.tabs.visible_instances():
+            self._activate_tool(tool_id, widget)
+
+    def _activate_tool(self, tool_id: str, widget: QWidget) -> None:
+        if tool_id == "editor":
+            widget.activate()
+        elif tool_id == "photos":
+            widget.refresh()
+        elif tool_id == "assistant":
+            widget.activate()
+        elif tool_id == "preview":
+            widget.refresh()
+
+    def _tool_shown(self, tool_id: str, widget: QWidget) -> None:
+        self._activate_tool(tool_id, widget)
+
+    # -- more copies of a tool, made when a second tab asks for the same tool --
+    def _make_modules(self) -> BranchCanvas:
+        canvas = BranchCanvas(self, owner=f"branch-{next(self._copy_ids)}")
+        canvas.bind_session(self.session, self.gateway, drafts=self.branch.drafts)
+        canvas.feedback.connect(self.statusBar().showMessage)
+        canvas.selectionChanged.connect(self._update_move_actions)
+        canvas.visibilityChanged.connect(self._update_move_actions)
+        return canvas
+
+    def _make_editor(self):
+        from .editor_tab import DocumentEditorTab
+        editor = DocumentEditorTab(self.session, self.branch, self.tabs,
+                                   owner=f"page-editor-{next(self._copy_ids)}")
+        editor.set_style(self.editor_tab.style)
+        return editor
+
+    def _make_gallery(self):
+        from .gallery_tab import GalleryTab
+        gallery = GalleryTab(self.session, self.gateway, self._modules_commands, self.tabs)
+        gallery.on_inserted = lambda: self.tabs.show_tool("modules")
+        return gallery
+
+    def _make_chat(self):
+        from .chat_tab import ChatTab
+        return ChatTab(shared_profile=self._browser_profile, parent=self.tabs,
+                       **self._chat_options)
+
+    def _make_preview(self):
+        from .preview_tab import PreviewTab
+        preview = PreviewTab(self.session, self.tabs)
+        preview.set_style(self.preview_tab.style)
+        return preview
+
+    def _set_page_style(self, style) -> None:
+        for editor in self.tabs.copies("editor"):
+            editor.set_style(style)
+        for preview in self.tabs.copies("preview"):
+            preview.set_style(style)
+
+    def _invalidate_previews(self) -> None:
+        for preview in self.tabs.copies("preview"):
+            preview.invalidate()
+
+    def modules_target(self) -> BranchCanvas | None:
+        """The Modules copy toolbar commands act on: the one the user can see.
+
+        The active pane's if it shows Modules, otherwise the other pane's.
+        None when no Modules tab is visible, so a command never reaches a copy
+        that is hidden behind another tab.
+        """
+        return self.tabs.target_for("modules")
+
+    def _cmd(self, name: str, *args):
+        """A toolbar callback that runs ``BranchCanvas.<name>`` on the visible Modules."""
+        def run():
+            target = self.modules_target()
+            if target is None:
+                self.statusBar().showMessage("Show Modules in a tab to use this command")
+                return None
+            return getattr(target, name)(*args)
+        return run
 
     def _update_move_actions(self) -> None:
-        """Disable unavailable moves, including their keyboard shortcuts."""
-        up = self.findChild(QAction, "v2MoveUp")
-        down = self.findChild(QAction, "v2MoveDown")
-        if up is not None:
-            up.setEnabled(self.branch.can_move_selected(-1))
-        if down is not None:
-            down.setEnabled(self.branch.can_move_selected(1))
-        for name, enabled in (
-            ("v2Focus", self.branch._selected_module_id is not None),
-            ("v2ExitFocus", self.branch.focus_module_id is not None),
-            ("v2PrevWindow", self.branch._page > 0),
-            ("v2NextWindow", self.branch._page < self.branch.page_count - 1),
-            ("v2Indent", self.branch.can_indent_selected()),
-            ("v2Outdent", self.branch.can_outdent_selected()),
-            ("v2Duplicate", self.branch.can_duplicate_selected()),
-            ("v2Delete", self.branch.can_delete_selected()),
-        ):
+        """Enable each Modules command only if it can act on the Modules the user sees.
+
+        With no visible Modules the whole group is disabled (and says why), so a
+        toolbar button or shortcut can never change a tab the user is not looking at.
+        """
+        target = self.modules_target()
+        rules: dict[str, bool] = {}
+        if target is not None:
+            rules = {
+                "v2MoveUp": target.can_move_selected(-1),
+                "v2MoveDown": target.can_move_selected(1),
+                "v2Focus": target._selected_module_id is not None,
+                "v2ExitFocus": target.focus_module_id is not None,
+                "v2PrevWindow": target._page > 0,
+                "v2NextWindow": target._page < target.page_count - 1,
+                "v2Indent": target.can_indent_selected(),
+                "v2Outdent": target.can_outdent_selected(),
+                "v2Duplicate": target.can_duplicate_selected(),
+                "v2Delete": target.can_delete_selected(),
+            }
+        # The drop-down buttons that hold only Modules commands switch off with them.
+        for name in ("v2InsertMenu", "v2ArrangeMenu", "v2NavigateMenu", "v2ViewMenu"):
+            button = self.findChild(QToolButton, name)
+            if button is not None and button.isEnabled() != (target is not None):
+                button.setEnabled(target is not None)
+        for name in getattr(self, "_module_action_names", ()):
             action = self.findChild(QAction, name)
-            if action is not None:
+            if action is None:
+                continue
+            if action.property("baseTip") is None:
+                action.setProperty("baseTip", action.toolTip())
+            enabled = target is not None and rules.get(name, True)
+            if action.isEnabled() != enabled:
                 action.setEnabled(enabled)
+            tip = action.property("baseTip")
+            if target is None:
+                tip = f"{tip} — needs a visible Modules tab"
+            if action.toolTip() != tip:
+                action.setToolTip(tip)
 
     def build_contents_menu(self) -> QMenu:
         """Ephemeral derived TOC; never a separately editable hierarchy."""
@@ -345,7 +572,8 @@ class V2MainWindow(QMainWindow):
             action.setData(entry.module_id)
             action.triggered.connect(
                 lambda checked=False, mid=entry.module_id, gen=generation:
-                self.branch.reveal_node(mid) if gen == self.session.generation else None
+                (self.modules_target() or self.branch).reveal_node(mid)
+                if gen == self.session.generation else None
             )
         return menu
 
@@ -356,14 +584,18 @@ class V2MainWindow(QMainWindow):
 
     def search_branches(self) -> None:
         """User-initiated canonical search, including hidden captions and titles."""
+        target = self.modules_target()
+        if target is None:
+            self.statusBar().showMessage("Show Modules in a tab to find text in the report")
+            return
         text, accepted = QInputDialog.getText(
             self, "Find in report", "Title, text, table or photo caption:")
         if not accepted:
             return
-        hits = self.branch.search(text)
+        hits = target.search(text)
         if not hits:
             self.statusBar().showMessage("No matches in report")
-        elif self.branch._search_index < 0:
+        elif target._search_index < 0:
             self.statusBar().showMessage("Apply or Revert pending edits before revealing a match")
         else:
             self.statusBar().showMessage(f"Found {len(hits)} matching report blocks — F3 for next")
@@ -395,8 +627,7 @@ class V2MainWindow(QMainWindow):
             style = style_from_template(template)
             # Apply only after complete import/validation; never persist this
             # presentation profile into report facts or project media.
-            self.editor_tab.set_style(style)
-            self.preview_tab.set_style(style)
+            self._set_page_style(style)
             self.statusBar().showMessage(
                 "Local template selected; " +
                 ("Some Word elements were not imported: " + "; ".join(warnings[:2])
@@ -414,8 +645,7 @@ class V2MainWindow(QMainWindow):
         safe defaults rather than leaking the prior customer's branding.
         """
         from ..export import ExportStyle
-        self.editor_tab.set_style(ExportStyle())
-        self.preview_tab.set_style(ExportStyle())
+        self._set_page_style(ExportStyle())
 
     def edit_translations(self) -> bool:
         """Edit explicit localized fields without changing the source writing."""
@@ -426,7 +656,7 @@ class V2MainWindow(QMainWindow):
             self.statusBar().showMessage(str(exc))
             return False
         TranslationDialog(self.session, self.gateway, self).exec()
-        self.preview_tab.invalidate()
+        self._invalidate_previews()
         return True
 
     def edit_metadata_translations(self) -> bool:
@@ -438,7 +668,7 @@ class V2MainWindow(QMainWindow):
             self.statusBar().showMessage(str(exc))
             return False
         MetadataTranslationDialog(self.session, self.gateway, self).exec()
-        self.preview_tab.invalidate()
+        self._invalidate_previews()
         return True
 
     def edit_branding_footer(self) -> bool:
@@ -488,8 +718,7 @@ class V2MainWindow(QMainWindow):
                     kept = tuple(record for record in style.footer_locale_approvals
                                  if record.language.casefold() != chosen.casefold())
                     style = replace(style, footer_locale_approvals=kept + (approved,))
-            self.editor_tab.set_style(style)
-            self.preview_tab.set_style(style)
+            self._set_page_style(style)
             self.statusBar().showMessage("Transient footer language recorded for this layout only.")
             return True
         except (ValueError, RuntimeError) as exc:
@@ -587,9 +816,11 @@ class V2MainWindow(QMainWindow):
         problem = self.branch.apply_all_drafts()
         if problem is None:
             return True
-        if self.branch.drafts.pending_addresses(owner="branch"):
-            self.tabs.setCurrentWidget(self.branch)
-            self.branch.verticalScrollBar().setValue(0)
+        holder = next((canvas for canvas in self.tabs.copies("modules")
+                       if self.branch.drafts.pending_addresses(owner=canvas.owner)), None)
+        if holder is not None:
+            self.tabs.setCurrentWidget(holder)
+            holder.verticalScrollBar().setValue(0)
             where = ("Use the yellow UNAPPLIED EDITS panel at the top of Modules "
                      "to correct, apply or discard them.")
         else:
