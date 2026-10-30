@@ -5,7 +5,8 @@ layouts own geometry, cards never overlap, nothing scrolls inside a card, and
 nested modules never clip.
 
 Test file: `tests/test_v2_canvas_layout_stress.py` (offscreen Qt, synthetic data,
-about 25 seconds).
+about 25 seconds). The hosted Windows V2 packaging preflight runs these tests
+before freezing; test and workflow changes both trigger the preflight.
 
 **This is not Windows acceptance.** It checks Qt geometry offscreen. Real DPI,
 ClearType and font fallback still need the native Windows run (AGENTS.md rule 2).
@@ -19,8 +20,8 @@ ClearType and font fallback still need the native Windows run (AGENTS.md rule 2)
 | `test_typing_a_long_paragraph_settles_without_overlap_and_keeps_the_caret_visible` | Layout lagging behind typing; caret scrolled out of view. Checked after the layout settles, not on the single frame in which a row may be a few pixels short. |
 | `test_resizing_with_an_open_draft_never_overlaps` | Resize while a draft is open. |
 | `test_collapsing_and_expanding_repeatedly_keeps_the_layout_clean` | Collapse/expand cycles. |
-| `test_preview_never_shows_unapplied_text` | Preview showing text that is still a draft. |
-| `test_a_field_has_exactly_one_draft_owner` | Two surfaces owning one draft. |
+| `test_preview_never_shows_unapplied_text` | Preview showing text that is still a draft. Inspect **rendered report QLabel content**, assert approved source text is actually present, and reject staged text; checking editable text widgets would pass vacuously. |
+| `test_a_field_has_exactly_one_draft_owner` | Two surfaces owning one draft. Explicitly attempts to steal the same field using another editor owner and asserts refusal, retained draft and unchanged canonical report. |
 | `test_the_editor_tab_cannot_change_a_draft_owned_by_modules` | The Editor tab silently overwriting a Modules draft. |
 
 ## Known defects (expected failures)

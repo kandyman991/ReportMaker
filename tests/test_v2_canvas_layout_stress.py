@@ -262,16 +262,32 @@ class SurfaceInterferenceTests(_QtCase):
         self.pump()
 
     def test_preview_never_shows_unapplied_text(self):
-        from PySide6.QtWidgets import QPlainTextEdit
+        from PySide6.QtWidgets import QLabel
         self.stage_in_modules()
         self.window.tabs.setCurrentWidget(self.window.preview_tab)
         self.pump()
-        shown = "".join(e.toPlainText() for e in self.window.preview_tab.findChildren(QPlainTextEdit))
+        # Preview uses QLabel, not editable text controls. Assert that the
+        # actual rendered report contains the approved source first: an empty
+        # widget collection must not let this regression test pass vacuously.
+        labels = self.window.preview_tab.findChildren(QLabel)
+        shown = "\n".join(label.text() for label in labels if label.isVisible())
+        self.assertTrue(labels, "Preview rendered no report labels")
+        self.assertIn("Original text.", shown)
         self.assertNotIn("BRANCH-EDIT", shown)
 
     def test_a_field_has_exactly_one_draft_owner(self):
+        from reportmaker.v2.session import PendingDraftError
+        report_before = self.window.session.report_snapshot()
         self.stage_in_modules()
-        self.assertEqual(self.window.branch.drafts.draft_owner(self.address), "branch")
+        drafts = self.window.branch.drafts
+        self.assertEqual(drafts.draft_owner(self.address), "branch")
+        staged = drafts.text(self.address)
+        # A second editor must not steal ownership or replace the text.
+        with self.assertRaises(PendingDraftError):
+            drafts.update(self.address, "ANOTHER OWNER", owner="page-editor")
+        self.assertEqual(drafts.draft_owner(self.address), "branch")
+        self.assertEqual(drafts.text(self.address), staged)
+        self.assertEqual(self.window.session.report_snapshot(), report_before)
 
     def test_the_editor_tab_cannot_change_a_draft_owned_by_modules(self):
         from PySide6.QtTest import QTest
