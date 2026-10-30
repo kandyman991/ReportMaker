@@ -13,7 +13,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QDialog
 
-from .customer_ui import CustomerManagerDialog, HistoryDialog, ManualReferenceForm
+from .v2.customer_manager import CustomerManagerDialog, HistoryDialog, ManualReferenceForm
 from .storage import CustomerStore
 from .ui import MainWindow
 
@@ -39,13 +39,13 @@ def run() -> int:
             assert dialog._ancestors() == (customer, site, machine)
             # A failed DB edit must show an error without pretending to refresh
             # successfully or discarding the currently selected record.
-            with patch("reportmaker.customer_ui.RecordForm.exec",
+            with patch("reportmaker.v2.customer_manager.RecordForm.exec",
                        return_value=QDialog.DialogCode.Accepted), \
-                 patch("reportmaker.customer_ui.RecordForm.values",
+                 patch("reportmaker.v2.customer_manager.RecordForm.values",
                        return_value={"name": "New value"}), \
                  patch.object(db, "update",
                               side_effect=sqlite3.OperationalError("synthetic failure")), \
-                 patch("reportmaker.customer_ui.QMessageBox.warning") as warning, \
+                 patch("reportmaker.v2.customer_manager.QMessageBox.warning") as warning, \
                  patch.object(dialog, "refresh") as refresh:
                 dialog.edit_selected()
                 assert warning.called
@@ -72,7 +72,7 @@ def run() -> int:
             preserved = dialog._selected()
             with patch.object(db, "list_hierarchy",
                               side_effect=sqlite3.OperationalError("synthetic read failure")), \
-                 patch("reportmaker.customer_ui.QMessageBox.warning") as warning:
+                 patch("reportmaker.v2.customer_manager.QMessageBox.warning") as warning:
                 dialog.refresh()
                 assert warning.called
                 assert dialog.tree.topLevelItemCount() == 1
@@ -95,7 +95,7 @@ def run() -> int:
             history = HistoryDialog(db, machine, dialog)
             with patch.object(db, "list_interventions",
                               side_effect=sqlite3.DatabaseError("synthetic history failure")), \
-                 patch("reportmaker.customer_ui.QMessageBox.warning") as warning:
+                 patch("reportmaker.v2.customer_manager.QMessageBox.warning") as warning:
                 history._refresh()
                 assert warning.called
             history.close()
