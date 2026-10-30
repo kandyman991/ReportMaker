@@ -85,7 +85,7 @@ jobs:
               $l = $lines[$i]
               if ($l -match '^(FAIL|ERROR): ' -or $l -match '^\w*Error' -or $l -match 'AssertionError' -or $l -match '^SUBFAIL' -or $l -match 'Traceback') { $keep += $l.Trim() }
             }
-            foreach ($k in ($keep | Select-Object -First 25)) {
+            foreach ($k in ($keep | Select-Object -First 90)) {
               $m = $k -replace '%','%25' -replace "`r",'' -replace "`n",' '
               if ($m.Length -gt 400) { $m = $m.Substring(0,400) }
               Write-Host "::error title=$file::$m"
