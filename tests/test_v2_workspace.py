@@ -28,6 +28,16 @@ class _WorkspaceCase(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or QApplication([])
 
+    def wait_until(self, condition, message="condition never became true", timeout_ms=8000):
+        """Run the real event loop until ``condition()`` holds. Event-based, not a fixed sleep."""
+        from PySide6.QtTest import QTest
+        waited = 0
+        while not condition():
+            if waited >= timeout_ms:
+                self.fail(message)
+            QTest.qWait(10)
+            waited += 10
+
     def pump(self, rounds=6):
         for _ in range(rounds):
             self.app.processEvents()
@@ -380,7 +390,7 @@ class SharedStateTests(_WorkspaceCase):
                          "Example inspection note. Edit me directly in the branch.")
 
     def test_preview_beside_modules_follows_an_applied_edit_without_switching_tabs(self):
-        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QLabel
         win = self.make(default_state(split=True))
         report = win.session.report_snapshot()
         inner = report.modules[0].blocks[0].module
@@ -388,10 +398,10 @@ class SharedStateTests(_WorkspaceCase):
         editor = win.branch.editor_for(address)
         editor.setPlainText("Pump bearing replaced")
         self.assertTrue(win.branch.apply_draft(address))
-        QTest.qWait(60)
-        from PySide6.QtWidgets import QLabel
-        shown = " ".join(label.text() for label in win.preview_tab.findChildren(QLabel))
-        self.assertIn("Pump bearing replaced", shown)
+        self.wait_until(
+            lambda: "Pump bearing replaced" in " ".join(
+                label.text() for label in win.preview_tab.findChildren(QLabel)),
+            "the visible Preview never followed the applied edit")
         self.assertIs(win.tabs.left.currentWidget(), win.branch, "no tab switch was needed")
 
     def test_a_tool_is_activated_when_it_becomes_visible_not_before(self):
@@ -428,7 +438,11 @@ class SharedStateTests(_WorkspaceCase):
 @unittest.skipUnless(hasattr(DraftCoordinator, "subscribe_changes"),
                      "needs the Editor/Modules draft sync from PR #114")
 class SideBySideInterferenceTests(_WorkspaceCase):
-    """Modules and Editor visible at once: neither may let you type over the other's draft."""
+    """Modules and Editor visible at once: neither may let you type over the other's draft.
+
+    The lock is asserted right after the keystroke, with no waiting: it is made inside
+    the draft notification, not by a timer. Only the redraw that adds notices is awaited.
+    """
 
     def setUp(self):
         self.win = self.make({"split": True, "left": ["modules"], "right": ["editor"]})
@@ -443,22 +457,21 @@ class SideBySideInterferenceTests(_WorkspaceCase):
         QTest.keyClicks(editor, text)
 
     def test_editor_beside_modules_locks_the_field_being_edited_in_modules(self):
-        from PySide6.QtTest import QTest
         self.assertTrue(self.win.branch.isVisible() and self.win.editor_tab.isVisible())
         self.type_into(self.win.branch.editor_for(self.address), " LEFT-EDIT")
-        QTest.qWait(60)
         page = self.win.editor_tab._editors[self.address]
         self.assertTrue(page.isReadOnly())
         self.assertIn("LEFT-EDIT", page.toPlainText())
 
     def test_modules_beside_editor_locks_the_field_being_edited_in_the_editor(self):
-        from PySide6.QtTest import QTest
         self.type_into(self.win.editor_tab._editors[self.address], " RIGHT-EDIT")
         self.assertEqual(self.win.branch.drafts.draft_owner(self.address), "page-editor")
-        QTest.qWait(450)  # Modules redraws once typing pauses
         field = self.win.branch.editor_for(self.address)
         self.assertTrue(field.isReadOnly())
         self.assertIn("RIGHT-EDIT", field.toPlainText())
+        self.wait_until(
+            lambda: self.win.branch.editor_for(self.address).property("foreignLocked") is True,
+            "the locked field must stay marked as locked across the redraw")
 
     def test_modules_fits_its_half_of_the_window(self):
         for width in (960, 1100, 1366):
