@@ -464,3 +464,10 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - Physical Windows screenshot of V2 Picture Editor shows pale-on-pale annotation tools and low-contrast photo-card controls; tracked as issue #99. Do not include user's supplied mechanical photo in public GitHub issue.
 - Fix on draft PR #97 is V2-scoped explicit Qt button/input colors under dark/light palettes and separate photo tool/action rows. Synthetic palette/contrast test is added to hosted Windows M7.1 packaging preflight; physical Windows retest and 33-case signoff remain open.
 - Issue #98 pending-edit recovery was previously corrected on PR #97 at `f7081a2d37da3de7b56fe977162dbf20ec7c7f11`, QA installer run 40916784586. After the photo styling change, **use only the newer exact-head QA build** for future evidence; any previous QA installer is superseded. Do not merge M7.3, publish V2 or remove V1 fallback.
+
+## 2026-10-30 — PR #121 HTML correction gate
+
+- Original head `6b4698c94492e85359e84c932390a0d0c895b7ea` and main/base `bfd5720e914b6b75f57b4a4260991bbe896abe13` verified live; actual independent review 5714520434 read. Corrections stay on `v2-html-studio`, preserving Gemini's commit/design.
+- Atomic heading/rich edits, translation-preserving tables, acknowledged HTML drafts, restricted offline origin, incremental card/media handling and actual HTML packaging checks implemented. Independent review found six additional issues; corrections and renderer reproductions are documented in `docs/v2/PR121_HTML_VALIDATION.md`.
+- HTML is opt-in (`--html`); native V2 is default/`--native`; V1 unchanged. Pure regressions and initial actual Chromium suite pass. Final-head CI, full-platform results and installed acceptance are separate pending gates; do not merge or promote based on historical green checks.
+- Next: exact-head Linux/Windows CI, freeze/inventory/installation/offline/payload/uninstall checks, final independent review, then physical acceptance evidence. Preserve all completed work on PR #121 and leave it open if a mandatory gate cannot pass.

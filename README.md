@@ -37,3 +37,7 @@ A security scanner or third-party test count does not certify the installed appl
 ## Project privacy and governance
 
 This repository is **PUBLIC**. Never commit real customer data, production photos/reports, proprietary CAD, credentials, screenshots of authenticated sessions, cookies or browser profiles. Use synthetic fixtures. Follow `AGENTS.md`, architecture contracts and review gates; changes must be reviewed and pass exact-head checks. There is no owner-approved `LICENSE` file in the 2026-10-29 baseline; do not assume public code is open-source licensed.
+
+### HTML studio candidate (PR #121)
+
+Launch with `python -m reportmaker.v2 --html`. The existing native V2 workspace remains the default and is explicitly selectable with `--native`; V1 still uses `python -m reportmaker`. HTML promotion requires installed Windows acceptance. See [validation and rollback](docs/v2/PR121_HTML_VALIDATION.md).

@@ -16,3 +16,6 @@ desktop = ["PySide6==6.12.0", "pillow-heif>=1.8.1,<2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"reportmaker.v2" = ["web_assets/*.html", "web_assets/*.css", "web_assets/*.js"]

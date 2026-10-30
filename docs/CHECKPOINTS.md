@@ -561,3 +561,10 @@ Next reproducible action:
 - Windows CI on the initial issue #99 head `49afdc2` caught a genuine layout issue: photo editor auto-expanded to 1114 px under Windows text metrics, exceeding its 950 px intended width. No QA installer was produced by failing run 40921065239. Follow-up fix splits the inherited photo-property row; subsequent exact-head Windows checks remain required before manual retest.
 
 - Second issue #99 Windows run 40921503256 also failed minimum dialog width 1114px after splitting photo properties. V2 only now wraps the inherited long export note, a suspected remaining intrinsic width source; exact-head Windows regression must prove <=950 before installer generation.
+
+## 2026-10-30 — PR #121 HTML correction gate
+
+- Original head `6b4698c94492e85359e84c932390a0d0c895b7ea` and main/base `bfd5720e914b6b75f57b4a4260991bbe896abe13` verified live; actual independent review 5714520434 read. Corrections stay on `v2-html-studio`, preserving Gemini's commit/design.
+- Atomic heading/rich edits, translation-preserving tables, acknowledged HTML drafts, restricted offline origin, incremental card/media handling and actual HTML packaging checks implemented. Independent review found six additional issues; corrections and renderer reproductions are documented in `docs/v2/PR121_HTML_VALIDATION.md`.
+- HTML is opt-in (`--html`); native V2 is default/`--native`; V1 unchanged. Pure regressions and initial actual Chromium suite pass. Final-head CI, full-platform results and installed acceptance are separate pending gates; do not merge or promote based on historical green checks.
+- Next: exact-head Linux/Windows CI, freeze/inventory/installation/offline/payload/uninstall checks, final independent review, then physical acceptance evidence. Preserve all completed work on PR #121 and leave it open if a mandatory gate cannot pass.

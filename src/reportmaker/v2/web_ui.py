@@ -7,8 +7,6 @@ database, translations, and vector photo annotations work natively in the HTML U
 from __future__ import annotations
 
 import base64
-from dataclasses import replace
-from datetime import date
 import json
 
 from PySide6.QtCore import QBuffer, QFile, QIODevice, QMimeData, QObject, QSize, Qt, QUrl, Slot
@@ -16,7 +14,7 @@ from PySide6.QtGui import QCloseEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
-    QFileDialog, QMainWindow, QSplitter, QVBoxLayout, QWidget,
+    QFileDialog, QMainWindow, QMessageBox, QSplitter, QVBoxLayout, QWidget,
 )
 
 from ..engine import module_outline
@@ -25,16 +23,16 @@ from ..model import (
     HeadingBlock, LocalizedText, NestedModuleBlock, PageBreakBlock,
     ParagraphBlock, PhotoBlock, PhotoVisual, TableBlock,
 )
-from ..photo_editor import render_photo
 from ..photo_gallery import local_picture_paths
-from ..reference import manual_snapshot
-from ..rich_text import RichFormatting
+from ..rich_text import format_to_dict
 from .app import V2MainWindow
 from .branch.photo_tools import V2PictureEditorDialog
 from .commands import CommandIntent
 from .projections import NodeAddress, find_node
 from .theme import DARK
 from .web_shell import HTML_SHELL
+from .web_edits import EDIT_METHODS, field_intent, rich_format_intent, table_shape_intent
+from .web_origin import ENTRY, install_studio
 
 
 def _load_qwebchannel_js() -> str:
@@ -42,31 +40,10 @@ def _load_qwebchannel_js() -> str:
     if qfile.open(QIODevice.OpenModeFlag.ReadOnly):
         try:
             raw = bytes(qfile.readAll()).decode("utf-8", errors="replace")
-            return f"<script>{raw}</script>"
+            return raw
         finally:
             qfile.close()
-    return ""
-
-
-def _render_photo_data_url(image_bytes: bytes, visual: PhotoVisual | None = None,
-                           max_edge: int = 720) -> str:
-    try:
-        vis = visual if visual is not None else PhotoVisual()
-        img = render_photo(image_bytes, vis, max_edge=max_edge)
-        if img.isNull():
-            return ""
-        buf = QBuffer()
-        if not buf.open(QIODevice.OpenModeFlag.WriteOnly):
-            return ""
-        try:
-            if not img.save(buf, "PNG"):
-                return ""
-            b64 = base64.b64encode(bytes(buf.data())).decode("ascii")
-            return f"data:image/png;base64,{b64}"
-        finally:
-            buf.close()
-    except Exception:
-        return ""
+    raise RuntimeError("QtWebChannel runtime is missing")
 
 
 class BackendBridge(QObject):
@@ -76,6 +53,9 @@ class BackendBridge(QObject):
         super().__init__(host_window)
         self.host = host_window
         self.core = core_window
+        self._projection_token = None
+        self._projection = None
+        self._sent_state = None
 
     @property
     def session(self):
@@ -89,6 +69,67 @@ class BackendBridge(QObject):
     def report_id(self) -> str:
         return self.session.report_snapshot().id
 
+    def _edit(self, method, args):
+        try:
+            self.gateway.execute(field_intent(self.session, method, args,
+                                             self.session.revision, self.session.generation))
+            return self._response()
+        except Exception as exc:
+            return self._response(error=str(exc))
+
+    @Slot(str, result=str)
+    def dispatch(self, request: str) -> str:
+        """The only privileged entry point: trusted page + versioned, bounded envelope."""
+        try:
+            if self.host.webview.url().toString() != ENTRY:
+                raise ValueError("Unauthorized studio origin")
+            if not isinstance(request, str) or len(request) > 2_000_000:
+                raise ValueError("Request exceeds the studio limit")
+            data = json.loads(request)
+            if not isinstance(data, dict) or set(data) != {"method", "args", "revision", "generation"}:
+                raise ValueError("Invalid request envelope")
+            method, args = data["method"], data["args"]
+            if not isinstance(method, str) or not isinstance(args, list):
+                raise ValueError("Invalid method arguments")
+            if method == "get_state" and not args:
+                return self.get_state()
+            if (type(data["revision"]) is not int or data["revision"] != self.session.revision
+                    or data["generation"] != self.session.generation):
+                raise ValueError("The report changed since editing began; draft preserved. Reopen the current view after resolving edits.")
+            if method == "apply_drafts":
+                drafts, = args
+                if not isinstance(drafts, list) or not 1 <= len(drafts) <= 256:
+                    raise ValueError("Apply requires 1–256 field drafts")
+                intents = []
+                for draft in drafts:
+                    if not isinstance(draft, dict) or set(draft) != {"method", "args"}:
+                        raise ValueError("Invalid draft")
+                    intents.append(field_intent(self.session, draft["method"], draft["args"],
+                                                data["revision"], data["generation"]))
+                self.gateway.execute(CommandIntent("set_fields_batch", None, {"edits": intents},
+                                                   data["revision"], data["generation"]))
+                return self._response()
+            if method == "close_window" and not args:
+                self.host.finish_close()
+                return json.dumps({"closed": self.host._close_approved})
+            allowed = EDIT_METHODS | {
+                "add_module", "add_submodule", "add_block", "edit_photo_annotations",
+                "import_photo_to_module", "import_photos_to_gallery", "paste_photo_to_gallery",
+                "insert_gallery_photo", "mutate_table_shape", "move_node", "duplicate_node",
+                "delete_node", "undo", "redo", "new_project", "open_project", "save_project",
+                "save_project_as", "export_document", "export_bundle", "generate_pdf_proof",
+                "open_report_info_dialog", "open_customer_manager", "open_translations_dialog",
+                "import_word_template", "toggle_ai_drawer", "format_rich_block"}
+            if method not in allowed:
+                raise ValueError("Unsupported studio action")
+            if method == "export_document" and args not in (["docx"], ["pdf"]):
+                raise ValueError("Unsupported export format")
+            if method == "move_node" and (len(args) != 3 or args[-1] not in ("up", "down")):
+                raise ValueError("Unsupported move direction")
+            return getattr(self, method)(*args)
+        except Exception as exc:
+            return json.dumps({"error": str(exc)})
+
     def _serialize_module(self, mod, number_map: dict[str, str]) -> dict:
         blocks_out = []
         for blk in mod.blocks:
@@ -97,6 +138,7 @@ class BackendBridge(QObject):
                     "id": blk.id,
                     "kind": "paragraph",
                     "text": blk.text.original,
+                    "rich": format_to_dict(blk.rich, blk.text.original),
                 })
             elif isinstance(blk, HeadingBlock):
                 blocks_out.append({
@@ -104,18 +146,19 @@ class BackendBridge(QObject):
                     "kind": "heading",
                     "text": blk.text.original,
                     "level": blk.level,
+                    "rich": format_to_dict(blk.rich, blk.text.original),
                 })
             elif isinstance(blk, PhotoBlock):
-                raw_bytes = self.session.assets.get(blk.asset_id, b"")
+                raw_bytes = self._assets.get(blk.asset_id, b"")
                 blocks_out.append({
                     "id": blk.id,
                     "kind": "photo",
                     "asset_id": blk.asset_id,
-                    "asset_name": self.session.media_library.get(blk.asset_id, blk.asset_id),
+                    "asset_name": self._library.get(blk.asset_id, blk.asset_id),
                     "caption": blk.caption.original if blk.caption else "",
                     "width_pct": blk.visual.width_pct,
                     "marks_count": len(blk.visual.marks),
-                    "data_url": _render_photo_data_url(raw_bytes, blk.visual) if raw_bytes else "",
+                    "data_url": self.host.resources.image_url(raw_bytes, blk.visual, 720) if raw_bytes else "",
                 })
             elif isinstance(blk, TableBlock):
                 blocks_out.append({
@@ -158,61 +201,78 @@ class BackendBridge(QObject):
         return m_cnt, b_cnt, p_cnt
 
     def _response(self, *, toast: str | None = None, error: str | None = None) -> str:
-        report = self.session.report_snapshot()
-        outline = module_outline(report)
-        number_map = {item.module_id: item.number for item in outline}
+        if error:
+            return json.dumps({"error": error})
+        token = (self.session.generation, self.session.revision)
+        if token != self._projection_token:
+            if self._projection_token is None or token[0] != self._projection_token[0]:
+                self.host.resources.clear_media()
+            report = self.session.report_snapshot()
+            self._assets, self._library = self.session.assets, self.session.media_library
+            self.host.resources.begin_projection()
+            outline = module_outline(report)
+            number_map = {item.module_id: item.number for item in outline}
 
-        modules_serialized = [
-            self._serialize_module(m, number_map) for m in report.modules
-        ]
-        conclusion_serialized = self._serialize_module(report.conclusion, number_map)
+            modules_serialized = [
+                self._serialize_module(m, number_map) for m in report.modules
+            ]
+            conclusion_serialized = self._serialize_module(report.conclusion, number_map)
 
-        m_cnt, b_cnt, p_cnt = self._count_tree(modules_serialized + [conclusion_serialized])
+            m_cnt, b_cnt, p_cnt = self._count_tree(modules_serialized + [conclusion_serialized])
 
-        snap = report.customer_snapshot
-        gallery_list = []
-        for asset_id, raw_bytes in self.session.assets.items():
-            gallery_list.append({
-                "asset_id": asset_id,
-                "name": self.session.media_library.get(asset_id, asset_id),
-                "data_url": _render_photo_data_url(raw_bytes, None, max_edge=360),
-            })
+            snap = report.customer_snapshot
+            gallery_list = []
+            for asset_id, raw_bytes in self._assets.items():
+                gallery_list.append({
+                    "asset_id": asset_id,
+                    "name": self._library.get(asset_id, asset_id),
+                    "data_url": self.host.resources.image_url(raw_bytes, PhotoVisual(), 360),
+                })
 
-        project_name = (
-            self.core.session.path.name
-            if self.core.session.path is not None
-            else "Untitled project (.rmproj)"
-        )
 
-        state = {
-            "project_name": project_name,
-            "dirty": self.session.dirty,
-            "revision": self.session.revision,
-            "generation": self.session.generation,
-            "can_undo": bool(self.session._media_undo),
-            "can_redo": bool(self.session._media_redo),
-            "report": {
-                "title": report.title.original if report.title else "Report of intervention",
-                "customer_name": snap.customer_name if snap else (report.customer_id or "Customer"),
-                "site_name": snap.site_name if snap else "",
-                "machine_name": snap.machine_name if snap else "",
-                "ticket": report.ticket,
-                "technicians": ", ".join(report.technicians),
-                "start_date": report.start_date.isoformat(),
-                "end_date": report.end_date.isoformat(),
-                "primary_language": report.primary_language,
-                "output_languages": list(report.output_languages),
-            },
-            "modules": modules_serialized,
-            "conclusion": conclusion_serialized,
-            "gallery": gallery_list,
-            "stats": {
-                "modules": m_cnt,
-                "blocks": b_cnt,
-                "photos": max(p_cnt, len(gallery_list)),
-            },
-        }
+            state = {
+                "project_name": "",
+                "dirty": self.session.dirty,
+                "revision": self.session.revision,
+                "generation": self.session.generation,
+                "can_undo": bool(self.session._media_undo),
+                "can_redo": bool(self.session._media_redo),
+                "report": {
+                    "title": report.title.original if report.title else "Report of intervention",
+                    "customer_name": snap.customer_name if snap else (report.customer_id or "Customer"),
+                    "site_name": snap.site_name if snap else "",
+                    "machine_name": snap.machine_name if snap else "",
+                    "ticket": report.ticket,
+                    "technicians": ", ".join(report.technicians),
+                    "start_date": report.start_date.isoformat(),
+                    "end_date": report.end_date.isoformat(),
+                    "primary_language": report.primary_language,
+                    "output_languages": list(report.output_languages),
+                },
+                "modules": modules_serialized,
+                "conclusion": conclusion_serialized,
+                "gallery": gallery_list,
+                "stats": {
+                    "modules": m_cnt,
+                    "blocks": b_cnt,
+                    "photos": max(p_cnt, len(gallery_list)),
+                },
+            }
+            self._projection = state
+            self._projection_token = token
+            self.host.resources.end_projection()
+        state = dict(self._projection)
+        state["project_name"] = self.session.path.name if self.session.path else "Untitled project (.rmproj)"
+        state["dirty"] = self.session.dirty
         payload: dict = {"state": state}
+        previous = self._sent_state
+        if previous and previous["generation"] == state["generation"]:
+            old = {m["id"]: m for m in previous["modules"]}
+            delta = {k: v for k, v in state.items() if k != "modules" and previous.get(k) != v}
+            delta["modules_changed"] = [m for m in state["modules"] if old.get(m["id"]) != m]
+            delta["module_order"] = [m["id"] for m in state["modules"]]
+            payload = {"patch": delta}
+        self._sent_state = state
         if toast:
             payload["toast"] = toast
         if error:
@@ -234,23 +294,20 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(result=str)
     def get_state(self) -> str:
+        self._sent_state = None
         return self._response()
 
-    @Slot(str, result=str)
     def add_module(self, title: str) -> str:
         return self._exec("add_module", None, {"title": title or "Intervention module"},
                           toast="Added module")
 
-    @Slot(str, str, result=str)
     def add_submodule(self, parent_module_id: str, title: str) -> str:
         target = NodeAddress(self.report_id, parent_module_id, None, "title")
         return self._exec("add_nested_module", target,
                           {"title": title or "Submodule"},
                           toast="Added submodule")
 
-    @Slot(str, str, result=str)
     def add_block(self, module_id: str, kind: str) -> str:
         target = NodeAddress(self.report_id, module_id, None, "title")
         if kind == "paragraph":
@@ -264,40 +321,28 @@ class BackendBridge(QObject):
             return self._exec("add_page_break", target, {}, toast="Added page break")
         return self._response(error=f"Unsupported block kind: {kind}")
 
-    @Slot(str, str, result=str)
     def rename_module(self, module_id: str, title: str) -> str:
-        if not title or not title.strip():
-            return self._response(error="Module title cannot be blank")
-        target = NodeAddress(self.report_id, module_id, None, "title")
-        return self._exec("rename_module", target, {"title": title.strip()})
+        return self._edit("rename_module", [module_id, title])
 
-    @Slot(str, str, str, result=str)
     def update_paragraph(self, module_id: str, block_id: str, text: str) -> str:
-        target = NodeAddress(self.report_id, module_id, block_id, "text")
-        return self._exec("set_paragraph_rich", target,
-                          {"text": text, "rich": RichFormatting()})
+        return self._edit("update_paragraph", [module_id, block_id, text])
 
-    @Slot(str, str, str, int, result=str)
     def update_heading(self, module_id: str, block_id: str, text: str, level: int) -> str:
-        target = NodeAddress(self.report_id, module_id, block_id, "text")
-        res = self._exec("set_heading_rich", target,
-                         {"text": text, "rich": RichFormatting()})
+        return self._edit("update_heading", [module_id, block_id, text, level])
+
+    def format_rich_block(self, module_id: str, block_id: str, op_json: str) -> str:
         try:
-            lvl = max(1, min(6, int(level)))
-            blk = find_node(self.session._editor.report, target)
-            if isinstance(blk, HeadingBlock) and blk.level != lvl:
-                blk.level = lvl
-                return self._response()
-        except Exception:
-            pass
-        return res
+            self.gateway.execute(rich_format_intent(
+                self.session, module_id, block_id, op_json,
+                self.session.revision, self.session.generation,
+            ))
+            return self._response()
+        except Exception as exc:
+            return self._response(error=str(exc))
 
-    @Slot(str, str, str, result=str)
     def update_photo_caption(self, module_id: str, block_id: str, caption: str) -> str:
-        target = NodeAddress(self.report_id, module_id, block_id, "photo")
-        return self._exec("set_photo_caption", target, {"text": caption})
+        return self._edit("update_photo_caption", [module_id, block_id, caption])
 
-    @Slot(str, str, result=str)
     def edit_photo_annotations(self, module_id: str, block_id: str) -> str:
         try:
             report = self.session.report_snapshot()
@@ -324,7 +369,6 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(str, result=str)
     def import_photo_to_module(self, module_id: str) -> str:
         try:
             rev, gen = self.session.revision, self.session.generation
@@ -354,7 +398,6 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(result=str)
     def import_photos_to_gallery(self) -> str:
         try:
             ok = self.core.gallery_tab.import_dialog()
@@ -364,7 +407,6 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(result=str)
     def paste_photo_to_gallery(self) -> str:
         try:
             ok = self.core.gallery_tab.paste_image()
@@ -374,54 +416,21 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(str, str, result=str)
     def insert_gallery_photo(self, module_id: str, asset_id: str) -> str:
         target = NodeAddress(self.report_id, module_id, None, "title")
         return self._exec("add_photo", target, {"asset_id": asset_id},
                           toast="Inserted photo into module")
 
-    @Slot(str, str, str, result=str)
     def update_table(self, module_id: str, block_id: str, rows_json: str) -> str:
-        try:
-            raw_rows = json.loads(rows_json)
-            lang = self.session.report_snapshot().primary_language
-            loc_rows = [
-                [LocalizedText(lang, str(cell)) for cell in row]
-                for row in raw_rows
-            ]
-            target = NodeAddress(self.report_id, module_id, block_id, "table")
-            return self._exec("set_table_rows", target, {"rows": loc_rows})
-        except Exception as exc:
-            return self._response(error=str(exc))
+        return self._edit("update_table", [module_id, block_id, rows_json])
 
-    @Slot(str, str, str, result=str)
     def mutate_table_shape(self, module_id: str, block_id: str, op: str) -> str:
         try:
-            report = self.session.report_snapshot()
-            target = NodeAddress(report.id, module_id, block_id, "table")
-            block = find_node(report, target)
-            if not isinstance(block, TableBlock):
-                return self._response(error="Target block is not a table")
-            lang = report.primary_language
-            rows = [[LocalizedText(lang, cell.original) for cell in row] for row in block.rows]
-            cols = len(rows[0]) if rows else 1
-            if op == "add_row":
-                rows.append([LocalizedText(lang, "") for _ in range(cols)])
-            elif op == "add_col":
-                rows = [r + [LocalizedText(lang, "")] for r in rows]
-            elif op == "del_row":
-                if len(rows) <= 1:
-                    return self._response(error="A table must keep at least 1 row")
-                rows.pop()
-            elif op == "del_col":
-                if cols <= 1:
-                    return self._response(error="A table must keep at least 1 column")
-                rows = [r[:-1] for r in rows]
-            return self._exec("set_table_rows", target, {"rows": rows})
+            self.gateway.execute(table_shape_intent(self.session, module_id, block_id, op))
+            return self._response()
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(str, str, str, result=str)
     def move_node(self, module_id: str, block_id: str, direction: str) -> str:
         try:
             report = self.session.report_snapshot()
@@ -466,7 +475,6 @@ class BackendBridge(QObject):
                 return NodeAddress(report.id, b.module.id, None, "title")
         return NodeAddress(report.id, module_id, block_id, "text")
 
-    @Slot(str, str, result=str)
     def duplicate_node(self, module_id: str, block_id: str) -> str:
         try:
             report = self.session.report_snapshot()
@@ -475,7 +483,6 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(str, str, result=str)
     def delete_node(self, module_id: str, block_id: str) -> str:
         try:
             report = self.session.report_snapshot()
@@ -484,59 +491,9 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(str, result=str)
     def update_report_header(self, payload_json: str) -> str:
-        try:
-            data = json.loads(payload_json)
-            rep = self.session.report_snapshot()
-            snap = rep.customer_snapshot
+        return self._edit("update_report_header", [payload_json])
 
-            customer_name = str(data.get("customer_name", "")).strip() or "Customer"
-            site_name = str(data.get("site_name", "")).strip()
-            machine_name = str(data.get("machine_name", "")).strip()
-
-            if snap is not None and snap.customer_id:
-                new_snap = replace(
-                    snap,
-                    customer_name=customer_name,
-                    site_name=site_name,
-                    machine_name=machine_name,
-                )
-                customer_id = rep.customer_id
-            else:
-                new_snap = manual_snapshot(
-                    customer_name,
-                    site_name=site_name,
-                    machine_name=machine_name,
-                )
-                customer_id = None
-
-            tech_raw = str(data.get("technicians", ""))
-            techs = [t.strip() for t in tech_raw.split(",") if t.strip()]
-
-            start_d = date.fromisoformat(str(data.get("start_date", rep.start_date.isoformat())).strip())
-            end_d = date.fromisoformat(str(data.get("end_date", rep.end_date.isoformat())).strip())
-
-            cmd_payload = {
-                "customer_id": customer_id,
-                "customer_snapshot": new_snap,
-                "created_date": rep.created_date,
-                "start_date": start_d,
-                "end_date": end_d,
-                "primary_language": rep.primary_language,
-                "output_languages": list(rep.output_languages),
-                "title": str(data.get("title", "")).strip() or "Report of intervention",
-                "ticket": str(data.get("ticket", "")).strip(),
-                "technicians": techs,
-                "intervention_types": list(rep.intervention_types),
-                "other_intervention_detail": rep.other_intervention_detail,
-            }
-            return self._exec("set_report_metadata", None, cmd_payload,
-                              toast="Updated report metadata")
-        except Exception as exc:
-            return self._response(error=str(exc))
-
-    @Slot(result=str)
     def undo(self) -> str:
         try:
             self.gateway.undo(self.session.generation, self.session.revision)
@@ -544,7 +501,6 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(result=str)
     def redo(self) -> str:
         try:
             self.gateway.redo(self.session.generation, self.session.revision)
@@ -552,45 +508,38 @@ class BackendBridge(QObject):
         except Exception as exc:
             return self._response(error=str(exc))
 
-    @Slot(result=str)
     def new_project(self) -> str:
         if self.core.new_project():
             return self._response(toast="Created new report project")
         return self._response()
 
-    @Slot(result=str)
     def open_project(self) -> str:
         if self.core.open_project():
             return self._response(toast="Opened project bundle")
         return self._response()
 
-    @Slot(result=str)
     def save_project(self) -> str:
         if self.core.save_project():
             return self._response(toast="Saved project (.rmproj)")
         return self._response()
 
-    @Slot(result=str)
     def save_project_as(self) -> str:
         if self.core.save_project_as():
             return self._response(toast="Saved project copy (.rmproj)")
         return self._response()
 
-    @Slot(str, result=str)
     def export_document(self, fmt: str) -> str:
         ok = self.core.preview_tab.export_dialog(fmt)
         if ok:
             return self._response(toast=f"Exported {fmt.upper()} document")
         return self._response(error=self.core.preview_tab.notice.text())
 
-    @Slot(result=str)
     def export_bundle(self) -> str:
         ok = self.core.preview_tab.export_bundle_dialog()
         if ok:
             return self._response(toast="Exported multi-language ZIP package")
         return self._response(error=self.core.preview_tab.notice.text())
 
-    @Slot(result=str)
     def generate_pdf_proof(self) -> str:
         try:
             ok = self.core.preview_tab.show_pdf_proof()
@@ -615,31 +564,26 @@ class BackendBridge(QObject):
         except Exception as exc:
             return json.dumps({"error": str(exc)})
 
-    @Slot(result=str)
     def open_report_info_dialog(self) -> str:
         if self.core.edit_report_info():
             return self._response(toast="Updated report information")
         return self._response()
 
-    @Slot(result=str)
     def open_customer_manager(self) -> str:
         if self.core.open_customer_manager():
             return self._response(toast="Customer database closed")
         return self._response()
 
-    @Slot(result=str)
     def open_translations_dialog(self) -> str:
         if self.core.edit_translations():
             return self._response(toast="Updated translations")
         return self._response()
 
-    @Slot(result=str)
     def import_word_template(self) -> str:
         if self.core.import_layout_template():
             return self._response(toast="Imported Word page template")
         return self._response()
 
-    @Slot(result=str)
     def toggle_ai_drawer(self) -> str:
         visible = self.host.toggle_ai_drawer()
         return self._response(
@@ -654,6 +598,9 @@ class V2WebMainWindow(QMainWindow):
         super().__init__()
         self.setObjectName("v2WebMainWindow")
         self.resize(1440, 900)
+        self._close_approved = False
+        self._close_requested = False
+        self._renderer_ready = False
 
         # Underlying V2MainWindow owns canonical session, persistence, and native dialogs.
         self.core = V2MainWindow(
@@ -668,6 +615,9 @@ class V2WebMainWindow(QMainWindow):
 
         self.webview = QWebEngineView(self.splitter)
         self.webview.setObjectName("v2HtmlWorkspaceView")
+        self.resources = install_studio(self.webview, HTML_SHELL)
+        self.webview.loadFinished.connect(self._renderer_loaded)
+        self.webview.page().renderProcessTerminated.connect(lambda *_: self._renderer_loaded(False))
 
         # Reparent the isolated ChatGPT assistant panel into a toggleable right drawer
         self.ai_drawer = QWidget(self.splitter)
@@ -687,11 +637,7 @@ class V2WebMainWindow(QMainWindow):
         self.channel.registerObject("backend", self.bridge)
         self.webview.page().setWebChannel(self.channel)
 
-        html_doc = HTML_SHELL.replace(
-            "<!-- QWEBCHANNEL_SCRIPT_PLACEHOLDER -->",
-            _load_qwebchannel_js(),
-        )
-        self.webview.setHtml(html_doc)
+        self.webview.setUrl(QUrl(ENTRY))
         self.sync_window_title()
 
     def toggle_ai_drawer(self) -> bool:
@@ -705,9 +651,38 @@ class V2WebMainWindow(QMainWindow):
         self.core._update_caption()
         self.setWindowTitle(self.core.windowTitle())
 
-    def closeEvent(self, event: QCloseEvent) -> None:
+    def finish_close(self):
+        self._close_requested = False
         if self.core._confirm_transition() is None:
-            event.ignore()
             return
         self.core._persist_previous_view(self.core._view())
-        event.accept()
+        self._close_approved = True
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.close)
+
+    def _renderer_loaded(self, ok):
+        self._renderer_ready = False
+        if ok:
+            self.webview.page().runJavaScript(
+                "typeof requestStudioClose === 'function'",
+                lambda ready: setattr(self, "_renderer_ready", bool(ready)))
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self._close_approved:
+            event.accept()
+            self.core.deleteLater()
+            return
+        event.ignore()
+        if not self._renderer_ready:
+            answer = QMessageBox.warning(
+                self, "HTML editor unavailable",
+                "The HTML editor is unavailable. Unapplied HTML input cannot be recovered. "
+                "Continue closing? Applied report changes can still be saved in the next dialog.",
+                QMessageBox.StandardButton.Close | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel)
+            if answer == QMessageBox.StandardButton.Close:
+                self.finish_close()
+            return
+        # The renderer acknowledges an atomic draft apply (or explicit discard)
+        # before the ordinary native unsaved-project confirmation can run.
+        self.webview.page().runJavaScript("requestStudioClose()")
