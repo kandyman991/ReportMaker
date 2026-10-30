@@ -337,7 +337,7 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertEqual({g.step for g in deep.branch._gutters}, {25}, "wider window restores it")
 
     def test_connector_lines_stay_distinct_at_the_narrowest_step(self):
-        # 20 levels at 660 px: still fits when a 90 px rail takes width from the canvas.
+        # The reviewers' contract: 20 levels in a 660 px window, with the rail beside it.
         window = self.make_window(_project([_deep(20)]), width=660)
         step = window.branch._gutters[-1].step
         self.assertGreaterEqual(step, 6)
@@ -350,15 +350,16 @@ class AdaptiveLayoutTests(_QtCase):
     def test_the_fit_follows_the_real_widths_not_a_cached_estimate(self):
         # A review run on another machine (different font metrics) saw the 20-level
         # case overflow by 3 px: the fit had used a card width cached at build time.
-        window = self.make_window(_project([_deep(20)]), width=900)
+        window = self.make_window(_project([_deep(12)]), width=1100)
+        self.assert_fits(window)
         for card in self._cards(window):
             card.setMinimumWidth(card.minimumSizeHint().width() + 25)  # a wider font or style
-        window.resize(660, 800)
+        window.resize(760, 800)  # needs the indentation to shrink, whatever the rail's width
         self.pump(10)
         self.assert_fits(window)
         self.assertGreaterEqual(window.branch._gutters[-1].step, 6)
 
-    def test_larger_application_fonts_still_fit_20_levels_at_660px(self):
+    def test_larger_application_fonts_still_fit_20_levels_at_900px(self):
         from PySide6.QtGui import QFont
         base = self.app.font()
         self.addCleanup(self.app.setFont, base)
@@ -366,14 +367,14 @@ class AdaptiveLayoutTests(_QtCase):
             font = QFont(base)
             font.setPointSize(points)
             self.app.setFont(font)
-            window = self.make_window(_project([_deep(20)]), width=660)
+            window = self.make_window(_project([_deep(20)]), width=900)
             self.pump(10)
             with self.subTest(points=points):
                 self.assert_fits(window)
                 self.assertGreaterEqual(window.branch._gutters[-1].step, 6)
 
     def test_the_side_margin_gives_room_back_only_when_the_step_is_already_at_its_floor(self):
-        window = self.make_window(_project([_deep(20)]), width=660)
+        window = self.make_window(_project([_deep(6)]), width=1100)
         canvas = window.branch
         self.assertEqual(canvas._body.contentsMargins().left(), 20, "plenty of room: margins untouched")
         for gutter in canvas._gutters:
@@ -388,7 +389,9 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertEqual(canvas._body.contentsMargins().left(), 14, "then each side gives up 6 px")
         self.assertEqual(canvas._body.contentsMargins().right(), 14)
         self.assert_fits(window)
-        window.resize(1400, 800)
+        for card in self._cards(window):
+            card.setMinimumWidth(0)  # the extra width goes away (a smaller font, say)
+        window.resize(1500, 800)
         self.pump(10)
         self.assertEqual(canvas._body.contentsMargins().left(), 20, "and they come back when there is room")
 
@@ -412,13 +415,20 @@ class AdaptiveLayoutTests(_QtCase):
                 header = card.layout().itemAt(index).layout()
                 if isinstance(header, QHBoxLayout) and header.indexOf(handle) >= 0:
                     spacer = QWidget(card)
+                    spacer.setObjectName("testHeaderSpacer")
                     spacer.setMinimumWidth(extra)
                     header.addWidget(spacer)
                     spacer.show()  # a widget added after the card is shown starts hidden
 
+    def _remove_header_spacers(self, window):
+        from PySide6.QtWidgets import QWidget
+        for spacer in window.branch._host.findChildren(QWidget, "testHeaderSpacer"):
+            spacer.hide()
+            spacer.deleteLater()
+
     def test_cards_and_the_drag_handle_compact_only_after_step_and_margins_are_used_up(self):
         from reportmaker.v2.branch.canvas import DragHandle
-        window = self.make_window(_project([_deep(20)]), width=660)
+        window = self.make_window(_project([_deep(6)]), width=1100)
         canvas = window.branch
         handles = canvas._host.findChildren(DragHandle)
         self.assertTrue(handles)
@@ -435,7 +445,8 @@ class AdaptiveLayoutTests(_QtCase):
         self.assert_fits(window)
         self.assertEqual(handles[0].accessibleName(), "Drag branch node")
         self.assertTrue(handles[0].toolTip())
-        window.resize(1400, 800)
+        self._remove_header_spacers(window)  # the extra width goes away (a smaller font, say)
+        window.resize(1500, 800)
         self.pump(10)
         self.assertEqual({h.text() for h in handles}, {"≡ Drag"}, "everything is restored")
         self.assertEqual(canvas._card_layouts[0].contentsMargins().left(), 15)
@@ -443,7 +454,7 @@ class AdaptiveLayoutTests(_QtCase):
 
     def test_card_padding_alone_is_enough_for_a_small_excess(self):
         from reportmaker.v2.branch.canvas import DragHandle
-        window = self.make_window(_project([_deep(20)]), width=660)
+        window = self.make_window(_project([_deep(6)]), width=1100)
         canvas = window.branch
         self._make_rows_too_wide_by(window, 5)  # 5 px over even at the narrowest side margins
         canvas._apply_indent()
@@ -459,7 +470,7 @@ class AdaptiveLayoutTests(_QtCase):
         # "MODULE 1.1.1.1..." grows two characters per level; as a plain label it set the
         # card's minimum width, which is what overflowed on machines with a wider font.
         from reportmaker.v2.branch.canvas import ElidedLabel
-        window = self.make_window(_project([_deep(30)]), width=660)
+        window = self.make_window(_project([_deep(40)]), width=1100)
         self.assert_fits(window)
         captions = [label for label in window.branch._host.findChildren(ElidedLabel)
                     if label.full_text().startswith("MODULE ") and len(label.full_text()) > 40]
@@ -469,13 +480,13 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertEqual(deepest.toolTip(), deepest.full_text(), "and the full number is the tooltip")
         self.assertEqual(deepest.accessibleName(), deepest.full_text())
         self.assertLess(deepest.minimumSizeHint().width(), 150, "it can shrink to a few characters")
-        window.resize(1920, 900)
+        window.resize(2400, 900)
         self.wait_until(lambda: deepest.text() == deepest.full_text(),
                         "with room, the whole number is shown again")
         self.assertEqual(deepest.toolTip(), "")
 
     def test_a_shallow_report_keeps_the_normal_step_and_margins(self):
-        window = self.make_window(_project([_deep(3)]), width=660)
+        window = self.make_window(_project([_deep(3)]), width=1100)
         self.assertEqual(window.branch._gutters[-1].step, 25)
         self.assertEqual(window.branch._body.contentsMargins().left(), 20)
 
