@@ -272,8 +272,8 @@ class V2MainWindow(QMainWindow):
         self._restore_presentation()
         self._update_caption()
         self.statusBar().showMessage(
-            "Edit inline, Apply or Revert drafts before Save/Open; "
-            "New/Open/Save/Save As use portable .rmproj files."
+            "Edit inline; Save asks how to handle unapplied edits. "
+            "Ctrl+Enter applies one edit, Esc reverts it; files use .rmproj."
         )
 
     def open_customer_manager(self) -> bool:
@@ -537,26 +537,68 @@ class V2MainWindow(QMainWindow):
         key, selected, scroll, collapsed = view
         self.presentation.write(key, selected, scroll, collapsed=collapsed)
 
-    def _drafts_clean(self) -> bool:
-        if self.branch.drafts.pending:
-            own = self.branch.drafts.pending_addresses(owner="branch")
-            if own:
-                self.tabs.setCurrentWidget(self.branch)
-                self.branch.verticalScrollBar().setValue(0)
-                instruction = (
-                    "There are unapplied edits in Modules. Use the yellow "
-                    "UNAPPLIED EDITS panel at the top: click 'Apply all edits' "
-                    "to keep them, or 'Discard edits…' to revert with confirmation. "
-                    "Then retry Save or switch projects."
-                )
-            else:
-                instruction = (
-                    "There are unapplied edits in Editor. Return to Editor "
-                    "and explicitly Apply or Revert them before continuing."
-                )
-            QMessageBox.warning(self, "Unapplied edits", instruction)
+    def _prompt_pending_edits(self, *, saving: bool) -> str:
+        """Ask before applying OR discarding any staged edits; Cancel is safest."""
+        count = len(self.branch.drafts.pending_addresses())
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Unapplied edits")
+        dialog.setIcon(QMessageBox.Icon.Question)
+        dialog.setText(
+            f"{count} unapplied edit(s) in Modules or Editor. "
+            "Choose what to do with your typed changes.")
+        dialog.setInformativeText(
+            ("Apply and save: keep every edit as one undoable change, then save. "
+             "Discard edits: remove unapplied changes and save only previously "
+             "applied content. Cancel: change nothing."
+             if saving else
+             "Apply edits: keep every edit as one undoable change, then continue "
+             "to the normal unsaved-report confirmation. Discard edits: remove "
+             "only unapplied changes, then continue. Cancel: change nothing."))
+        apply_button = dialog.addButton(
+            "Apply and save" if saving else "Apply edits",
+            QMessageBox.ButtonRole.AcceptRole)
+        discard_button = dialog.addButton(
+            "Discard edits", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_button = dialog.addButton(
+            "Cancel", QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(cancel_button)
+        dialog.setEscapeButton(cancel_button)
+        dialog.exec()
+        if dialog.clickedButton() is apply_button:
+            return "apply"
+        if dialog.clickedButton() is discard_button:
+            return "discard"
+        return "cancel"
+
+    def _drafts_clean(self, *, saving: bool = False) -> bool:
+        """Resolve pending drafts only after a separately confirmed decision.
+
+        No file, report, project identity or undo state changes on Cancel.
+        Applying all editors' drafts remains atomic, fail-closed and undoable.
+        """
+        if not self.branch.drafts.pending:
+            return True
+        choice = self._prompt_pending_edits(saving=saving)
+        if choice not in {"apply", "discard"}:
             return False
-        return True
+        if choice == "discard":
+            self.branch.discard_all_drafts()
+            return True
+        problem = self.branch.apply_all_drafts()
+        if problem is None:
+            return True
+        if self.branch.drafts.pending_addresses(owner="branch"):
+            self.tabs.setCurrentWidget(self.branch)
+            self.branch.verticalScrollBar().setValue(0)
+            where = ("Use the yellow UNAPPLIED EDITS panel at the top of Modules "
+                     "to correct, apply or discard them.")
+        else:
+            where = "Return to Editor to correct, apply or revert them."
+        QMessageBox.warning(
+            self, "Unapplied edits",
+            "Your pending edits could not be applied, so nothing was saved or "
+            "closed:\n\n" + problem + "\n\n" + where)
+        return False
 
     def _confirm_transition(self) -> bool | None:
         """Return whether to discard committed changes, or None to cancel.
@@ -618,8 +660,6 @@ class V2MainWindow(QMainWindow):
         return True
 
     def open_project(self, path: str | Path | None = None) -> bool:
-        if not self._drafts_clean():
-            return False
         if path is None:
             filename, _ = QFileDialog.getOpenFileName(
                 self, "Open ReportMaker project",
@@ -664,8 +704,6 @@ class V2MainWindow(QMainWindow):
         return target
 
     def _save_to(self, target: Path | None, *, as_copy: bool) -> bool:
-        if not self._drafts_clean():
-            return False
         if target is None:
             target = self._choose_save_path(as_copy=as_copy)
             if target is None:
@@ -689,6 +727,10 @@ class V2MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 return False
             overwrite = True
+        # Do not apply or discard drafts if the user cancelled the destination
+        # picker / overwrite warning. No implicit edits before confirmation.
+        if not self._drafts_clean(saving=True):
+            return False
         view = self._view()
         try:
             if as_copy or overwrite:
