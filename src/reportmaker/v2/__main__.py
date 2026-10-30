@@ -21,6 +21,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         from PySide6.QtWidgets import QApplication, QSplitter, QTreeWidget
         from .app import V2MainWindow
+        from .web_ui import V2WebMainWindow
     except ImportError as exc:
         print('ReportMaker V2 requires desktop dependencies: pip install -e ".[desktop]"')
         print(f"Details: {exc}")
@@ -32,11 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     if offline:
         window = V2MainWindow()
     else:
-        # The window layout (split on/off, which tool is in which tab) is a per-user
-        # preference, kept outside report projects. First run: two panes.
-        from .workspace import default_state, restore_state, store_state
-        window = V2MainWindow(workspace_state=restore_state() or default_state(split=True),
-                              workspace_saver=store_state)
+        window = V2WebMainWindow()
 
     if offline:
         try:
