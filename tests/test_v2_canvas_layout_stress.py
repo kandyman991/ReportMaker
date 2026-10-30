@@ -303,7 +303,8 @@ class AdaptiveLayoutTests(_QtCase):
         self.assertEqual({g.step for g in deep.branch._gutters}, {25}, "wider window restores it")
 
     def test_connector_lines_stay_distinct_at_the_narrowest_step(self):
-        window = self.make_window(_project([_deep(24)]), width=660)
+        # 20 levels at 660 px: still fits when a 90 px rail takes width from the canvas.
+        window = self.make_window(_project([_deep(20)]), width=660)
         step = window.branch._gutters[-1].step
         self.assertGreaterEqual(step, 6)
         self.assertEqual(window.branch.horizontalScrollBar().maximum(), 0)
