@@ -45,6 +45,7 @@ TEXT_PAIRS = (
     ("accent", "surface"), ("accent", "bg"), ("accent-ink", "accent"),
     ("accent-soft-ink", "accent-soft"), ("warn-ink", "warn-bg"),
     ("danger", "surface"), ("success", "surface"), ("text", "accent-soft"),
+    ("accent-soft-ink", "surface"), ("text", "sunken"),
 )
 # Control borders and focus rings against what they sit on: need >= 3:1.
 UI_PAIRS = (("line2", "surface"), ("line2", "bg"), ("accent", "surface"), ("warn-line", "warn-bg"))
@@ -103,6 +104,31 @@ QToolBar#workspaceRail QToolButton:checked {{ background: {t['accent-soft']}; co
 QToolBar#workspaceRail QToolButton:hover:!checked {{ background: {t['sunken']}; color: {t['text']}; }}
 
 QTabWidget::pane {{ border: 0; top: 0; background: {t['bg']}; }}
+
+QSplitter#v2WorkspaceSplitter::handle {{ background: {t['line']}; }}
+QSplitter#v2WorkspaceSplitter::handle:hover {{ background: {t['line2']}; }}
+QTabWidget#v2WorkspacePane QTabBar {{ background: {t['surface']}; border-bottom: 1px solid {t['line']}; }}
+QTabWidget#v2WorkspacePane QTabBar::tab {{ background: transparent; color: {t['text2']}; border: 0;
+    border-bottom: 2px solid transparent; padding: 8px 4px 6px 12px; margin-right: 2px; font-weight: 500; }}
+QTabWidget#v2WorkspacePane QTabBar::tab:selected {{ color: {t['text']}; border-bottom: 2px solid {t['line2']}; }}
+QTabWidget#v2WorkspacePane QTabBar::tab:hover:!selected {{ background: {t['sunken']}; color: {t['text']}; }}
+QTabWidget#v2WorkspacePane[active="true"] QTabBar::tab:selected {{ color: {t['accent-soft-ink']};
+    border-bottom: 2px solid {t['accent']}; }}
+QToolButton#v2TabMenu, QToolButton#v2NewTab {{ color: {t['text2']}; background: transparent; border: 1px solid transparent;
+    border-radius: 6px; padding: 0 5px; margin: 4px 2px; }}
+QToolButton#v2NewTab {{ font-size: 16px; padding: 0 9px; }}
+QToolButton#v2TabMenu:hover, QToolButton#v2NewTab:hover {{ background: {t['sunken']}; color: {t['text']}; }}
+QToolButton#v2TabMenu::menu-indicator {{ image: none; width: 0; }}
+QWidget#v2ToolPicker {{ background: {t['bg']}; }}
+QLabel#v2PickerTitle {{ font-size: 20px; font-weight: 600; color: {t['text']}; }}
+QLabel#v2PickerHint {{ color: {t['text2']}; }}
+QToolButton#v2ToolTile {{ background: {t['surface']}; color: {t['text']}; border: 1px solid {t['line2']};
+    border-radius: 12px; padding: 14px 10px; font-weight: 500; }}
+QToolButton#v2ToolTile:hover {{ background: {t['accent-soft']}; }}
+QToolButton#v2ToolTile QLabel {{ background: transparent; }}
+QLabel#v2TileName {{ font-weight: 600; color: {t['text']}; }}
+QLabel#v2TileNote {{ color: {t['text2']}; font-size: 12px; }}
+QToolButton#v2ToolTile:focus {{ border: 2px solid {t['accent']}; }}
 QStatusBar {{ background: {t['surface']}; color: {t['text2']}; border-top: 1px solid {t['line']}; }}
 QStatusBar::item {{ border: 0; }}
 

@@ -191,6 +191,14 @@ class NaturalPagePaper(QFrame):
         if self.flow.getContentsMargins() != margins:
             self.flow.setContentsMargins(*margins)
 
+    def sizeHint(self):
+        # The page is centred in the scroll area, and a centred widget gets at
+        # most its size hint. Without this the paper shrank to the width of its
+        # narrowest child (about 320 px) instead of the printable page width.
+        size = super().sizeHint()
+        size.setWidth(max(size.width(), self.maximumWidth()))
+        return size
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._sync_margins()

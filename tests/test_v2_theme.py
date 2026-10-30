@@ -104,16 +104,20 @@ class WorkspaceRailQtTests(unittest.TestCase):
         self.app.processEvents()
 
     def rail_actions(self):
+        """The one-per-tool actions (the split toggle is tested in test_v2_workspace)."""
         from PySide6.QtGui import QAction
-        return [a for a in self.win.rail.actions() if isinstance(a, QAction)]
+        return [a for a in self.win.rail.actions()
+                if isinstance(a, QAction) and a.objectName().startswith("rail_")
+                and a.objectName() != "rail_split"]
 
-    def test_rail_sits_on_the_left_and_replaces_the_tab_bar(self):
+    def test_rail_sits_on_the_left_and_the_workspace_is_central(self):
         from PySide6.QtCore import Qt
         self.assertEqual(self.win.toolBarArea(self.win.rail), Qt.ToolBarArea.LeftToolBarArea)
         self.assertEqual(self.win.rail.objectName(), "workspaceRail")
-        self.assertTrue(self.win.tabs.tabBar().isHidden())
-        # The tabs remain the single source of truth for the central widget.
+        # The workspace is the central widget; there is no window-wide tab strip,
+        # the rail picks tools and each pane keeps its own tabs.
         self.assertIs(self.win.centralWidget(), self.win.tabs)
+        self.assertFalse(hasattr(self.win.tabs, "tabBar"))
 
     def test_rail_has_one_checkable_icon_action_per_workspace_in_tab_order(self):
         actions = self.rail_actions()

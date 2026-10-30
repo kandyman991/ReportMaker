@@ -5,6 +5,7 @@ canonical session, command gateway and atomic .rmproj persistence adapter.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
-    QTabWidget, QToolBar, QToolButton, QWidget,
+    QSizePolicy, QToolBar, QToolButton, QWidget,
 )
 
 from ..engine import module_outline
@@ -25,6 +26,7 @@ from .commands import CommandGateway
 from .presentation import PresentationStore
 from .theme import LIGHT, stylesheet
 from .session import PendingDraftError, ReportSession
+from .workspace import SINGLE_MIN_WIDTH, SPLIT_MIN_WIDTH, TOOLS, Workspace, default_state
 
 
 def example_report() -> Report:
@@ -78,7 +80,9 @@ class V2MainWindow(QMainWindow):
                  load_website: bool = True,
                  browser_profile_root: Path | None = None,
                  ephemeral_browser: bool = False,
-                 customer_database_path: Path | None = None) -> None:
+                 customer_database_path: Path | None = None,
+                 workspace_state: dict | None = None,
+                 workspace_saver: Callable[[dict], None] | None = None) -> None:
         super().__init__()
         if report is not None and project is not None:
             raise ValueError("Pass either a Report or an existing project")
@@ -103,31 +107,40 @@ class V2MainWindow(QMainWindow):
         from .gallery_tab import GalleryTab
         from .chat_tab import ChatTab
         from .preview_tab import PreviewTab
-        self.tabs = QTabWidget(self)
-        self.tabs.setObjectName("v2WorkspaceTabs")
+        # The tools are single widgets; the workspace decides which pane and tab
+        # shows each one (see workspace.py). ``tabs`` keeps its old name so the
+        # rest of V2 and its tests can still say ``tabs.setCurrentWidget(tool)``.
+        self.tabs = Workspace(self)
         self.editor_tab = DocumentEditorTab(self.session, self.branch, self.tabs)
         self.gallery_tab = GalleryTab(self.session, self.gateway, self.branch, self.tabs)
         self.chat_tab = ChatTab(
             load_website=load_website, browser_profile_root=browser_profile_root,
             ephemeral_browser=ephemeral_browser, parent=self.tabs)
         self.preview_tab = PreviewTab(self.session, self.tabs)
-        self.tabs.addTab(self.branch, "Modules")
-        self.tabs.addTab(self.editor_tab, "Editor")
-        self.tabs.addTab(self.gallery_tab, "Photo Gallery")
-        self.tabs.addTab(self.chat_tab, "ChatGPT")
-        self.tabs.addTab(self.preview_tab, "Preview")
-        self.gallery_tab.on_inserted = lambda: self.tabs.setCurrentWidget(self.branch)
-        self.tabs.currentChanged.connect(self._tab_changed)
+        self._tool_widgets = {
+            "modules": self.branch, "editor": self.editor_tab, "photos": self.gallery_tab,
+            "assistant": self.chat_tab, "preview": self.preview_tab,
+        }
+        self.tabs.register_tools(self._tool_widgets)
+        self.gallery_tab.on_inserted = lambda: self.tabs.show_tool("modules")
+        self.workspace_saver = workspace_saver
         self.setCentralWidget(self.tabs)
-        # The workspace rail replaces the tab bar; the tabs stay the single source of truth.
-        self.tabs.tabBar().hide()
+        self._refresh_queued = False
+        self.tabs.toolShown.connect(self._tool_shown)
+        self.tabs.layoutChanged.connect(self._workspace_layout_changed)
+        self.tabs.apply_state(workspace_state if workspace_state is not None
+                              else default_state(split=False))
         self._build_rail()
+        self.tabs.currentChanged.connect(self._sync_rail)
         self.setStyleSheet(stylesheet(LIGHT))
+        self._sync_rail()
+        self._workspace_layout_changed()
         self.session.subscribe(self._workspace_changed)
         self.session.subscribe(lambda _: self._update_caption())
         # Staging a draft does not publish a canonical revision; separately
         # reflect unapplied changes in the window's unsaved marker immediately.
         self.branch.drafts.subscribe_pending(lambda _pending: self._update_caption())
+        self.branch.drafts.subscribe_pending(lambda _pending: self._queue_visible_refresh())
 
         # Keep the primary commands visible at minimum window width. The
         # previous 27-action single toolbar overflowed even at 1600 px;
@@ -298,18 +311,18 @@ class V2MainWindow(QMainWindow):
             return False
         return True
 
-    # (object name, label, icon, tab widget attribute, tooltip)
-    _RAIL_ITEMS = (
-        ("rail_modules", "Modules", "layers", "branch", "Modules — build the report structure"),
-        ("rail_editor", "Editor", "file", "editor_tab", "Editor — edit as a document page"),
-        ("rail_photos", "Photos", "image", "gallery_tab", "Photos — the project picture gallery"),
-        ("rail_assistant", "Assistant", "chat", "chat_tab", "Assistant — an AI website, copy and paste only"),
-        ("rail_preview", "Preview", "eye", "preview_tab", "Preview — check and export the report"),
-    )
-
     def _build_rail(self) -> None:
-        """Left workspace rail: one checkable action per tab, kept in sync with the tabs."""
+        """Left rail: one action per tool, plus the split toggle at the bottom.
+
+        A tool that is open in a tab is selected; one that is not opens in a new
+        tab of the active pane. Each tab's own menu picks its tool in place.
+        """
         from .icons import icon
+
+        def rail_icon(name: str):
+            return icon(name, normal=LIGHT["text2"], checked=LIGHT["accent-soft-ink"],
+                        disabled=LIGHT["text3"])
+
         rail = QToolBar("Workspaces", self)
         rail.setObjectName("workspaceRail")
         rail.setOrientation(Qt.Orientation.Vertical)
@@ -318,46 +331,78 @@ class V2MainWindow(QMainWindow):
         rail.setIconSize(QSize(22, 22))
         rail.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         group = QActionGroup(self)
-        group.setExclusive(True)
-        self._rail_actions: dict[QWidget, QAction] = {}
-        for name, label, icon_name, attribute, tooltip in self._RAIL_ITEMS:
-            widget = getattr(self, attribute)
-            action = QAction(icon(icon_name, normal=LIGHT["text2"], checked=LIGHT["accent-soft-ink"],
-                                  disabled=LIGHT["text3"]), label, self)
-            action.setObjectName(name)
+        group.setExclusionPolicy(QActionGroup.ExclusionPolicy.ExclusiveOptional)
+        self._rail_actions: dict[str, QAction] = {}
+        for spec in TOOLS:
+            action = QAction(rail_icon(spec.icon), spec.label, self)
+            action.setObjectName("rail_" + spec.id)
             action.setCheckable(True)
-            action.setToolTip(tooltip)
-            action.triggered.connect(lambda checked=False, w=widget: self.tabs.setCurrentWidget(w))
+            action.setToolTip(spec.tooltip)
+            action.triggered.connect(lambda checked=False, tool=spec.id: self.tabs.show_tool(tool))
             group.addAction(action)
             rail.addAction(action)
-            self._rail_actions[widget] = action
+            self._rail_actions[spec.id] = action
+        spacer = QWidget(rail)
+        spacer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        rail.addWidget(spacer)
+        split = QAction(rail_icon("columns"), "Split", self)
+        split.setObjectName("rail_split")
+        split.setCheckable(True)
+        split.setShortcut("Ctrl+\\")
+        split.setToolTip("Split view — two panes side by side, each with its own tabs (Ctrl+\\)")
+        split.toggled.connect(self.tabs.set_split)
+        rail.addAction(split)
+        self.split_action = split
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, rail)
         self.rail = rail
-        self._sync_rail(self.tabs.currentIndex())
 
-    def _sync_rail(self, index: int) -> None:
-        action = self._rail_actions.get(self.tabs.widget(index))
-        if action is not None and not action.isChecked():
-            action.setChecked(True)
+    def _sync_rail(self, _index: int = -1) -> None:
+        current = self.tabs.current_tool()
+        for tool_id, action in self._rail_actions.items():
+            if action.isChecked() != (tool_id == current):
+                action.setChecked(tool_id == current)
+        if self.split_action.isChecked() != self.tabs.is_split:
+            self.split_action.blockSignals(True)
+            self.split_action.setChecked(self.tabs.is_split)
+            self.split_action.blockSignals(False)
+
+    def _workspace_layout_changed(self) -> None:
+        self.setMinimumWidth(SPLIT_MIN_WIDTH if self.tabs.is_split else SINGLE_MIN_WIDTH)
+        if hasattr(self, "split_action"):
+            self._sync_rail()
+        if self.workspace_saver is not None:
+            self.workspace_saver(self.tabs.state())
 
     def _workspace_changed(self, change) -> None:
         # Lazily rebuild inactive document/preview panes. Draft-owning widgets
         # are never thrown away during a native Qt text-change callback.
         self.preview_tab.invalidate()
-        if self.tabs.currentWidget() is self.gallery_tab:
-            self.gallery_tab.refresh()
+        self._queue_visible_refresh()
 
-    def _tab_changed(self, index: int) -> None:
-        self._sync_rail(index)
-        pane = self.tabs.widget(index)
-        if pane is self.editor_tab:
+    def _queue_visible_refresh(self) -> None:
+        """Bring the tools that are on screen up to date, once, after the current event."""
+        if self._refresh_queued:
+            return
+        self._refresh_queued = True
+        QTimer.singleShot(0, self._refresh_visible_tools)
+
+    def _refresh_visible_tools(self) -> None:
+        self._refresh_queued = False
+        for tool_id in self.tabs.visible_tools():
+            self._activate_tool(tool_id)
+
+    def _activate_tool(self, tool_id: str) -> None:
+        if tool_id == "editor":
             self.editor_tab.activate()
-        elif pane is self.gallery_tab:
+        elif tool_id == "photos":
             self.gallery_tab.refresh()
-        elif pane is self.chat_tab:
+        elif tool_id == "assistant":
             self.chat_tab.activate()
-        elif pane is self.preview_tab:
+        elif tool_id == "preview":
             self.preview_tab.refresh()
+
+    def _tool_shown(self, tool_id: str) -> None:
+        self._activate_tool(tool_id)
 
     def _update_move_actions(self) -> None:
         """Disable unavailable moves, including their keyboard shortcuts."""

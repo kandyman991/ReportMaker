@@ -107,7 +107,8 @@ class V2BranchCanvasTests(unittest.TestCase):
                 [0, 1, 2, 3, 1],
             )
             self.assertFalse(window.findChildren(QTreeWidget))
-            self.assertFalse(window.findChildren(QSplitter))
+            self.assertEqual([s.objectName() for s in window.findChildren(QSplitter)
+                              if s.objectName() != "v2WorkspaceSplitter"], [])
             self.assertGreater(window.branch.viewport().width(), 500)
         finally:
             # M1.4 modal Close is tested separately; avoid blocking headless teardown.
