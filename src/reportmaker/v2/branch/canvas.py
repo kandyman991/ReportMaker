@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from uuid import uuid4
 
-from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRect, QSize, Qt, QTimer, Signal, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QMimeData, QPoint, QPointF, QRect, QSize, Qt, QTimer, Signal, QUrl
 from PySide6.QtGui import QColor, QDrag, QImage, QPalette, QPixmap, QPainter, QPen, QTextCursor, QTextOption, QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractButton, QApplication, QFileDialog, QInputDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit,
@@ -415,12 +415,18 @@ class _DragContext:
 class DragHandle(QToolButton):
     """Explicit drag gesture; mouse selection in text editors is unaffected."""
 
+    FULL_TEXT = "≡ Drag"
+    COMPACT_TEXT = "≡"  # when the canvas is too narrow for the word; same tooltip and name
+
+    def set_compact(self, compact: bool) -> None:
+        self.setText(self.COMPACT_TEXT if compact else self.FULL_TEXT)
+
     def __init__(self, canvas: "BranchCanvas", address: NodeAddress, parent=None):
         super().__init__(parent)
         self._canvas, self._address = canvas, address
         self._press_position = None
         self.setObjectName("v2DragHandle")
-        self.setText("≡ Drag")
+        self.setText(self.FULL_TEXT)
         self.setAccessibleName("Drag branch node")
         self.setToolTip("Drag to a marked Before, After or Inside position")
         self.setCursor(Qt.CursorShape.OpenHandCursor)
@@ -613,6 +619,10 @@ class BranchCanvas(QScrollArea):
         self._ribbons = {}
         self._gutters: list[ConnectorGutter] = []
         self._rows: list[DropRow] = []
+        self._card_layouts: list[QVBoxLayout] = []
+        self._handles: list[DragHandle] = []
+        self._compact_level = 0
+        self._fitting = False
         # Another editor changed which fields it holds drafts for: redraw
         # once typing pauses so those fields turn read-only here.
         self._foreign_timer = QTimer(self)
@@ -2728,6 +2738,9 @@ class BranchCanvas(QScrollArea):
         self._ribbons.clear()
         self._gutters.clear()
         self._rows.clear()
+        self._card_layouts.clear()
+        self._handles.clear()
+        self._compact_level = 0
         while self._body.count():
             item = self._body.takeAt(0)
             widget = item.widget()
@@ -2801,6 +2814,7 @@ class BranchCanvas(QScrollArea):
                 + BUTTON_CHROME + FIELD_CHROME)
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(15, 9, 15, 10)
+            self._card_layouts.append(card_layout)
             card_layout.setSpacing(3)
             numbered = (f"MODULE {numbers[identifier]}" if kind == "module"
                         else caption)
@@ -2823,7 +2837,9 @@ class BranchCanvas(QScrollArea):
                                        self.toggle_branch(mid))
                 header.addWidget(toggle)
             if kind not in ("root", "conclusion"):
-                header.addWidget(DragHandle(self, address, card))
+                handle = DragHandle(self, address, card)
+                self._handles.append(handle)
+                header.addWidget(handle)
                 options = QToolButton(card)
                 options.setObjectName("v2NodeActions")
                 options.setText("⋯")
@@ -2998,16 +3014,29 @@ class BranchCanvas(QScrollArea):
 
         A deeply nested card used to run past the right edge of a narrow window,
         where its buttons could not be reached (the canvas has no horizontal
-        scrollbar). First the indentation per level shrinks, never below
-        ``_MIN_STEP``; only if the deepest row still does not fit does the side
-        margin shrink, never below ``_MIN_SIDE_MARGIN``. Each decision uses the
-        rows' live minimum widths, so it holds for whatever font, text size or
-        style sheet is in effect rather than for a width cached when the rows
-        were built. Connector lines shrink with the step and never collapse.
+        scrollbar). Each stage below is tried only if the previous one was not
+        enough, always against the rows' live minimum widths, so it holds for
+        whatever font, text size or style sheet is in effect rather than for a
+        width cached when the rows were built:
+
+        1. the indentation per level shrinks, never below ``_MIN_STEP``;
+        2. the side margin shrinks, never below ``_MIN_SIDE_MARGIN``;
+        3. the cards' inner side margins shrink (15 -> 8 px);
+        4. the drag handle shows only its glyph.
+
+        Everything is restored as soon as there is room again. Connector lines
+        shrink with the step and never collapse.
         """
         gutters, rows = self._gutters, self._rows
-        if not gutters or len(gutters) != len(rows):
+        if not gutters or len(gutters) != len(rows) or self._fitting:
             return
+        self._fitting = True  # layout requests processed below can resize us again
+        try:
+            self._fit_rows(gutters, rows)
+        finally:
+            self._fitting = False
+
+    def _fit_rows(self, gutters, rows) -> None:
         factor = self._zoom_pct / 100
         natural = max(1, round(_STEP * factor))
         floor = max(1, round(_MIN_STEP * factor))
@@ -3018,12 +3047,27 @@ class BranchCanvas(QScrollArea):
             if margins.left() != side or margins.right() != side:
                 self._body.setContentsMargins(side, margins.top(), side, margins.bottom())
 
+        def set_compact(level: int) -> None:
+            if level == self._compact_level:
+                return
+            self._compact_level = level
+            inner = 8 if level >= 1 else 15
+            for layout in self._card_layouts:
+                margins = layout.contentsMargins()
+                layout.setContentsMargins(inner, margins.top(), inner, margins.bottom())
+            for handle in self._handles:
+                handle.set_compact(level >= 2)
+            # Qt only invalidates nested layouts' cached sizes when it processes the
+            # posted layout requests; do that now so the next measurement is live.
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.LayoutRequest)
+
         def worst_overflow(side: int) -> int:
             inner = viewport - 2 * side
             return max((row.minimumSizeHint().width() - inner for row in rows), default=0)
 
         side = _SIDE_MARGIN
         set_side(side)
+        set_compact(0)
         step = natural
         for gutter in gutters:
             gutter.set_step(step)
@@ -3045,6 +3089,12 @@ class BranchCanvas(QScrollArea):
         if overflow > 0 and side > _MIN_SIDE_MARGIN:
             side = max(_MIN_SIDE_MARGIN, side - -(-overflow // 2))
             set_side(side)
+            overflow = worst_overflow(side)
+        for level in (1, 2):
+            if overflow <= 0:
+                break
+            set_compact(level)
+            overflow = worst_overflow(side)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

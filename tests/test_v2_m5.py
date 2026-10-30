@@ -191,7 +191,9 @@ class NavigationQtTests(unittest.TestCase):
         project = fixture()
         module = project.report.modules[0]
         cursor = module
-        for i in range(32):
+        # Deep enough to overflow even after the canvas has used every fitting stage
+        # (narrower indentation, margins, card padding, glyph-only drag handle).
+        for i in range(64):
             nested = Module(LocalizedText("en", f"Deep level {i}"))
             cursor.blocks.append(NestedModuleBlock(nested))
             cursor = nested
