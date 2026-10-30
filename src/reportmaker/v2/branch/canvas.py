@@ -1548,6 +1548,39 @@ class BranchCanvas(QScrollArea):
         self.feedback.emit("Module edits applied; Insert, drag and Save are available")
         return True
 
+    def apply_all_drafts(self) -> str | None:
+        """Apply every pending draft (all editors) as one undoable change.
+
+        Called only for an explicit Save / Save As / New / Open / Close.
+        Returns None when nothing is left pending, otherwise the reason the
+        drafts could not be applied. On failure every draft is kept untouched.
+        """
+        if self.drafts is None or not self.drafts.pending:
+            return None
+        for address, editor in self._editors.items():
+            if editor.hasFocus():
+                self._capture(address)
+                break
+        try:
+            self.drafts.apply_all()
+        except (ValueError, LookupError, RuntimeError) as exc:
+            self.feedback.emit("Edits retained; cannot apply: " + str(exc))
+            self._update_pending_panel()
+            return str(exc) or exc.__class__.__name__
+        self._refresh()
+        self._update_pending_panel()
+        self.feedback.emit("Pending edits applied as one change — Undo available")
+        return None
+
+    def discard_all_drafts(self) -> None:
+        """Remove only pending draft fields across editors after explicit choice."""
+        if self.drafts is None or not self.drafts.pending:
+            return
+        self.drafts.discard_all()
+        self._refresh()
+        self._update_pending_panel()
+        self.feedback.emit("Unapplied edits discarded by user request")
+
     def discard_all_branch_drafts(self) -> bool:
         """Require explicit confirmation before discarding uncommitted work."""
         if self.drafts is None:
