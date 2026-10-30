@@ -68,6 +68,29 @@ jobs:
           python -m pip install --disable-pip-version-check -r packaging/windows/requirements-build.txt
           if ($LASTEXITCODE -ne 0) { throw "Frozen build tool installation failed" }
 
+      - name: DIAGNOSTIC (throwaway branch) surface failing test names as annotations
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:PYTHONPATH = "src"
+          python scripts/diag_fit.py 2>&1 | Write-Host
+          foreach ($file in @("test_v2_m7_packaging.py","test_v2_retirement_boundary.py","test_v2_canvas_layout_stress.py","test_v2_m73_native_draft_recovery.py","test_v2_m73_photo_contrast.py","test_v2_m67_checkpoint.py")) {
+            $out = (python -m unittest discover -s tests -p $file -v 2>&1 | Out-String)
+            $code = $LASTEXITCODE
+            Write-Host "::notice::$file exit=$code"
+            $lines = $out -split "`r?`n"
+            $keep = @()
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+              $l = $lines[$i]
+              if ($l -match '^(FAIL|ERROR): ' -or $l -match '^\w*Error' -or $l -match 'AssertionError' -or $l -match '^SUBFAIL' -or $l -match 'Traceback') { $keep += $l.Trim() }
+            }
+            foreach ($k in ($keep | Select-Object -First 25)) {
+              $m = $k -replace '%','%25' -replace "`r",'' -replace "`n",' '
+              if ($m.Length -gt 400) { $m = $m.Substring(0,400) }
+              Write-Host "::error title=$file::$m"
+            }
+          }
       - name: Validate source V2 smoke and M7 package boundaries
         shell: pwsh
         run: |
