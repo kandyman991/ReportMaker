@@ -1,8 +1,8 @@
 """Uncommitted inline text lives outside the canonical report.
 
 The only way to persist a draft is through M1.2's validated CommandGateway.
-Unresolved drafts block ordinary commands and Undo/Redo. Save, Save As, New, Open and
-Close apply them first as one change, or refuse and keep them (docs/adr/0009).
+Unresolved drafts block ordinary commands and Undo/Redo. Save, Save As, New,
+Open and Close require an explicit Apply / Discard / Cancel decision (ADR-0009).
 Separate fields may be drafted concurrently, but a commit checks that the
 specific canonical source field has not changed since its draft began.
 """
@@ -347,11 +347,15 @@ class DraftCoordinator:
         self._clear(address)
         return self.table_rows(address) if address.field == "table" else self.text(address)
 
+    def discard_all(self) -> None:
+        """Discard drafts from every editor only after an explicit UI decision."""
+        for address in tuple(self._drafts):
+            self._clear(address)
+
     def apply_all(self):
         """Apply every pending draft, from any editor, as ONE undo step.
 
-        This is the explicit "keep my typing" path used when the user chooses
-        Save, Save As, New, Open or closes the window. Every baseline is
+        This is the confirmed "keep my typing" path used by lifecycle actions. Every baseline is
         inspected before anything executes, so a draft that cannot be applied
         leaves ALL drafts and the canonical report untouched. Returns the
         change record, or None when nothing was pending.

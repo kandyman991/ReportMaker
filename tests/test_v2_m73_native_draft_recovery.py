@@ -152,8 +152,11 @@ class PendingDraftRecoveryQtTests(unittest.TestCase):
         # undoable change and saves (docs/adr/0009-save-applies-pending-edits.md).
         from pathlib import Path
         target = Path(self.temp.name) / "saved-with-pending-edit.rmproj"
-        with mock.patch("reportmaker.v2.app.QMessageBox.warning") as warning:
+        with mock.patch.object(win, "_prompt_pending_edits",
+                               return_value="apply") as prompt, \
+             mock.patch("reportmaker.v2.app.QMessageBox.warning") as warning:
             self.assertTrue(win.save_project(target))
+            prompt.assert_called_once_with(saving=True)
             warning.assert_not_called()
         self.assertFalse(win.branch.drafts.pending)
         self.assertFalse(self._panel().isVisible())
@@ -170,8 +173,10 @@ class PendingDraftRecoveryQtTests(unittest.TestCase):
         address = self._stage_title()
         target = Path(self.temp.name) / "must-not-exist.rmproj"
         failure = StaleIntentError("Source changed since editing began; draft preserved")
-        with mock.patch.object(win.branch.drafts, "apply_all", side_effect=failure), \
-                mock.patch("reportmaker.v2.app.QMessageBox.warning") as warning:
+        with mock.patch.object(win, "_prompt_pending_edits",
+                               return_value="apply"), \
+             mock.patch.object(win.branch.drafts, "apply_all", side_effect=failure), \
+             mock.patch("reportmaker.v2.app.QMessageBox.warning") as warning:
             self.assertFalse(win.save_project(target))
             warning.assert_called_once()
             self.assertIn("Source changed", warning.call_args.args[2])

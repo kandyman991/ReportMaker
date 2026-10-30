@@ -272,8 +272,8 @@ class V2MainWindow(QMainWindow):
         self._restore_presentation()
         self._update_caption()
         self.statusBar().showMessage(
-            "Edit inline; Save applies pending edits for you (Ctrl+Enter applies one, "
-            "Esc reverts it). New/Open/Save/Save As use portable .rmproj files."
+            "Edit inline; Save asks how to handle unapplied edits. "
+            "Ctrl+Enter applies one edit, Esc reverts it; files use .rmproj."
         )
 
     def open_customer_manager(self) -> bool:
@@ -537,18 +537,52 @@ class V2MainWindow(QMainWindow):
         key, selected, scroll, collapsed = view
         self.presentation.write(key, selected, scroll, collapsed=collapsed)
 
-    def _drafts_clean(self) -> bool:
-        """Apply pending inline edits when the user saves, switches or closes.
+    def _prompt_pending_edits(self, *, saving: bool) -> str:
+        """Ask before applying OR discarding any staged edits; Cancel is safest."""
+        count = len(self.branch.drafts.pending_addresses())
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Unapplied edits")
+        dialog.setIcon(QMessageBox.Icon.Question)
+        dialog.setText(
+            f"{count} unapplied edit(s) in Modules or Editor. "
+            "Choose what to do with your typed changes.")
+        dialog.setInformativeText(
+            ("Apply and save: keep every edit as one undoable change, then save. "
+             "Discard edits: remove unapplied changes and save only previously "
+             "applied content. Cancel: change nothing."
+             if saving else
+             "Apply edits: keep every edit as one undoable change, then continue "
+             "to the normal unsaved-report confirmation. Discard edits: remove "
+             "only unapplied changes, then continue. Cancel: change nothing."))
+        apply_button = dialog.addButton(
+            "Apply and save" if saving else "Apply edits",
+            QMessageBox.ButtonRole.AcceptRole)
+        discard_button = dialog.addButton(
+            "Discard edits", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_button = dialog.addButton(
+            "Cancel", QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(cancel_button)
+        dialog.setEscapeButton(cancel_button)
+        dialog.exec()
+        if dialog.clickedButton() is apply_button:
+            return "apply"
+        if dialog.clickedButton() is discard_button:
+            return "discard"
+        return "cancel"
 
-        Save, Save As, New, Open and closing are explicit user actions, so any
-        unapplied edit (from Modules and the page Editor together) is applied
-        first as ONE undoable change, then the action continues. Insert, move
-        and drag stay paused behind the yellow recovery panel (unchanged).
-        If a draft cannot be applied (for example its source changed), nothing
-        is saved or closed and every draft is kept, with the reason shown.
-        See docs/adr/0009-save-applies-pending-edits.md.
+    def _drafts_clean(self, *, saving: bool = False) -> bool:
+        """Resolve pending drafts only after a separately confirmed decision.
+
+        No file, report, project identity or undo state changes on Cancel.
+        Applying all editors' drafts remains atomic, fail-closed and undoable.
         """
         if not self.branch.drafts.pending:
+            return True
+        choice = self._prompt_pending_edits(saving=saving)
+        if choice not in {"apply", "discard"}:
+            return False
+        if choice == "discard":
+            self.branch.discard_all_drafts()
             return True
         problem = self.branch.apply_all_drafts()
         if problem is None:
@@ -626,8 +660,6 @@ class V2MainWindow(QMainWindow):
         return True
 
     def open_project(self, path: str | Path | None = None) -> bool:
-        if not self._drafts_clean():
-            return False
         if path is None:
             filename, _ = QFileDialog.getOpenFileName(
                 self, "Open ReportMaker project",
@@ -672,8 +704,6 @@ class V2MainWindow(QMainWindow):
         return target
 
     def _save_to(self, target: Path | None, *, as_copy: bool) -> bool:
-        if not self._drafts_clean():
-            return False
         if target is None:
             target = self._choose_save_path(as_copy=as_copy)
             if target is None:
@@ -697,6 +727,10 @@ class V2MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 return False
             overwrite = True
+        # Do not apply or discard drafts if the user cancelled the destination
+        # picker / overwrite warning. No implicit edits before confirmation.
+        if not self._drafts_clean(saving=True):
+            return False
         view = self._view()
         try:
             if as_copy or overwrite:

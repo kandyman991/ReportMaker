@@ -1572,6 +1572,15 @@ class BranchCanvas(QScrollArea):
         self.feedback.emit("Pending edits applied as one change — Undo available")
         return None
 
+    def discard_all_drafts(self) -> None:
+        """Remove only pending draft fields across editors after explicit choice."""
+        if self.drafts is None or not self.drafts.pending:
+            return
+        self.drafts.discard_all()
+        self._refresh()
+        self._update_pending_panel()
+        self.feedback.emit("Unapplied edits discarded by user request")
+
     def discard_all_branch_drafts(self) -> bool:
         """Require explicit confirmation before discarding uncommitted work."""
         if self.drafts is None:

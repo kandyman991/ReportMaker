@@ -1,4 +1,4 @@
-"""Save/Open/New/Close apply pending inline edits (docs/adr/0009).
+"""Save/Open/New/Close explicitly resolve pending inline edits (ADR-0009).
 
 Synthetic data only. The Qt tests are offscreen behaviour checks, not native
 Windows acceptance of issue #98.
@@ -63,6 +63,16 @@ class ApplyAllDraftTests(TestCase):
         self.assertEqual(self.session.report_snapshot(), before)
         self.assertEqual(self.session.revision, revision)
 
+    def test_discard_all_removes_both_editors_without_committing(self):
+        original = self.session.report_snapshot()
+        revision = self.session.revision
+        self.drafts.update(self.title, "Staged title", owner="branch")
+        self.drafts.update(self.paragraph, "Staged paragraph", owner="page-editor")
+        self.drafts.discard_all()
+        self.assertFalse(self.drafts.pending)
+        self.assertEqual(self.session.report_snapshot(), original)
+        self.assertEqual(self.session.revision, revision)
+
     def test_named_batch_still_rejects_another_editors_fields(self):
         self.drafts.update(self.title, "Renamed", owner="branch")
         port = self.drafts.for_editor("page-editor")
@@ -125,8 +135,11 @@ class SaveAppliesDraftsQtTests(TestCase):
 
         revision = self.win.session.revision
         target = self.folder / "two-editors.rmproj"
-        with mock.patch("reportmaker.v2.app.QMessageBox.warning") as warn:
+        with mock.patch.object(self.win, "_prompt_pending_edits",
+                               return_value="apply") as prompt, \
+             mock.patch("reportmaker.v2.app.QMessageBox.warning") as warn:
             self.assertTrue(self.win.save_project(target))
+            prompt.assert_called_once_with(saving=True)
             warn.assert_not_called()
         self.assertFalse(self.win.branch.drafts.pending)
         saved = load_project(target).report
@@ -136,6 +149,47 @@ class SaveAppliesDraftsQtTests(TestCase):
         self.assertTrue(self.win.branch.undo())
         self.assertNotEqual(self.win.session.report_snapshot().modules[0].title.original,
                             "Typed in the branch")
+
+    def test_real_confirmation_buttons_default_cancel_without_mutation(self):
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        report = self.win.session.report_snapshot()
+        address = NodeAddress(report.id, report.modules[0].id)
+        self.win.branch.drafts.update(address, "Unapplied", owner="branch")
+        seen = {}
+
+        def inspect():
+            dialog = QApplication.activeModalWidget()
+            self.assertIsInstance(dialog, QMessageBox)
+            labels = {button.text() for button in dialog.buttons()}
+            seen["labels"] = labels
+            seen["default"] = dialog.defaultButton().text()
+            dialog.reject()
+
+        QTimer.singleShot(30, inspect)
+        self.assertEqual(self.win._prompt_pending_edits(saving=True), "cancel")
+        self.assertEqual(seen["labels"], {"Apply and save", "Discard edits", "Cancel"})
+        self.assertEqual(seen["default"], "Cancel")
+        self.assertTrue(self.win.branch.drafts.pending)
+        self.assertEqual(self.win.branch.drafts.text(address), "Unapplied")
+
+    def test_discard_from_save_drops_both_editors_and_preserves_canonical(self):
+        self.win.branch.add_paragraph()
+        self.pump()
+        report = self.win.session.report_snapshot()
+        module = report.modules[0]
+        title = NodeAddress(report.id, module.id)
+        paragraph = NodeAddress(report.id, module.id, module.blocks[-1].id, "text")
+        self.win.branch.drafts.update(title, "Branch draft", owner="branch")
+        self.win.branch.drafts.update(paragraph, "Page draft", owner="page-editor")
+        before = self.win.session.report_snapshot()
+        target = self.folder / "discard-all.rmproj"
+        with mock.patch.object(self.win, "_prompt_pending_edits",
+                               return_value="discard"):
+            self.assertTrue(self.win.save_project(target))
+        self.assertFalse(self.win.branch.drafts.pending)
+        self.assertEqual(self.win.session.report_snapshot(), before)
+        self.assertEqual(load_project(target).report, before)
 
     def test_apply_all_drafts_reports_the_reason_and_keeps_text(self):
         report = self.win.session.report_snapshot()

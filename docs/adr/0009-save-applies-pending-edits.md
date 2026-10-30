@@ -1,44 +1,33 @@
-# ADR-0009 — Save, Save As, New, Open and Close apply pending inline edits
+# ADR-0009 — Explicit resolution of unapplied edits at Save and project transitions
 
-Date: 2026-10-29
-Status: Proposed — needs an explicit owner decision because it departs from the expected behavior written in issue #98
+Date: 2026-10-30
+Status: **Accepted — option B (explicit confirmation)**, replacing the original proposed automatic-apply behavior in PR #111
 Owners: ReportMaker project
-Supersedes: None. Refines the pending-draft guard from M1.3 and the M7.3 visible-recovery work (issue #98, PR #97).
+Scope: V2 Save, Save As, New, Open and Close; issue #98 / draft PR #97
 
-## Context
+## Problem and constraint
 
-Typing in the Branch Editor or the page Editor creates a **draft** that is not part of the canonical report until it is applied. Until now an unresolved draft blocked ordinary commands, Undo/Redo, **Save** and project switches.
+Typing in Modules or the page Editor creates a staged draft outside the canonical report, with a specific editor owner and original source baseline. Structural commands, Undo/Redo, export and unrelated operations remain blocked while drafts are pending.
 
-On physical Windows (issue #98) users typed text, pressed Save and got a modal refusal, while insert and drag also appeared inert. PR #97 added a visible yellow recovery panel ("Apply all edits" / "Discard edits…") and clearer blocked-command messages. Issue #98's expected behavior states *no silent auto-commit*.
-
-The owner has since asked that **Save apply pending edits automatically**. This ADR proposes that as a narrow, explicit, undoable exception, and records the alternatives so it can be accepted, changed or rejected on review.
+Native Windows testing of issue #98 found that users could type into an editor, then be blocked on Save while Apply/Revert controls were easy to miss. Making Save automatically commit every pending draft would remove that particular obstacle but violate issue #98's **no silent auto-commit** requirement, especially for New, Open and Close.
 
 ## Decision
 
-1. **Explicit actions only.** Save, Save As, New, Open and closing the window — each a deliberate user action — first apply **all** pending drafts (Modules and Editor together) as **one undoable change** through `DraftCoordinator.apply_all()`, then continue. The status bar says: "Pending edits applied as one change — Undo available".
-2. **Atomic and fail-closed.** Every draft baseline and owner is inspected before anything executes. If any draft cannot be applied (for example its source changed, or validation fails), **nothing** is applied, saved, switched or closed, every draft stays exactly as typed, and a modal names the reason and points to the yellow panel (Modules) or the Editor tab.
-3. **Everything else stays as in PR #97.** Insert, move, drag, photo import, Undo/Redo, exports, Report info, translations and template import remain blocked while drafts are pending, with the recovery panel. Discard still needs confirmation. There is **no timer, focus-out or background autosave**: nothing is applied unless the user chose one of the actions in (1).
-4. **Switching projects.** After the drafts are applied the usual Save / Discard / Cancel question for unsaved changes runs. Discard drops the applied edits as well; Cancel keeps them applied (still undoable).
-5. **Cross-editor drafts.** Drafts from different editors are applied in one batch with the existing stale-source check; no editor can overwrite canonical content it did not start from.
+1. **No implicit draft changes.** Save and Save As with pending drafts present an explicit modal with three visible buttons: **Apply and save**, **Discard edits**, **Cancel**. Cancel is the default and escape action. Discard edits saves only previously applied content and intentionally loses staged drafts; the dialog describes that consequence.
+2. **Project transitions.** New, Open and window Close with pending drafts show **Apply edits**, **Discard edits**, **Cancel**, with Cancel the default. After an explicit Apply/Discard, the existing **Save / Discard / Cancel** question for committed but unsaved report changes still runs. The second Cancel keeps the current project and any already explicitly applied edits. The draft-confirmation prompt never appears if no drafts are pending.
+3. **Atomic apply.** Approved Apply collects drafts from both Modules and Editor and checks generation, source baseline and validation before one gateway transaction and one Undo entry. A failed apply does not save, switch, close or clear any draft and explains how to recover via the yellow panel or Editor tab.
+4. **Explicit discard.** Confirmed Discard clears pending fields from both editors, leaving the canonical report, its revision and current saved file unmodified until the normal Save/transition succeeds. This deliberately discards staged content **only** because the user chose Discard.
+5. **Picker cancellation.** Save/Save As requires a chosen destination and any required overwrite consent **before** changing pending drafts. Open obtains a file path before prompting; closing any picker without selecting a file leaves all pending edits and the canonical report untouched.
+6. **Unchanged guards.** Insert, move, drag/drop, photo import, exports, unrelated dialogs and Undo/Redo continue to reject unresolved drafts. The yellow per-card recovery panel and its confirmation remain. No timer-, focus-out- or background-based autosave, and no V1/report/archive/schema changes.
 
-## Why this departs from issue #98
+## Rationale and alternatives
 
-"No silent auto-commit" protects against edits being committed or discarded without the user knowing. This change is not silent — it runs only when the user presses Save (or switches/closes), is announced, and is one Undo away — but it **is** a commit the user did not confirm separately. If the owner reads #98 strictly, choose alternative B.
+Option **B** is accepted because it keeps Save usable while obtaining the explicit user approval required by issue #98. Option **A** (reject Save and point to the yellow panel) is safe but leaves the observed usability blocker. Option **C** (setting) introduces unnecessary variability; option **D** (silent autosave on focus/timer) is rejected. The original proposed automatic apply is **not accepted**.
 
-## Alternatives considered
+## Verification and release gates
 
-* **A. Status quo (PR #97):** Save refuses and points to the panel. Strictest, but Save is the one command people expect to simply keep their text; this is what blocked the Windows acceptance run.
-* **B. Prompt on Save:** "Apply and save / Discard / Cancel" when drafts are pending. Satisfies "deliberate" literally at the cost of one more click each time. The recommended fallback if this ADR is not accepted as written.
-* **C. A setting, default off.** Adds a preference surface for one behavior.
-* **D. Autosave on focus-out or timer.** Rejected: silent, and it would apply half-typed text.
-
-## Consequences
-
-* Removes the most common Save blocker and the risk of losing typed text on close.
-* One more code path commits drafts; exports and several dialogs still require edits to be applied first and could follow the same pattern later.
-* If accepted, update: the `drafts.py` module docstring, `docs/v2/M1_3_INLINE_BRANCH.md`, and the expected-behavior text of issue #98.
-* Does **not** validate or replace the physical installed-Windows retest of #98 / BE-L01.
-
-## Verification
-
-`tests/test_v2_save_applies_drafts.py` (coordinator `apply_all`: no-op, cross-editor single undo step, failure keeps every draft, named batches still reject other editors' fields; Save from Modules + page Editor drafts is one undo step and round-trips), `tests/test_v2_lifecycle.py` (Save, Save As, New, Open and Close apply then prompt; an unappliable draft refuses and is kept) and `tests/test_v2_m73_native_draft_recovery.py` (the recovery panel and blocked commands are unchanged). Offscreen Qt only; synthetic data.
+- tests/test_v2_save_applies_drafts.py: explicit dialog labels/default Cancel, two-editor atomic apply and Undo, two-editor discard, validation rollback and ownership isolation.
+- tests/test_v2_lifecycle.py: Save/Save As Apply/Discard/Cancel; New/Open/Close canceled transitions; Save/Open picker cancellation, stale drafts, legacy Save As and project identity.
+- tests/test_v2_m73_native_draft_recovery.py: blocked structural actions, explicit Save and failed apply with visible recovery.
+- Full Legion tests and exact corrected-head Windows CI required before integrating PR #111 into the M7.3 branch.
+- Physical installed-Windows 33-case M7.3 acceptance, including #98, remains pending. Neither GitHub CI nor this ADR authorizes production release, installer publication or a merge of PR #97 to main.
