@@ -465,7 +465,15 @@ class SideBySideInterferenceTests(_WorkspaceCase):
             win = self.make({"split": True, "left": ["modules"], "right": ["preview"]}, width=width)
             self.pump(10)
             with self.subTest(width=width):
-                self.assertEqual(win.branch.horizontalScrollBar().maximum(), 0)
+                branch = win.branch
+                self.assertEqual(branch.horizontalScrollBar().maximum(), 0,
+                                 f"window={win.width()} rail={win.rail.width()} "
+                                 f"viewport={branch.viewport().width()} "
+                                 f"host={branch._host.width()} "
+                                 f"card_min={branch._card_min_width} "
+                                 f"indent={branch._gutters[-1].step} "
+                                 f"depth={max(g.depth for g in branch._gutters)} "
+                                 f"split={win.tabs._splitter.sizes()}")
                 self.assertGreaterEqual(win.branch.viewport().width(), 400)
 
 
