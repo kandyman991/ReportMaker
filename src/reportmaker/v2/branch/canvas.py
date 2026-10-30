@@ -103,6 +103,52 @@ def _branch_rows(report: Report, *, expanded: frozenset[str] | None = None):
                 ))
 
 
+class ElidedLabel(QLabel):
+    """A caption that shortens itself in the middle instead of widening its card.
+
+    The numbered caption of a deeply nested module ("MODULE 1.1.1.1.1.1.1...") grows by
+    two characters per level. As a plain QLabel its full width became the card's minimum
+    width, which pushed a deep card past the right edge on exactly the machines whose
+    font was a little wider. The full text stays in the tooltip and the accessible name.
+    """
+
+    _KEEP = 12  # characters that always stay readable
+
+    def __init__(self, text: str, parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self._full = text
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setAccessibleName(text)
+
+    def full_text(self) -> str:
+        return self._full
+
+    def sizeHint(self) -> QSize:
+        size = super().sizeHint()
+        size.setWidth(self.fontMetrics().horizontalAdvance(self._full) + 2 * self.margin() + 2)
+        return size
+
+    def minimumSizeHint(self) -> QSize:
+        size = super().minimumSizeHint()
+        short = self._full[:self._KEEP] + ("…" if len(self._full) > self._KEEP else "")
+        size.setWidth(self.fontMetrics().horizontalAdvance(short) + 2 * self.margin() + 2)
+        return size
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        available = max(1, self.width() - 2 * self.margin() - 2)
+        shown = self.fontMetrics().elidedText(self._full, Qt.TextElideMode.ElideMiddle, available)
+        if shown != self.text():
+            super().setText(shown)
+        self.setToolTip(self._full if shown != self._full else "")
+
+    def setText(self, text: str) -> None:
+        self._full = text
+        self.setAccessibleName(text)
+        super().setText(text)
+        self.updateGeometry()
+
+
 class ConnectorGutter(QWidget):
     """Draw explicit parent/child lines without changing report structure."""
 
@@ -2850,8 +2896,7 @@ class BranchCanvas(QScrollArea):
             card_layout.setSpacing(3)
             numbered = (f"MODULE {numbers[identifier]}" if kind == "module"
                         else caption)
-            label = QLabel(numbered, card)
-            label.setTextFormat(Qt.TextFormat.PlainText)
+            label = ElidedLabel(numbered, card)
             label.setStyleSheet("color: #526c83; font-size: 10px; font-weight: bold;")
             header = QHBoxLayout()
             header.setContentsMargins(0, 0, 0, 0)
