@@ -130,11 +130,10 @@ class CheckpointCQtTests(unittest.TestCase):
                              "page-editor")
             self.assertEqual(win.session.report_snapshot().modules[0].blocks[1]
                              .module.blocks[0].text.original, "Torque checked")
-            with patch("reportmaker.v2.app.QMessageBox.warning"):
-                self.assertFalse(win.save_project(folder / "pending.rmproj"))
+            # Exports still refuse unapplied drafts (Save applies them; see
+            # test_v2_ui_menus for the cross-editor Save path).
             self.assertFalse(win.preview_tab.export_to(folder / "pending.pdf", "pdf"))
             self.assertFalse(win.preview_tab.export_bundle_to(folder / "pending.zip"))
-            self.assertFalse((folder / "pending.rmproj").exists())
             self.assertFalse((folder / "pending.pdf").exists())
             self.assertFalse((folder / "pending.zip").exists())
 
