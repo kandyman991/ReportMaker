@@ -82,6 +82,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "M7 package contract failed" }
           python -m unittest discover -s tests -p test_v2_retirement_boundary.py -v
           if ($LASTEXITCODE -ne 0) { throw "V2-only import and packaging boundary failed" }
+          python -m unittest discover -s tests -p test_v2_canvas_layout_stress.py -v
+          if ($LASTEXITCODE -ne 0) { throw "V2 canvas overlap/draft-interference regressions failed" }
           python -m unittest discover -s tests -p test_v2_m73_native_draft_recovery.py -v
           if ($LASTEXITCODE -ne 0) { throw "M7.3 Windows pending-edit recovery regression failed" }
           python -m unittest discover -s tests -p test_v2_m73_photo_contrast.py -v
