@@ -68,7 +68,7 @@ _KINDS = {
     "rename_module": ({"title"}, set()),
     "set_paragraph": ({"text"}, set()),
     "set_paragraph_rich": ({"text", "rich"}, set()),
-    "set_heading_rich": ({"text", "rich"}, set()),
+    "set_heading_rich": ({"text", "rich"}, {"level"}),
     "move_node": ({"anchor", "position"}, set()),
     "duplicate_node": (set(), set()),
     "delete_node": (set(), set()),
@@ -140,13 +140,15 @@ class CommandGateway:
         if intent.kind == "set_fields_batch":
             edits = intent.args["edits"]
             allowed = {"rename_module", "set_paragraph_rich", "set_heading_rich",
-                       "set_photo_caption", "set_table_rows"}
+                       "set_photo_caption", "set_table_rows", "set_report_metadata"}
             if (not isinstance(edits, (list, tuple)) or not 1 <= len(edits) <= 256
                     or any(not isinstance(edit, CommandIntent) or edit.kind not in allowed
                            for edit in edits)):
                 raise ValueError("Editor batch requires 1–256 validated field intents")
             addresses = [edit.target for edit in edits]
-            if any(not isinstance(address, NodeAddress) for address in addresses):
+            if any(not isinstance(edit.target, NodeAddress)
+                   and not (edit.kind == "set_report_metadata" and edit.target is None)
+                   for edit in edits):
                 raise ValueError("Invalid document editor field address")
             if len(set(addresses)) != len(addresses):
                 raise ValueError("Duplicate field in document editor batch")
@@ -257,6 +259,9 @@ class CommandGateway:
                                              or not 1 <= intent.args["level"] <= 6):
             raise ValueError("Heading level must be 1..6")
         if intent.kind in ("set_paragraph_rich", "set_heading_rich"):
+            if "level" in intent.args and (type(intent.args["level"]) is not int
+                                          or not 1 <= intent.args["level"] <= 6):
+                raise ValueError("Heading level must be 1..6")
             if not isinstance(intent.args["rich"], RichFormatting):
                 raise ValueError("An explicit rich formatting value is required")
             validate_rich(intent.args["rich"], intent.args["text"])
@@ -308,6 +313,9 @@ class CommandGateway:
             edits = args["edits"]
             def apply_batch(report):
                 for field in edits:
+                    if field.kind == "set_report_metadata":
+                        _apply_report_metadata(report, field.args)
+                        continue
                     node = find_node(report, field.target)
                     payload = field.args
                     if field.kind == "rename_module":
@@ -315,6 +323,8 @@ class CommandGateway:
                     elif field.kind in ("set_paragraph_rich", "set_heading_rich"):
                         node.text.update_original(payload["text"])
                         node.rich = deepcopy(payload["rich"])
+                        if field.kind == "set_heading_rich" and "level" in payload:
+                            node.level = payload["level"]
                         validate_rich(node.rich, node.text.original)
                     elif field.kind == "set_photo_caption":
                         if node.caption is None:
@@ -327,7 +337,8 @@ class CommandGateway:
             # of successful field writes can leak out on a later failure.
             editor.apply(apply_batch)
             ids = frozenset(
-                field.target.block_id or field.target.module_id for field in edits)
+                (field.target.block_id or field.target.module_id)
+                if field.target else editor.report.id for field in edits)
             renamed = any(field.kind == "rename_module" for field in edits)
             change = ChangeSet(self._session.revision + 1, ids, False, False, renamed)
             self._session._publish(change)
@@ -531,7 +542,8 @@ class CommandGateway:
                 raise ValueError("Formatted paragraphs require set_paragraph_rich")
         if kind in ("set_paragraph_rich", "set_heading_rich"):
             current = find_node(editor.report, address)
-            if current.text.original == args["text"] and current.rich == args["rich"]:
+            if (current.text.original == args["text"] and current.rich == args["rich"]
+                    and ("level" not in args or current.level == args["level"])):
                 return None
         language = editor.report.primary_language
         changed_id: str
@@ -577,6 +589,8 @@ class CommandGateway:
                 block = find_node(report, address)
                 block.text.update_original(args["text"])
                 block.rich = rich
+                if kind == "set_heading_rich" and "level" in args:
+                    block.level = args["level"]
                 validate_rich(block.rich, block.text.original)
             editor.apply(edit)
             changed_id = address.block_id

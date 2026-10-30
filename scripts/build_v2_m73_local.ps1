@@ -56,10 +56,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Pinned PyInstaller dependency installation failed" }
     $env:QT_QPA_PLATFORM = "offscreen"
     & $python -m reportmaker.v2 --offline-self-test
-    if ($LASTEXITCODE -ne 0) { throw "V2 source offline test failed" }
+    if ($LASTEXITCODE -ne 0) { throw "Native V2 source smoke failed" }
+    & $python -m reportmaker.v2 --html --offline-self-test
+    if ($LASTEXITCODE -ne 0) { throw "HTML V2 source offline test failed" }
     & $python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 --specpath $specDir `
         --hidden-import PySide6.QtWebEngineWidgets `
         --hidden-import PySide6.QtWebEngineCore `
+        --hidden-import PySide6.QtWebChannel `
         --hidden-import PySide6.QtSvg `
         --exclude-module reportmaker.__main__ `
         --exclude-module reportmaker.ui `
@@ -73,6 +76,7 @@ try {
         --exclude-module reportmaker.export_probe `
         --exclude-module reportmaker.layout_probe `
         --collect-all pillow_heif `
+        --collect-data reportmaker `
         packaging/windows/v2_launcher.py
     if ($LASTEXITCODE -ne 0) { throw "V2 freezing failed" }
     $frozen = Join-Path $root "dist\ReportMakerV2"
@@ -80,8 +84,10 @@ try {
     if (-not (Test-Path $frozenExe)) { throw "Frozen V2 executable missing" }
     & $python scripts/verify_v2_frozen_archive.py $frozenExe
     if ($LASTEXITCODE -ne 0) { throw "V2-only frozen archive check failed" }
-    $smoke = Start-Process -FilePath $frozenExe -ArgumentList "--offline-self-test" -Wait -PassThru
-    if ($smoke.ExitCode -ne 0) { throw "Frozen V2 offline test failed" }
+    $smoke = Start-Process -FilePath $frozenExe -ArgumentList "--offline-self-test" -WindowStyle Hidden -Wait -PassThru
+    if ($smoke.ExitCode -ne 0) { throw "Frozen native V2 offline test failed" }
+    $smoke = Start-Process -FilePath $frozenExe -ArgumentList @("--html", "--offline-self-test") -WindowStyle Hidden -Wait -PassThru
+    if ($smoke.ExitCode -ne 0) { throw "Frozen HTML V2 offline test failed" }
     Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 
     if (-not $IsccPath) {
@@ -131,9 +137,11 @@ try {
             }
         }
         $env:QT_QPA_PLATFORM = "offscreen"
-        $installedSmoke = Start-Process -FilePath $installedExe -ArgumentList "--offline-self-test" -Wait -PassThru
+        $installedSmoke = Start-Process -FilePath $installedExe -ArgumentList "--offline-self-test" -WindowStyle Hidden -Wait -PassThru
+        if ($installedSmoke.ExitCode -ne 0) { throw "Installed native V2 offline smoke failed" }
+        $installedSmoke = Start-Process -FilePath $installedExe -ArgumentList @("--html", "--offline-self-test") -WindowStyle Hidden -Wait -PassThru
         Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
-        if ($installedSmoke.ExitCode -ne 0) { throw "Installed V2 offline smoke failed" }
+        if ($installedSmoke.ExitCode -ne 0) { throw "Installed HTML V2 offline smoke failed" }
         $manifest.installed_exe_sha256 = (Get-FileHash -LiteralPath $installedExe -Algorithm SHA256).Hash.ToLowerInvariant()
         Write-Host "Installed isolated V2 test candidate: $installedExe"
     }

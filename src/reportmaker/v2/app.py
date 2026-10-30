@@ -102,11 +102,13 @@ class V2MainWindow(QMainWindow):
                  ephemeral_browser: bool = False,
                  customer_database_path: Path | None = None,
                  workspace_state: dict | None = None,
-                 workspace_saver: Callable[[dict], None] | None = None) -> None:
+                 workspace_saver: Callable[[dict], None] | None = None,
+                 theme: dict | None = None) -> None:
         super().__init__()
         if report is not None and project is not None:
             raise ValueError("Pass either a Report or an existing project")
         self.setObjectName("reportmakerV2Window")
+        self._theme = theme or LIGHT
         self.customer_database_path = customer_database_path
         self.resize(1280, 820)
         self.setMinimumSize(660, 460)
@@ -162,7 +164,7 @@ class V2MainWindow(QMainWindow):
                               else default_state(split=False))
         self._build_rail()
         self.tabs.currentChanged.connect(self._sync_rail)
-        self.setStyleSheet(stylesheet(LIGHT))
+        self.setStyleSheet(stylesheet(self._theme))
         self._sync_rail()
         self._workspace_layout_changed()
         self.session.subscribe(self._workspace_changed)

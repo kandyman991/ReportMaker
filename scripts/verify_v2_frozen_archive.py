@@ -32,6 +32,11 @@ LEGACY_MODULES = frozenset({
 # serious as an unexpected V1 module: the app may start but break later.
 REQUIRED_MODULES = frozenset({
     "reportmaker.v2.app",
+    "reportmaker.v2.web_ui",
+    "reportmaker.v2.web_shell",
+    "reportmaker.v2.web_origin",
+    "reportmaker.v2.web_edits",
+    "reportmaker.v2.web_smoke",
     "reportmaker.v2.chat_tab",
     "reportmaker.v2.gallery_tab",
     "reportmaker.v2.editor_tab",
@@ -72,7 +77,7 @@ def verify_listing(listing: str) -> tuple[set[str], set[str], set[str]]:
         name for name in names
         if any(name == old or name.startswith(old + ".") for old in LEGACY_MODULES)
     }
-    missing = REQUIRED_MODULES - names
+    missing = set(REQUIRED_MODULES - names)
     return names, unexpected, missing
 
 
@@ -93,6 +98,14 @@ def inspect_archive(executable: Path) -> tuple[set[str], set[str], set[str]]:
             + result.stderr[-1200:]
         )
     names, unexpected, missing = verify_listing(result.stdout)
+    # Extension modules and HTML assets are loose files, outside the PYZ listing.
+    internal = executable.parent / "_internal"
+    for component in ("QtWebChannel", "QtWebEngineCore", "QtWebEngineWidgets"):
+        if not list(internal.glob(f"PySide6/{component}*.pyd")):
+            missing.add("PySide6." + component)
+    for asset in ("index.html", "studio.css", "studio.js", "transport.js", "events.js"):
+        if not (internal / "reportmaker/v2/web_assets" / asset).is_file():
+            missing.add("web_assets/" + asset)
     # Check loose app-package files too: no legacy source/data should leak into
     # the onedir payload even if it is outside the embedded executable archive.
     for item in executable.parent.rglob("*"):

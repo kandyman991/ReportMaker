@@ -10,9 +10,11 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    offline = args == ["--offline-self-test"]
-    if args and not offline:
-        print("Usage: python -m reportmaker.v2 [--offline-self-test]")
+    offline = "--offline-self-test" in args
+    html = "--html" in args
+    if (any(arg not in {"--offline-self-test", "--html", "--native"} for arg in args)
+            or len(args) != len(set(args)) or (html and "--native" in args)):
+        print("Usage: python -m reportmaker.v2 [--native | --html] [--offline-self-test]")
         return 2
     if offline:
         # Never open any website or persistent browser profile in CI.
@@ -21,6 +23,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         from PySide6.QtWidgets import QApplication, QSplitter, QTreeWidget
         from .app import V2MainWindow
+        if html:
+            from .web_ui import V2WebMainWindow
     except ImportError as exc:
         print('ReportMaker V2 requires desktop dependencies: pip install -e ".[desktop]"')
         print(f"Details: {exc}")
@@ -29,14 +33,22 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication.instance() or QApplication([sys.argv[0]])
     app.setOrganizationName("ReportMaker")
     app.setApplicationName("ReportMaker V2 Preview")
-    if offline:
-        window = V2MainWindow()
-    else:
-        # The window layout (split on/off, which tool is in which tab) is a per-user
-        # preference, kept outside report projects. First run: two panes.
-        from .workspace import default_state, restore_state, store_state
-        window = V2MainWindow(workspace_state=restore_state() or default_state(split=True),
-                              workspace_saver=store_state)
+    window = (V2WebMainWindow(load_website=False, ephemeral_browser=offline) if html
+              else V2MainWindow(load_website=not offline, ephemeral_browser=offline))
+
+    if offline and html:
+        from .web_smoke import exercise_studio
+        try:
+            exercise_studio(window, app)
+        finally:
+            window._close_approved = True
+            window.close()
+            window.deleteLater()
+            from PySide6.QtCore import QCoreApplication, QEvent
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            app.processEvents()
+        print("V2 HTML QtWebEngine/QWebChannel offline smoke OK")
+        return 0
 
     if offline:
         try:

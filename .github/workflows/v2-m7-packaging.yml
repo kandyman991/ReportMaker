@@ -73,10 +73,18 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $env:QT_QPA_PLATFORM = "offscreen"
+          $env:QT_QPA_FONTDIR = Join-Path $env:WINDIR "Fonts"
+          $env:QTWEBENGINE_CHROMIUM_FLAGS = "--disable-gpu"
           python -m compileall -q src/reportmaker/v2 packaging/windows/v2_launcher.py tests/test_v2_m7_packaging.py scripts/verify_v2_frozen_archive.py tests/test_v2_retirement_boundary.py
           if ($LASTEXITCODE -ne 0) { throw "V2 compilation failed" }
           python -m reportmaker.v2 --offline-self-test
-          if ($LASTEXITCODE -ne 0) { throw "V2 source offline smoke failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Native V2 source offline smoke failed" }
+          python -m reportmaker.v2 --html --offline-self-test
+          if ($LASTEXITCODE -ne 0) { throw "HTML V2 source offline smoke failed" }
+          python -m unittest discover -s tests -p test_v2_web_commands.py -v
+          if ($LASTEXITCODE -ne 0) { throw "HTML V2 canonical rich-text regressions failed" }
+          python -m unittest discover -s tests -p test_v2_web.py -v
+          if ($LASTEXITCODE -ne 0) { throw "HTML V2 actual Chromium integration regressions failed" }
           $env:PYTHONPATH = "src"
           python -m unittest discover -s tests -p test_v2_m7_packaging.py -v
           if ($LASTEXITCODE -ne 0) { throw "M7 package contract failed" }
@@ -102,6 +110,7 @@ jobs:
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 `
             --hidden-import PySide6.QtWebEngineWidgets `
             --hidden-import PySide6.QtWebEngineCore `
+            --hidden-import PySide6.QtWebChannel `
             --hidden-import PySide6.QtSvg `
             --exclude-module reportmaker.__main__ `
             --exclude-module reportmaker.ui `
@@ -115,6 +124,7 @@ jobs:
             --exclude-module reportmaker.export_probe `
             --exclude-module reportmaker.layout_probe `
             --collect-all pillow_heif `
+            --collect-data reportmaker `
             packaging/windows/v2_launcher.py
           if ($LASTEXITCODE -ne 0) { throw "V2 PyInstaller failed" }
           if (!(Test-Path "dist/ReportMakerV2/ReportMakerV2.exe")) {
@@ -126,9 +136,13 @@ jobs:
           python scripts/verify_v2_frozen_archive.py "dist/ReportMakerV2/ReportMakerV2.exe"
           if ($LASTEXITCODE -ne 0) { throw "V2 frozen module inventory gate failed" }
           $env:QT_QPA_PLATFORM = "offscreen"
+          $env:QT_QPA_FONTDIR = Join-Path $env:WINDIR "Fonts"
+          $env:QTWEBENGINE_CHROMIUM_FLAGS = "--disable-gpu"
           $exe = (Resolve-Path "dist/ReportMakerV2/ReportMakerV2.exe").Path
           $p = Start-Process -FilePath $exe -ArgumentList "--offline-self-test" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Frozen V2 offline smoke failed: $($p.ExitCode)" }
+          if ($p.ExitCode -ne 0) { throw "Frozen native V2 offline smoke failed: $($p.ExitCode)" }
+          $p = Start-Process -FilePath $exe -ArgumentList @("--html", "--offline-self-test") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Frozen HTML V2 offline smoke failed: $($p.ExitCode)" }
 
       - name: Locate Inno Setup 6
         shell: pwsh
@@ -197,9 +211,15 @@ jobs:
               }
             }
             $env:QT_QPA_PLATFORM = "offscreen"
+            $env:QT_QPA_FONTDIR = Join-Path $env:WINDIR "Fonts"
+            $env:QTWEBENGINE_CHROMIUM_FLAGS = "--disable-gpu"
             $smoke = Start-Process -FilePath $installedExe -ArgumentList "--offline-self-test" -Wait -PassThru
             if ($smoke.ExitCode -ne 0) {
-              throw "Installed V2 offline smoke failed: $($smoke.ExitCode)"
+              throw "Installed native V2 offline smoke failed: $($smoke.ExitCode)"
+            }
+            $smoke = Start-Process -FilePath $installedExe -ArgumentList @("--html", "--offline-self-test") -Wait -PassThru
+            if ($smoke.ExitCode -ne 0) {
+              throw "Installed HTML V2 offline smoke failed: $($smoke.ExitCode)"
             }
             Write-Host "Synthetic hosted-Windows installed V2 smoke passed (NOT physical UI acceptance)"
           }

@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src rmstudio:; style-src rmstudio: 'unsafe-inline'; img-src rmstudio: data:; connect-src 'none'; font-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReportMaker V2 — Engineering Field Report Studio</title>
+<link rel="stylesheet" href="studio.css">
+<script src="qwebchannel.js"></script>
+</head>
+<body>
+
+<!-- TOP COMMAND BAR -->
+<header class="top-header">
+  <div class="brand-cluster">
+    <div class="brand-logo" title="ReportMaker V2">
+      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+    </div>
+    <div class="brand-titles">
+      <div class="brand-row">
+        <span class="brand-name">ReportMaker</span>
+        <span class="v2-badge">V2 STUDIO</span>
+      </div>
+      <div class="project-badge">
+        <span id="dirtyDot" class="status-dot"></span>
+        <span id="projectPathLabel" class="mono">Untitled project (.rmproj)</span>
+      </div>
+    </div>
+
+    <div class="v-divider"></div>
+
+    <!-- Active Customer & Machine Pill -->
+    <div class="customer-pill" data-ev-click="0" title="Click to configure Customer, Site, Machine, Dates & Languages">
+      <div>
+        <div class="customer-pill-label">Customer / Machine</div>
+        <div id="headerCustomerLabel" class="customer-pill-val">Customer — Site</div>
+      </div>
+      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Right Action Cluster -->
+  <div class="action-cluster">
+    <button class="btn btn-icon" id="btnUndo" data-ev-click="1" title="Undo (Ctrl+Z)">
+      <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+    </button>
+    <button class="btn btn-icon" id="btnRedo" data-ev-click="2" title="Redo (Ctrl+Y)">
+      <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/></svg>
+    </button>
+
+    <div class="v-divider"></div>
+
+    <button class="btn" data-ev-click="3" title="New Report Project (Ctrl+N)">New</button>
+    <button class="btn" data-ev-click="4" title="Open .rmproj Bundle (Ctrl+O)">Open…</button>
+    <button class="btn" data-ev-click="5" title="Save .rmproj Bundle (Ctrl+S)">Save</button>
+    <button class="btn" data-ev-click="6" title="Save Project As…">Save As…</button>
+
+    <div class="v-divider"></div>
+
+    <button class="btn btn-soft" data-ev-click="7" title="Export Editable Microsoft Word (.docx)">
+      Export DOCX
+    </button>
+    <button class="btn btn-primary" data-ev-click="8" title="Export Paginated A4 PDF">
+      Export PDF
+    </button>
+
+    <div class="v-divider"></div>
+
+    <!-- Theme Toggle -->
+    <button class="btn btn-icon" id="btnThemeToggle" data-ev-click="9" title="Switch Dark Slate / Light Paper Chrome">
+      <span id="themeIcon">☀️</span>
+    </button>
+
+    <!-- AI Assistant Drawer Toggle -->
+    <button class="btn" id="btnAiDrawer" data-ev-click="10" title="Toggle Isolated ChatGPT Assistant Drawer">
+      ✨ AI Assistant
+    </button>
+
+    <!-- Split Preview Toggle -->
+    <button class="btn btn-active" id="btnTogglePreview" data-ev-click="11" title="Toggle Live A4 Document Proof (Ctrl+\)">
+      Split Proof
+    </button>
+  </div>
+</header>
+
+<!-- MAIN WORKSPACE BODY -->
+<div class="workspace-body">
+
+  <!-- LEFT NAVIGATION RAIL -->
+  <aside class="left-rail">
+    <div class="rail-group">
+      <button class="rail-btn active" id="railBranch" data-ev-click="12" title="Branch Canvas Editor">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+      </button>
+
+      <button class="rail-btn" id="railGallery" data-ev-click="13" title="Project Photo Gallery">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span id="galleryCountBadge" class="rail-badge">0</span>
+      </button>
+
+      <button class="rail-btn" data-ev-click="14" title="Customer, Site & Machine Database">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      </button>
+
+      <button class="rail-btn" data-ev-click="15" title="Multilingual Translations & Output Languages">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+        <span id="langBadge" class="rail-lang-badge">EN</span>
+      </button>
+
+      <button class="rail-btn" data-ev-click="16" title="Import Word (.docx) Page Header/Footer Template">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </button>
+    </div>
+
+    <div class="rail-group">
+      <button class="rail-btn" data-ev-click="17" title="Report Metadata & Intervention Settings">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- CENTER PANE: INTERACTIVE BRANCH CANVAS -->
+  <main class="canvas-pane">
+    <!-- Contextual Insertion Strip -->
+    <div class="context-bar">
+      <div class="insert-strip">
+        <span class="strip-label">Insert</span>
+        <button class="chip-btn primary" data-ev-click="18">+ Module</button>
+        <button class="chip-btn" id="btnAddSubmodule" data-ev-click="19">+ Submodule</button>
+        <div class="v-divider"></div>
+        <button class="chip-btn" data-ev-click="20">¶ Text</button>
+        <button class="chip-btn" data-ev-click="21">H Heading</button>
+        <button class="chip-btn" data-ev-click="22">📷 Photo…</button>
+        <button class="chip-btn" data-ev-click="23">⊞ Table</button>
+        <button class="chip-btn" data-ev-click="24">⎯ Page Break</button>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="search-box">
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" id="searchInput" placeholder="Filter modules or text…" data-ev-input="25">
+        </div>
+        <button class="chip-btn" data-ev-click="26" title="Zoom Out">A-</button>
+        <span id="zoomLabel" class="mono" style="font-size:11px; color:var(--text-muted); min-width:38px; text-align:center;">100%</span>
+        <button class="chip-btn" data-ev-click="27" title="Zoom In">A+</button>
+      </div>
+    </div>
+
+    <!-- MICROSOFT WORD FONT & PARAGRAPH RIBBON -->
+    <div class="word-ribbon" id="wordRibbon" role="toolbar" aria-label="Font and Paragraph Formatting Ribbon">
+      <!-- FONT GROUP -->
+      <div class="ribbon-section">
+        <div class="ribbon-rows">
+          <!-- Row 1: Font Family & Font Size -->
+          <div class="ribbon-row">
+            <select id="wbFontFamily" class="w-select w-font-family" title="Font Family">
+              <option value="">Calibri Light (Headings)</option>
+              <option value="Calibri Light">Calibri Light</option>
+              <option value="Calibri">Calibri (Body)</option>
+              <option value="Segoe UI">Segoe UI</option>
+              <option value="Arial">Arial</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Tahoma">Tahoma</option>
+              <option value="Trebuchet MS">Trebuchet MS</option>
+              <option value="Garamond">Garamond</option>
+              <option value="Consolas">Consolas</option>
+              <option value="Courier New">Courier New</option>
+            </select>
+            <select id="wbFontSize" class="w-select w-font-size" title="Font Size (pt)">
+              <option value="0">Default</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="14">14</option>
+              <option value="16">16</option>
+              <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="22">22</option>
+              <option value="24">24</option>
+              <option value="26">26</option>
+              <option value="28">28</option>
+              <option value="36">36</option>
+              <option value="48">48</option>
+              <option value="72">72</option>
+            </select>
+          </div>
+
+          <!-- Row 2: B, I, U, Strike, Sub, Super | Clear Formatting -->
+          <div class="ribbon-row">
+            <button type="button" class="w-btn" id="wbBold" data-wb-op="bold" title="Bold (Ctrl+B)"><b style="font-size:14px;font-family:Georgia,serif;">B</b></button>
+            <button type="button" class="w-btn" id="wbItalic" data-wb-op="italic" title="Italic (Ctrl+I)"><i style="font-size:14px;font-family:Georgia,serif;">I</i></button>
+            <button type="button" class="w-btn w-btn-split" id="wbUnderline" data-wb-op="underline" title="Underline (Ctrl+U)">
+              <span style="text-decoration:underline;font-weight:600;font-size:13px;">U</span><span class="w-caret">▾</span>
+            </button>
+            <button type="button" class="w-btn" id="wbStrike" data-wb-op="strike" title="Strikethrough"><span style="text-decoration:line-through;font-size:12.5px;">ab</span></button>
+            <button type="button" class="w-btn" id="wbSub" data-wb-op="baseline" data-wb-val="sub" title="Subscript">
+              <span style="font-weight:700;font-size:12.5px;">x<sub style="color:#2563EB;font-weight:800;">2</sub></span>
+            </button>
+            <button type="button" class="w-btn" id="wbSuper" data-wb-op="baseline" data-wb-val="super" title="Superscript">
+              <span style="font-weight:700;font-size:12.5px;">x<sup style="color:#2563EB;font-weight:800;">2</sup></span>
+            </button>
+            <div class="w-sep"></div>
+            <button type="button" class="w-btn" id="wbClearFormat" data-wb-op="clear_format" title="Clear All Formatting">
+              <span style="font-size:13px;font-weight:600;">A</span><span style="color:#9333EA;font-size:10px;margin-left:-1px;">⌫</span>
+            </button>
+          </div>
+
+          <!-- Row 3: Text Effects, Highlight Color, Font Color, Change Case | Grow Font, Shrink Font -->
+          <div class="ribbon-row">
+            <!-- Text Effects -->
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbTextEffectsBtn" data-wb-pop="popTextEffects" title="Text Effects and Typography">
+                <span style="font-weight:900;font-size:14px;color:transparent;-webkit-text-stroke:1.3px #2563EB;text-shadow:0 0 4px rgba(37,99,235,0.35);">A</span><span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popTextEffects">
+                <div class="pop-title">Text Effects &amp; Typography</div>
+                <button type="button" class="pop-item" data-wb-op="text_effect" data-wb-val="fill_blue"><span style="color:#1d4ed8;font-weight:800;">A</span> Accent Blue Fill</button>
+                <button type="button" class="pop-item" data-wb-op="text_effect" data-wb-val="fill_gold"><span style="color:#b45309;background:#fef3c7;padding:0 3px;font-weight:800;">A</span> Warm Gold Callout</button>
+                <button type="button" class="pop-item" data-wb-op="text_effect" data-wb-val="fill_emerald"><span style="color:#047857;background:#d1fae5;padding:0 3px;font-weight:800;">A</span> Approved Emerald</button>
+                <button type="button" class="pop-item" data-wb-op="text_effect" data-wb-val="fill_crimson"><span style="color:#b91c1c;background:#fee2e2;padding:0 3px;font-weight:800;">A</span> Critical Alert Red</button>
+                <button type="button" class="pop-item" data-wb-op="text_effect" data-wb-val="outline_slate"><span style="color:#334155;text-decoration:underline;font-weight:800;">A</span> Technical Underlined</button>
+                <button type="button" class="pop-item" data-wb-op="text_effect" data-wb-val="clear">Clear Typography Effect</button>
+              </div>
+            </div>
+
+            <!-- Text Highlight Color -->
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbHighlightBtn" data-wb-pop="popHighlightColor" title="Text Highlight Color">
+                <span class="w-color-icon">
+                  <svg width="13" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                  <span class="w-color-bar" id="wbHighlightBar" style="background:#ffff00;"></span>
+                </span>
+                <span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popHighlightColor">
+                <div class="pop-title">Text Highlight Color</div>
+                <div class="swatch-grid">
+                  <button type="button" class="color-swatch" style="background:#ffff00;" data-wb-op="highlight" data-wb-val="#ffff00" title="Yellow"></button>
+                  <button type="button" class="color-swatch" style="background:#00ff00;" data-wb-op="highlight" data-wb-val="#00ff00" title="Bright Green"></button>
+                  <button type="button" class="color-swatch" style="background:#00ffff;" data-wb-op="highlight" data-wb-val="#00ffff" title="Turquoise"></button>
+                  <button type="button" class="color-swatch" style="background:#ff00ff;" data-wb-op="highlight" data-wb-val="#ff00ff" title="Pink"></button>
+                  <button type="button" class="color-swatch" style="background:#dbeafe;" data-wb-op="highlight" data-wb-val="#dbeafe" title="Soft Blue"></button>
+                  <button type="button" class="color-swatch" style="background:#fef08a;" data-wb-op="highlight" data-wb-val="#fef08a" title="Soft Yellow"></button>
+                  <button type="button" class="color-swatch" style="background:#bbf7d0;" data-wb-op="highlight" data-wb-val="#bbf7d0" title="Soft Green"></button>
+                  <button type="button" class="color-swatch" style="background:#fecaca;" data-wb-op="highlight" data-wb-val="#fecaca" title="Soft Red"></button>
+                  <button type="button" class="color-swatch" style="background:#e9d5ff;" data-wb-op="highlight" data-wb-val="#e9d5ff" title="Soft Purple"></button>
+                  <button type="button" class="color-swatch" style="background:#e2e8f0;" data-wb-op="highlight" data-wb-val="#e2e8f0" title="Light Gray"></button>
+                </div>
+                <button type="button" class="pop-item" data-wb-op="highlight" data-wb-val="">No Color</button>
+              </div>
+            </div>
+
+            <!-- Font Color -->
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbFontColorBtn" data-wb-pop="popFontColor" title="Font Color">
+                <span class="w-color-icon">
+                  <span style="font-weight:700;font-size:13px;line-height:1;">A</span>
+                  <span class="w-color-bar" id="wbColorBar" style="background:#ff0000;"></span>
+                </span>
+                <span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popFontColor">
+                <div class="pop-title">Theme &amp; Standard Colors</div>
+                <div class="swatch-grid">
+                  <button type="button" class="color-swatch" style="background:#000000;" data-wb-op="color" data-wb-val="#000000" title="Black"></button>
+                  <button type="button" class="color-swatch" style="background:#334155;" data-wb-op="color" data-wb-val="#334155" title="Slate"></button>
+                  <button type="button" class="color-swatch" style="background:#1d4ed8;" data-wb-op="color" data-wb-val="#1d4ed8" title="Royal Blue"></button>
+                  <button type="button" class="color-swatch" style="background:#0284c7;" data-wb-op="color" data-wb-val="#0284c7" title="Sky Blue"></button>
+                  <button type="button" class="color-swatch" style="background:#047857;" data-wb-op="color" data-wb-val="#047857" title="Emerald"></button>
+                  <button type="button" class="color-swatch" style="background:#15803d;" data-wb-op="color" data-wb-val="#15803d" title="Green"></button>
+                  <button type="button" class="color-swatch" style="background:#b45309;" data-wb-op="color" data-wb-val="#b45309" title="Amber"></button>
+                  <button type="button" class="color-swatch" style="background:#ea580c;" data-wb-op="color" data-wb-val="#ea580c" title="Orange"></button>
+                  <button type="button" class="color-swatch" style="background:#c00000;" data-wb-op="color" data-wb-val="#c00000" title="Dark Red"></button>
+                  <button type="button" class="color-swatch" style="background:#ff0000;" data-wb-op="color" data-wb-val="#ff0000" title="Red"></button>
+                  <button type="button" class="color-swatch" style="background:#7e22ce;" data-wb-op="color" data-wb-val="#7e22ce" title="Purple"></button>
+                  <button type="button" class="color-swatch" style="background:#64748b;" data-wb-op="color" data-wb-val="#64748b" title="Muted Gray"></button>
+                </div>
+                <button type="button" class="pop-item" data-wb-op="color" data-wb-val="">Automatic Color</button>
+              </div>
+            </div>
+
+            <!-- Change Case -->
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbChangeCaseBtn" data-wb-pop="popChangeCase" title="Change Case">
+                <span style="font-size:12.5px;font-weight:600;">Aa</span><span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popChangeCase">
+                <div class="pop-title">Change Case</div>
+                <button type="button" class="pop-item" data-wb-op="change_case" data-wb-val="sentence">Sentence case.</button>
+                <button type="button" class="pop-item" data-wb-op="change_case" data-wb-val="lower">lowercase</button>
+                <button type="button" class="pop-item" data-wb-op="change_case" data-wb-val="upper">UPPERCASE</button>
+                <button type="button" class="pop-item" data-wb-op="change_case" data-wb-val="capitalize">Capitalize Each Word</button>
+                <button type="button" class="pop-item" data-wb-op="change_case" data-wb-val="toggle">tOGGLE cASE</button>
+              </div>
+            </div>
+
+            <div class="w-sep"></div>
+            <button type="button" class="w-btn" id="wbGrowFont" data-wb-op="step_size" data-wb-val="1" title="Increase Font Size">
+              <span style="font-size:14px;font-weight:600;">A</span><sup style="color:#2563EB;font-weight:900;font-size:9px;">▲</sup>
+            </button>
+            <button type="button" class="w-btn" id="wbShrinkFont" data-wb-op="step_size" data-wb-val="-1" title="Decrease Font Size">
+              <span style="font-size:11.5px;font-weight:600;">A</span><sup style="color:#2563EB;font-weight:900;font-size:9px;">▼</sup>
+            </button>
+          </div>
+        </div>
+        <div class="ribbon-group-footer">
+          <span>Font</span>
+          <span class="ribbon-launcher" title="Font Settings">↘</span>
+        </div>
+      </div>
+
+      <!-- PARAGRAPH GROUP -->
+      <div class="ribbon-section">
+        <div class="ribbon-rows">
+          <!-- Row 1: Bullets, Numbering, Multilevel List | Decrease Indent, Increase Indent -->
+          <div class="ribbon-row">
+            <button type="button" class="w-btn w-btn-split" id="wbListBullet" data-wb-op="list_kind" data-wb-val="bullet" title="Bullets">
+              <svg width="16" height="14" viewBox="0 0 18 14"><circle cx="2.5" cy="3" r="1.6" fill="#2563EB"/><circle cx="2.5" cy="7" r="1.6" fill="#2563EB"/><circle cx="2.5" cy="11" r="1.6" fill="#2563EB"/><line x1="6.5" y1="3" x2="16" y2="3" stroke="currentColor" stroke-width="1.5"/><line x1="6.5" y1="7" x2="16" y2="7" stroke="currentColor" stroke-width="1.5"/><line x1="6.5" y1="11" x2="16" y2="11" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span class="w-caret">▾</span>
+            </button>
+            <button type="button" class="w-btn w-btn-split" id="wbListDecimal" data-wb-op="list_kind" data-wb-val="decimal" title="Numbering">
+              <svg width="16" height="14" viewBox="0 0 18 14"><text x="0.5" y="4.5" font-size="4.8" font-weight="800" fill="#2563EB">1</text><text x="0.5" y="8.5" font-size="4.8" font-weight="800" fill="#2563EB">2</text><text x="0.5" y="12.5" font-size="4.8" font-weight="800" fill="#2563EB">3</text><line x1="6.5" y1="3" x2="16" y2="3" stroke="currentColor" stroke-width="1.5"/><line x1="6.5" y1="7" x2="16" y2="7" stroke="currentColor" stroke-width="1.5"/><line x1="6.5" y1="11" x2="16" y2="11" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span class="w-caret">▾</span>
+            </button>
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbListMulti" data-wb-pop="popMultilevelList" title="Multilevel List">
+                <svg width="16" height="14" viewBox="0 0 18 14"><text x="0" y="4.5" font-size="4.5" font-weight="800" fill="#2563EB">1</text><text x="2.5" y="8.5" font-size="4.5" font-weight="800" fill="#2563EB">a</text><text x="5" y="12.5" font-size="4.5" font-weight="800" fill="#2563EB">i</text><line x1="5" y1="3" x2="16" y2="3" stroke="currentColor" stroke-width="1.4"/><line x1="7.5" y1="7" x2="16" y2="7" stroke="currentColor" stroke-width="1.4"/><line x1="9.5" y1="11" x2="16" y2="11" stroke="currentColor" stroke-width="1.4"/></svg>
+                <span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popMultilevelList">
+                <div class="pop-title">List Style</div>
+                <button type="button" class="pop-item" data-wb-op="list_kind" data-wb-val="none">None</button>
+                <button type="button" class="pop-item" data-wb-op="list_kind" data-wb-val="bullet">• Bullet List</button>
+                <button type="button" class="pop-item" data-wb-op="list_kind" data-wb-val="decimal">1. 2. 3. Numbered List</button>
+                <button type="button" class="pop-item" data-wb-op="list_kind" data-wb-val="lower-alpha">a. b. c. Lowercase Alpha</button>
+                <button type="button" class="pop-item" data-wb-op="list_kind" data-wb-val="upper-alpha">A. B. C. Uppercase Alpha</button>
+              </div>
+            </div>
+            <div class="w-sep"></div>
+            <button type="button" class="w-btn" id="wbIndentDec" data-wb-op="indent" data-wb-val="-1" title="Decrease Indent">
+              <svg width="16" height="14" viewBox="0 0 18 14"><line x1="1" y1="2" x2="16" y2="2" stroke="currentColor" stroke-width="1.4"/><path d="M6 5L2 7l4 2V5z" fill="#2563EB"/><line x1="8" y1="6" x2="16" y2="6" stroke="currentColor" stroke-width="1.4"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.4"/><line x1="1" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="1.4"/></svg>
+            </button>
+            <button type="button" class="w-btn" id="wbIndentInc" data-wb-op="indent" data-wb-val="1" title="Increase Indent">
+              <svg width="16" height="14" viewBox="0 0 18 14"><line x1="1" y1="2" x2="16" y2="2" stroke="currentColor" stroke-width="1.4"/><path d="M2 5l4 2-4 2V5z" fill="#2563EB"/><line x1="8" y1="6" x2="16" y2="6" stroke="currentColor" stroke-width="1.4"/><line x1="8" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.4"/><line x1="1" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="1.4"/></svg>
+            </button>
+          </div>
+
+          <!-- Row 2: Align Left, Center, Right, Justify | Line and Paragraph Spacing -->
+          <div class="ribbon-row">
+            <button type="button" class="w-btn active" id="wbAlignLeft" data-wb-op="align" data-wb-val="left" title="Align Left">
+              <svg width="15" height="14" viewBox="0 0 16 14"><line x1="1" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="5.5" x2="11" y2="5.5" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="9" x2="15" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="12.5" x2="9" y2="12.5" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button type="button" class="w-btn" id="wbAlignCenter" data-wb-op="align" data-wb-val="center" title="Center">
+              <svg width="15" height="14" viewBox="0 0 16 14"><line x1="1" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.5"/><line x1="3.5" y1="5.5" x2="12.5" y2="5.5" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="9" x2="15" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="4" y1="12.5" x2="12" y2="12.5" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button type="button" class="w-btn" id="wbAlignRight" data-wb-op="align" data-wb-val="right" title="Align Right">
+              <svg width="15" height="14" viewBox="0 0 16 14"><line x1="1" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.5"/><line x1="5" y1="5.5" x2="15" y2="5.5" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="9" x2="15" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="12.5" x2="15" y2="12.5" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button type="button" class="w-btn" id="wbAlignJustify" data-wb-op="align" data-wb-val="justify" title="Justify">
+              <svg width="15" height="14" viewBox="0 0 16 14"><line x1="1" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="5.5" x2="15" y2="5.5" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="9" x2="15" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="1" y1="12.5" x2="15" y2="12.5" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <div class="w-sep"></div>
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbLineSpacingBtn" data-wb-pop="popLineSpacing" title="Line and Paragraph Spacing">
+                <svg width="16" height="14" viewBox="0 0 18 14"><path d="M3 1L1 3.5h4L3 1zm0 12l-2-2.5h4L3 13z" fill="#2563EB"/><line x1="3" y1="3" x2="3" y2="11" stroke="#2563EB" stroke-width="1.3"/><line x1="7.5" y1="2.5" x2="16" y2="2.5" stroke="currentColor" stroke-width="1.4"/><line x1="7.5" y1="7" x2="16" y2="7" stroke="currentColor" stroke-width="1.4"/><line x1="7.5" y1="11.5" x2="16" y2="11.5" stroke="currentColor" stroke-width="1.4"/></svg>
+                <span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popLineSpacing">
+                <div class="pop-title">Line Spacing</div>
+                <button type="button" class="pop-item" data-wb-op="line_height" data-wb-val="1.0">1.0</button>
+                <button type="button" class="pop-item" data-wb-op="line_height" data-wb-val="1.15">1.15</button>
+                <button type="button" class="pop-item" data-wb-op="line_height" data-wb-val="1.5">1.5</button>
+                <button type="button" class="pop-item" data-wb-op="line_height" data-wb-val="2.0">2.0</button>
+                <button type="button" class="pop-item" data-wb-op="line_height" data-wb-val="2.5">2.5</button>
+                <button type="button" class="pop-item" data-wb-op="line_height" data-wb-val="3.0">3.0</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 3: Shading, Borders | Sort, Show/Hide ¶ -->
+          <div class="ribbon-row">
+            <!-- Shading -->
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbShadingBtn" data-wb-pop="popShading" title="Paragraph Shading">
+                <span class="w-color-icon">
+                  <svg width="13" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 11l-8-8-8.6 8.6a2 2 0 000 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11z"/><path d="M20 15.5c0 1.4-1.1 2.5-2.5 2.5S15 16.9 15 15.5c0-1.1 2.5-4 2.5-4s2.5 2.9 2.5 4z" fill="#2563EB" stroke="none"/></svg>
+                  <span class="w-color-bar" id="wbShadingBar" style="background:#dbeafe;"></span>
+                </span>
+                <span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popShading">
+                <div class="pop-title">Paragraph Shading</div>
+                <div class="swatch-grid">
+                  <button type="button" class="color-swatch" style="background:#f8fafc;" data-wb-op="shading" data-wb-val="#f8fafc" title="Ice Slate"></button>
+                  <button type="button" class="color-swatch" style="background:#f1f5f9;" data-wb-op="shading" data-wb-val="#f1f5f9" title="Soft Gray"></button>
+                  <button type="button" class="color-swatch" style="background:#dbeafe;" data-wb-op="shading" data-wb-val="#dbeafe" title="Soft Blue"></button>
+                  <button type="button" class="color-swatch" style="background:#e0f2fe;" data-wb-op="shading" data-wb-val="#e0f2fe" title="Light Cyan"></button>
+                  <button type="button" class="color-swatch" style="background:#dcfce7;" data-wb-op="shading" data-wb-val="#dcfce7" title="Soft Emerald"></button>
+                  <button type="button" class="color-swatch" style="background:#fef9c3;" data-wb-op="shading" data-wb-val="#fef9c3" title="Soft Amber"></button>
+                  <button type="button" class="color-swatch" style="background:#ffedd5;" data-wb-op="shading" data-wb-val="#ffedd5" title="Soft Orange"></button>
+                  <button type="button" class="color-swatch" style="background:#fee2e2;" data-wb-op="shading" data-wb-val="#fee2e2" title="Soft Red"></button>
+                </div>
+                <button type="button" class="pop-item" data-wb-op="shading" data-wb-val="">No Shading</button>
+              </div>
+            </div>
+
+            <!-- Borders -->
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn w-btn-split" id="wbBorderBtn" data-wb-pop="popBorders" title="Paragraph Borders">
+                <svg width="14" height="14" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2,1.5"/><line x1="1.5" y1="14.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="2.2"/><line x1="8" y1="1.5" x2="8" y2="14.5" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5,1.5"/><line x1="1.5" y1="8" x2="14.5" y2="8" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5,1.5"/></svg>
+                <span class="w-caret">▾</span>
+              </button>
+              <div class="ribbon-popover" id="popBorders">
+                <div class="pop-title">Paragraph Borders</div>
+                <button type="button" class="pop-item" data-wb-op="border" data-wb-val="toggle">Toggle Outside Border</button>
+                <button type="button" class="pop-item" data-wb-op="border" data-wb-val="true">All Outside Borders</button>
+                <button type="button" class="pop-item" data-wb-op="border" data-wb-val="">No Border</button>
+              </div>
+            </div>
+
+            <div class="w-sep"></div>
+            <!-- Sort -->
+            <div class="w-pop-wrap">
+              <button type="button" class="w-btn" id="wbSortBtn" data-wb-pop="popSortLines" title="Sort Paragraph Lines">
+                <span style="display:inline-flex;flex-direction:column;font-size:7.5px;line-height:0.95;font-weight:800;"><span style="color:#2563EB;">A</span><span>Z</span></span>
+                <span style="font-size:11px;margin-left:1px;">↓</span>
+              </button>
+              <div class="ribbon-popover" id="popSortLines">
+                <div class="pop-title">Sort Paragraph Lines</div>
+                <button type="button" class="pop-item" data-wb-op="sort_lines" data-wb-val="asc">Sort Ascending (A → Z)</button>
+                <button type="button" class="pop-item" data-wb-op="sort_lines" data-wb-val="desc">Sort Descending (Z → A)</button>
+              </div>
+            </div>
+
+            <!-- Show/Hide Formatting Marks -->
+            <button type="button" class="w-btn" id="wbShowMarks" data-wb-op="toggle_marks" title="Show/Hide Formatting Marks (¶)">
+              <span style="font-size:13.5px;font-weight:700;">¶</span>
+            </button>
+          </div>
+        </div>
+        <div class="ribbon-group-footer">
+          <span>Paragraph</span>
+          <span class="ribbon-launcher" title="Paragraph Settings">↘</span>
+        </div>
+      </div>
+
+      <!-- ACTIVE SELECTION INDICATOR -->
+      <div class="ribbon-target-info" id="wbTargetInfo">
+        <span class="ribbon-target-badge" id="wbTargetBadge">Ready</span>
+        <span class="ribbon-target-hint" id="wbTargetHint">Select any text or heading block to format</span>
+      </div>
+    </div>
+
+    <!-- Scrollable Branch Canvas -->
+    <div class="canvas-scroll">
+      <div id="canvasContainer" class="canvas-container">
+        <!-- Populated dynamically from ReportSession state -->
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT PANE: LIVE A4 DOCUMENT PROOF & EXACT PDF PROOF -->
+  <section id="previewPane" class="preview-pane">
+    <div class="preview-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="status-dot"></span>
+        <span style="font-weight:700; font-size:12px;">LIVE A4 DOCUMENT PROOF</span>
+        <span id="previewLangLabel" class="tag tag-slate mono">en</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button class="chip-btn" id="btnModeSchematic" data-ev-click="28">Live Sheet</button>
+        <button class="chip-btn primary" id="btnModePdf" data-ev-click="29">Paginated PDF Proof</button>
+        <button class="chip-btn" data-ev-click="30" title="Export Multi-Language ZIP Package">ZIP Bundle</button>
+      </div>
+    </div>
+
+    <div class="preview-scroll" id="previewScroll">
+      <!-- Live A4 Paper Sheet or Exact Paginated PDF Proof rendered here -->
+    </div>
+  </section>
+
+</div>
+
+<!-- GALLERY MODAL -->
+<div id="galleryModal" class="modal-backdrop" data-ev-click="31">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <div style="font-weight:700; font-size:14px;">Project Media Library</div>
+        <div style="font-size:11px; color:var(--text-muted);">Original camera working copies are stored losslessly inside the .rmproj bundle</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" data-ev-click="32">+ Import Image Files…</button>
+        <button class="btn" data-ev-click="33">📋 Paste Clipboard</button>
+        <button class="btn" data-ev-click="34">Close</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div id="galleryGrid" class="gallery-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM STATUS FOOTER -->
+<footer class="status-footer">
+  <div class="status-cluster">
+    <span class="airgap-pill" style="padding:1px 8px; font-size:10px;">● Offline Report Editor</span>
+    <span id="footerStats">0 Modules · 0 Blocks · 0 Photos</span>
+    <span id="footerRevision" class="mono">Rev 0</span>
+  </div>
+  <div class="status-cluster">
+    <span id="footerSelection">Selected: None</span>
+    <span class="mono">ReportMaker V2 HTML5 Engine</span>
+  </div>
+</footer>
+
+<div class="draft-controls" role="status"><span id="draftStatus"></span><button class="btn" id="applyDrafts">Apply edits</button><button class="btn" id="discardDrafts">Discard edits</button></div>
+<div id="toastBanner" class="toast-banner"></div>
+
+<script src="studio.js"></script>
+<script src="transport.js"></script>
+<script src="events.js"></script>
+</body>
+</html>
