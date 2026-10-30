@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from math import ceil
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView, QComboBox, QFrame, QHBoxLayout, QLabel,
     QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QTableWidget,
@@ -24,6 +24,9 @@ from .contrast import BUTTON_CHROME
 from .editing_keys import handle_plain_paste
 from .navigation import subtree_range, window_for
 from .projections import NodeAddress, find_node, project_branch
+
+
+FOREIGN_TIP = "Another editor owns unapplied changes to this field"
 
 
 class NaturalPageText(QPlainTextEdit):
@@ -222,6 +225,12 @@ class DocumentEditorTab(QWidget):
         self._page_size = 90
         self._page_count = 1
         self._token = None
+        self._editors = {}
+        self._tables = {}
+        # Fields another editor (the Modules canvas) currently holds drafts for.
+        self._foreign: set = set()
+        self._sync_queued = False
+        branch.drafts.subscribe_changes(self._draft_changed)
         outer = QVBoxLayout(self)
         self.info = QLabel(
             "Document-oriented editor · continuous schematic, not exact Word pagination. "
@@ -265,9 +274,88 @@ class DocumentEditorTab(QWidget):
         # Session switches are blocked while any draft remains pending.
         # Do not replace focused widgets synchronously during Qt edit events.
         self._token = None
+        self._queue_sync()
+
+    def _draft_changed(self, address, owner, previous_owner):
+        if owner in (None, "page-editor") and previous_owner in (None, "page-editor"):
+            return  # this tab's own drafts
+        self._queue_sync()
+
+    def _queue_sync(self):
+        if self._sync_queued or not self.isVisible():
+            return
+        self._sync_queued = True
+        QTimer.singleShot(0, self.sync_foreign_drafts)
 
     def activate(self):
         self.refresh()
+        self.sync_foreign_drafts()
+
+    def _is_foreign(self, address) -> bool:
+        return self.branch.drafts.draft_owner(address) not in (None, "page-editor")
+
+    def sync_foreign_drafts(self):
+        """Make every field another editor holds a draft for read-only, in place.
+
+        The page is cached between session revisions, and staging a draft does
+        not publish one, so without this a field being edited in Modules would
+        stay editable here with its old text; typing into it is rejected by the
+        draft coordinator but the rejected characters would stay on screen.
+        """
+        self._sync_queued = False
+        if self._token is None and not self._owned:
+            if self.isVisible():
+                self.refresh()  # canonical content changed: a rebuild shows everything
+            return
+        drafts = self.branch.drafts
+        rebuild = False
+        for address, edit in self._editors.items():
+            foreign = self._is_foreign(address)
+            if foreign:
+                self._foreign.add(address)
+            elif address in self._foreign:
+                self._foreign.discard(address)
+            else:
+                continue
+            edit.setReadOnly(foreign)
+            edit.setToolTip(FOREIGN_TIP if foreign else "")
+            text = drafts.text(address)
+            if edit.toPlainText() != text:
+                edit.blockSignals(True)
+                try:
+                    edit.setPlainText(text)
+                finally:
+                    edit.blockSignals(False)
+                edit.updateGeometry()
+        for address, table in self._tables.items():
+            foreign = self._is_foreign(address)
+            if foreign:
+                self._foreign.add(address)
+            elif address in self._foreign:
+                self._foreign.discard(address)
+            else:
+                continue
+            table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers if foreign
+                                  else table.property("defaultTriggers"))
+            rows, _stale = drafts.table_preview(address)
+            if (len(rows) != table.rowCount()
+                    or max((len(r) for r in rows), default=0) != table.columnCount()):
+                rebuild = True
+                continue
+            table.blockSignals(True)
+            try:
+                for i, values in enumerate(rows):
+                    for j, value in enumerate(values):
+                        item = table.item(i, j)
+                        if item is not None and item.text() != value.original:
+                            item.setText(value.original)
+            finally:
+                table.blockSignals(False)
+            table.resizeRowsToContents()
+            table.updateGeometry()
+        if rebuild and not self._owned:
+            self._token = None
+            self.refresh()
 
     def _scope_changed(self, index):
         if index < 0:
@@ -310,6 +398,17 @@ class DocumentEditorTab(QWidget):
             self._pending_status()
         except (ValueError, LookupError, RuntimeError) as exc:
             self.info.setText("Edit rejected; original draft retained: " + str(exc))
+
+    def _text_edited(self, address, widget):
+        if address in self._foreign or widget.isReadOnly():
+            return
+        self._record(address, lambda: self.port.stage_text(address, widget.toPlainText()))
+
+    def _cell_edited(self, address, table, item):
+        if address in self._foreign:
+            return
+        self._record(address, lambda: self.port.stage_cell(
+            address, item.row(), item.column(), item.text()))
 
     def _pending_status(self):
         self.v2EditorApply.setEnabled(bool(self._owned))
@@ -365,6 +464,7 @@ class DocumentEditorTab(QWidget):
         flow = page.flow
         self._editors = {}
         self._tables = {}
+        self._foreign = set()
 
         def label(value, *, bold=False, indent=0):
             line = QLabel(str(value), page)
@@ -424,15 +524,15 @@ class DocumentEditorTab(QWidget):
                                    self.style.normal_size_pt)
                 font.setBold(row.kind == "heading")
                 edit.setFont(font)
-                edit.setPlainText(initial)
-                if self.branch.drafts.draft_owner(address) not in (None, "page-editor"):
+                foreign = self._is_foreign(address)
+                # A field Modules is editing shows that draft, not stale text.
+                edit.setPlainText(self.branch.drafts.text(address) if foreign else initial)
+                if foreign:
                     edit.setReadOnly(True)
-                    edit.setToolTip("Another editor owns unapplied changes to this field")
-                else:
-                    edit.textChanged.connect(
-                        lambda a=address, widget=edit:
-                        self._record(a, lambda: self.port.stage_text(
-                            a, widget.toPlainText())))
+                    edit.setToolTip(FOREIGN_TIP)
+                    self._foreign.add(address)
+                edit.textChanged.connect(
+                    lambda a=address, widget=edit: self._text_edited(a, widget))
                 flow.addWidget(edit)
                 self._editors[address] = edit
             elif row.kind == "table":
@@ -440,8 +540,11 @@ class DocumentEditorTab(QWidget):
                     report.id, row.parent_module_id, row.stable_id, "table"))
                 address = NodeAddress(
                     report.id, row.parent_module_id, row.stable_id, "table")
-                table = NaturalPageTable(len(node.rows),
-                                        max((len(values) for values in node.rows), default=0),
+                foreign = self._is_foreign(address)
+                rows = (self.branch.drafts.table_preview(address)[0]
+                        if foreign else node.rows)
+                table = NaturalPageTable(len(rows),
+                                        max((len(values) for values in rows), default=0),
                                         page)
                 table.setObjectName("v2DocumentTable_" + row.stable_id)
                 table.setAcceptDrops(False)
@@ -450,18 +553,17 @@ class DocumentEditorTab(QWidget):
                 # repeated geometry work before the table is even displayed.
                 table.blockSignals(True)
                 try:
-                    for i, values in enumerate(node.rows):
+                    for i, values in enumerate(rows):
                         for j, value in enumerate(values):
                             table.setItem(i, j, QTableWidgetItem(value.original))
                 finally:
                     table.blockSignals(False)
-                if self.branch.drafts.draft_owner(address) not in (None, "page-editor"):
+                table.setProperty("defaultTriggers", table.editTriggers())
+                if foreign:
                     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-                else:
-                    table.itemChanged.connect(
-                        lambda item, a=address:
-                        self._record(a, lambda: self.port.stage_cell(
-                            a, item.row(), item.column(), item.text())))
+                    self._foreign.add(address)
+                table.itemChanged.connect(
+                    lambda item, a=address, grid=table: self._cell_edited(a, grid, item))
                 table.resizeRowsToContents()
                 table.updateGeometry()
                 flow.addWidget(table)
