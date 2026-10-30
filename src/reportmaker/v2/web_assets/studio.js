@@ -269,17 +269,41 @@ function syncWordRibbonState() {
   }
 
   const rich = block.rich || { runs: [], paragraphs: [] };
-  const probePos = isSelRange ? activeTextSel.start : 0;
-  const run = (rich.runs || []).find(r => r.start <= probePos && probePos < r.end) || (rich.runs || [])[0] || null;
-  const para = (rich.paragraphs || [])[0] || { align: "left", list_kind: "none", border: false };
+  const runs = rich.runs || [];
+  const text = String(block.text || "");
+  // Browser selection offsets are UTF-16; canonical rich ranges count Unicode
+  // codepoints. A surrogate pair must not shift the ribbon's active state.
+  const offsetToCodepoint = raw => [...text.slice(0, Math.max(0, Math.min(text.length, raw || 0)))].length;
+  const currentCaret = activeTextSel.blockId === block.id ? activeTextSel.start : 0;
+  const selStart = isSelRange ? offsetToCodepoint(activeTextSel.start) : 0;
+  const selEnd = isSelRange ? offsetToCodepoint(activeTextSel.end) : 0;
+  const probePos = Math.min(offsetToCodepoint(currentCaret), Math.max(0, [...text].length - 1));
+  const at = pos => runs.find(r => r.start <= pos && pos < r.end) || null;
+  const run = at(probePos);
+  // A selected range is only active for an attribute when *all* selected
+  // characters have it. Never borrow style from a different, nonselected run.
+  function allSelected(predicate) {
+    if (!isSelRange) return !!run && predicate(run);
+    let pos = selStart;
+    while (pos < selEnd) {
+      const span = at(pos);
+      if (!span || !predicate(span)) return false;
+      pos = Math.min(selEnd, span.end);
+    }
+    return selEnd > selStart;
+  }
+  const paraStart = text.lastIndexOf("\n", Math.max(0, currentCaret - 1)) + 1;
+  const paragraphCodepoint = offsetToCodepoint(paraStart);
+  const para = (rich.paragraphs || []).find(p => p.start === paragraphCodepoint)
+    || { align: "left", list_kind: "none", border: false };
 
   const setBtn = (id, on) => document.getElementById(id)?.classList.toggle("active", !!on);
-  setBtn("wbBold", run && run.bold);
-  setBtn("wbItalic", run && run.italic);
-  setBtn("wbUnderline", run && run.underline);
-  setBtn("wbStrike", run && run.strike);
-  setBtn("wbSub", run && run.baseline === "sub");
-  setBtn("wbSuper", run && run.baseline === "super");
+  setBtn("wbBold", allSelected(r => r.bold));
+  setBtn("wbItalic", allSelected(r => r.italic));
+  setBtn("wbUnderline", allSelected(r => r.underline));
+  setBtn("wbStrike", allSelected(r => r.strike));
+  setBtn("wbSub", allSelected(r => r.baseline === "sub"));
+  setBtn("wbSuper", allSelected(r => r.baseline === "super"));
 
   const famSel = document.getElementById("wbFontFamily");
   if (famSel) famSel.value = (run && run.family) ? run.family : "";

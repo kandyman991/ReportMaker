@@ -180,6 +180,46 @@ class WebCommandTests(unittest.TestCase):
         with self.assertRaises(TranslationRequiredError):
             localized_project(self.session.project_snapshot(), 'it')
 
+    def test_sort_lines_refuses_to_erase_inline_or_paragraph_styling(self):
+        project = sample()
+        para = project.report.modules[0].blocks[1]
+        para.text.original = "Zoo\nAlpha"
+        para.rich = RichFormatting(
+            runs=[TextRun(0, 3, bold=True)],
+            paragraphs=[ParagraphStyle(4, align="center")],
+        )
+        session = ReportSession(project)
+        gateway = CommandGateway(session)
+        original = session.report_snapshot().modules[0].blocks[1]
+        with self.assertRaisesRegex(ValueError, "without losing formatting"):
+            rich_format_intent(
+                session, project.report.modules[0].id, para.id,
+                json.dumps({"op": "sort_lines", "value": "asc"}),
+                session.revision, session.generation,
+            )
+        self.assertEqual(session.revision, 0)
+        self.assertEqual(session.report_snapshot().modules[0].blocks[1], original)
+
+    def test_sort_lines_unstyled_and_noop_preserve_data(self):
+        project = sample()
+        para = project.report.modules[0].blocks[1]
+        para.text.original = "Zoo\nAlpha"
+        para.rich = RichFormatting()
+        session = ReportSession(project)
+        gateway = CommandGateway(session)
+        intent = rich_format_intent(
+            session, project.report.modules[0].id, para.id,
+            json.dumps({"op": "sort_lines", "value": "asc"}),
+            session.revision, session.generation,
+        )
+        gateway.execute(intent)
+        edited = session.report_snapshot().modules[0].blocks[1]
+        self.assertEqual(edited.text.original, "Alpha\nZoo")
+        self.assertEqual(edited.text.translations["it"], "Traduzione")
+        self.assertIn("it", edited.text.stale_languages)
+        gateway.undo(session.generation, session.revision)
+        self.assertEqual(session.report_snapshot().modules[0].blocks[1].text.original, "Zoo\nAlpha")
+
     def test_word_ribbon_rich_format_intent_operations(self):
         para = self.module.blocks[1]
         for spec in (

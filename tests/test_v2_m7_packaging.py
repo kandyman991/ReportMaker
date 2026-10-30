@@ -56,6 +56,20 @@ class M7PackageContractTests(unittest.TestCase):
         self.assertIn("Installed frozen payload file is missing:", workflow)
         self.assertIn("Installed frozen payload file does not match:", workflow)
 
+    def test_html_studio_packaging_and_both_launcher_modes_are_gated(self):
+        workflow = (ROOT / ".github/workflows/v2-m7-packaging.yml").read_text(encoding="utf-8")
+        local = (ROOT / "scripts/build_v2_m73_local.ps1").read_text(encoding="utf-8")
+        for source in (workflow, local):
+            self.assertIn("--hidden-import PySide6.QtWebChannel", source)
+            self.assertIn("--collect-data reportmaker", source)
+            self.assertIn('--html', source)
+            self.assertIn('--offline-self-test', source)
+            self.assertIn('scripts/verify_v2_frozen_archive.py', source)
+            self.assertIn('Installed HTML V2 offline smoke failed', source)
+            self.assertIn('Installed native V2 offline smoke failed', source)
+        self.assertIn('test_v2_web.py', workflow)
+        self.assertIn('test_v2_web_commands.py', workflow)
+
     def test_roadmap_cannot_revert_completed_m6_to_draft(self):
         roadmap = (ROOT / "docs/v2/ROADMAP.md").read_text(encoding="utf-8")
         self.assertIn("M6.7 — End-to-end Checkpoint C:** Independently reviewed and merged", roadmap)

@@ -80,6 +80,42 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(report.modules[0].blocks[1].rich.runs[0].start, 1)
         self.assertTrue(self.js('document.activeElement===window.originalField && document.activeElement.selectionStart===3'))
 
+    def test_actual_word_ribbon_selection_undo_redo_and_project_roundtrip(self):
+        module = self.window.core.session.report_snapshot().modules[0]
+        paragraph_id = module.blocks[1].id
+        self.js("""(() => {
+          const field = document.querySelector('textarea.block-textarea');
+          field.focus(); field.setSelectionRange(1,3);
+          field.dispatchEvent(new Event('select', {bubbles:true}));
+          document.getElementById('wbBold').click();
+          return true;
+        })()""")
+        self.wait("appState.revision===1 && !queueBusy")
+        paragraph = self.window.core.session.report_snapshot().modules[0].blocks[1]
+        self.assertEqual(paragraph.text.original, 'ABCDE')
+        self.assertEqual([(r.start, r.end, r.bold) for r in paragraph.rich.runs],
+                         [(0, 1, True), (3, 5, True)])
+        self.assertEqual(self.js("document.getElementById('wbBold').classList.contains('active')"), False)
+        # Collapsed caret in the following bold span must still light the B icon.
+        self.js("""(() => {
+          const field = document.querySelector('textarea.block-textarea');
+          field.focus(); field.setSelectionRange(4,4);
+          field.dispatchEvent(new Event('select', {bubbles:true}));
+          return true;
+        })()""")
+        self.assertTrue(self.js("document.getElementById('wbBold').classList.contains('active')"))
+        self.action('undo')
+        restored = self.window.core.session.report_snapshot().modules[0].blocks[1]
+        self.assertEqual([(r.start, r.end, r.bold) for r in restored.rich.runs],
+                         [(0, 5, True)])
+        self.action('redo')
+        self.assertEqual(self.window.core.session.report_snapshot().modules[0].blocks[1].rich, paragraph.rich)
+        path = Path(self.temp.name) / 'ribbon.rmproj'
+        ProjectPersistence().save(self.window.core.session, path)
+        saved = load_project(path).report.modules[0].blocks[1]
+        self.assertEqual(saved.rich, paragraph.rich)
+        self.assertEqual(saved.text.translations['it'], 'Traduzione')
+
     def test_validation_keeps_all_drafts_and_prevents_save_then_recovers(self):
         self.input('#metaStartInput', 'not-a-date')
         self.input('textarea.block-textarea', 'ABCDE pending')

@@ -331,11 +331,13 @@ def rich_format_intent(session, module: str, block_id: str, op_json: str, revisi
             reverse = str(val) == "desc"
             sorted_lines = sorted(lines, key=lambda s: s.casefold(), reverse=reverse)
             new_text = "\n".join(sorted_lines)
-            first_para = next((p for p in rich.paragraphs if p.start == 0), None)
-            new_paras = [replace(first_para, start=0)] if first_para else []
-            text = new_text
-            rich = RichFormatting(runs=[], paragraphs=new_paras)
-            validate_rich(rich, text)
+            if new_text != text:
+                # Sorting changes the positions of spans and paragraph styles.
+                # Until a style-aware reorder exists, fail rather than silently
+                # erase rich text, footnote-like formatting or list settings.
+                if rich.runs or rich.paragraphs:
+                    raise ValueError("Cannot sort styled lines without losing formatting; clear formatting first")
+                text = new_text
     else:
         raise ValueError(f"Unsupported formatting operation: {op}")
 

@@ -82,3 +82,40 @@ uses the existing exporter and is invalidated after canonical changes. Revision
 projections still traverse the canonical report; the thumbnail cache and changed
 card transport reduce repeated media/render work without claiming virtualization
 of arbitrarily large projects. Native V2 remains available for richer editing.
+
+## 2026-10-30 — Word ribbon and Windows packager follow-up (from `88c4b6b`)
+
+Current PR source base: `88c4b6b83fa38b606ea2daecbda569377713ce27`.
+GitHub hosted Windows `windows-v2-frozen-installed-smoke` job 124191028065
+on this base **failed**, after freeze, at its archived HTML resource inventory:
+`web_assets/index.html`, `studio.css`, `studio.js`, `transport.js`,
+and `events.js` were absent from the frozen payload. Consequently the
+installer, binary comparison, HTML installed smoke and uninstall steps were
+not executed. This failure was not waiver-eligible.
+
+Follow-up changes on the same PR branch:
+
+- Both local and hosted Windows builders explicitly bundle reportmaker data
+  resources and QtWebChannel, and validate **both** native and HTML V2
+  startup paths after freezing and installation. The archive must contain
+  each HTML resource; no V1 launcher or legacy module is included.
+- The hosted Windows source gate now executes real HTML renderer/QWebChannel
+  tests and canonical rich-text command tests, rather than testing native
+  V2 alone.
+- The Word ribbon's selection indicators use UTF-16-to-codepoint mapping,
+  check *every character* of a selection for an active style, and respect
+  the caret position without borrowing styling from an unrelated text run.
+- Sorting multiple lines with styled rich text is rejected **without any
+  canonical mutation** until a style-aware reorder exists; unstyled sorting
+  remains supported. This prevents silent loss of run and paragraph styling.
+- Added packaging regression assertions and actual Chromium user-interaction
+  coverage for ribbon clicks, partial selections, Undo/Redo and .rmproj
+  translation/rich-format persistence.
+
+Linux initial focused checks: 14 HTML canonical command tests PASS; 7
+packaging contract tests PASS; real Chromium suite PASS after the first
+selection-indicator correction. The caret follow-up and full Linux regression
+are separate exact-tree validation gates. The hosted Windows installer
+gate and all physical M7 acceptance remain pending until the updated commit
+is pushed and its checks complete. There is **no** new installed-Windows
+acceptance, production V2 promotion, or merge authorization.

@@ -568,3 +568,15 @@ Next reproducible action:
 - Atomic heading/rich edits, translation-preserving tables, acknowledged HTML drafts, restricted offline origin, incremental card/media handling and actual HTML packaging checks implemented. Independent review found six additional issues; corrections and renderer reproductions are documented in `docs/v2/PR121_HTML_VALIDATION.md`.
 - HTML is opt-in (`--html`); native V2 is default/`--native`; V1 unchanged. Pure regressions and initial actual Chromium suite pass. Final-head CI, full-platform results and installed acceptance are separate pending gates; do not merge or promote based on historical green checks.
 - Next: exact-head Linux/Windows CI, freeze/inventory/installation/offline/payload/uninstall checks, final independent review, then physical acceptance evidence. Preserve all completed work on PR #121 and leave it open if a mandatory gate cannot pass.
+
+## 2026-10-30 — PR #121 ribbon/packaging follow-up
+
+- Working branch `v2-html-studio`, starting head `88c4b6b83fa38b606ea2daecbda569377713ce27`.
+  Hosted Windows frozen-installed smoke at that head failed due to omitted
+  HTML assets; no installer gate ran. Preserve the existing native V2 default.
+- Updated Windows source/frozen/installed smoke for **both** native and HTML
+  modes and explicit packaged HTML assets; guarded styled-line sorting and
+  corrected context-sensitive ribbon formatting-state feedback.
+- See `docs/v2/PR121_HTML_VALIDATION.md` for test ledger and remaining gates.
+  Merge remains blocked on new-head hosted CI, independent integration
+  review and applicable installed Windows acceptance. No V1 retirement.

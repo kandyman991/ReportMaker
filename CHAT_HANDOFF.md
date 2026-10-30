@@ -471,3 +471,18 @@ Update this file and `docs/CHECKPOINTS.md` whenever work is ready for review or 
 - Atomic heading/rich edits, translation-preserving tables, acknowledged HTML drafts, restricted offline origin, incremental card/media handling and actual HTML packaging checks implemented. Independent review found six additional issues; corrections and renderer reproductions are documented in `docs/v2/PR121_HTML_VALIDATION.md`.
 - HTML is opt-in (`--html`); native V2 is default/`--native`; V1 unchanged. Pure regressions and initial actual Chromium suite pass. Final-head CI, full-platform results and installed acceptance are separate pending gates; do not merge or promote based on historical green checks.
 - Next: exact-head Linux/Windows CI, freeze/inventory/installation/offline/payload/uninstall checks, final independent review, then physical acceptance evidence. Preserve all completed work on PR #121 and leave it open if a mandatory gate cannot pass.
+
+## 2026-10-30 — PR #121 packaging and Word ribbon follow-up
+
+- Start: Gemini toolbar at `88c4b6b83fa38b606ea2daecbda569377713ce27`
+  on `v2-html-studio`; hosted Windows freeze failed HTML asset inventory
+  (job 124191028065). No installed smoke or uninstall was exercised on that
+  failed run.
+- On the same branch, fix hosted/local packaging for QtWebChannel+HTML assets;
+  exercise both native and HTML launch modes. Add browser selection-state
+  correctness and fail-closed styled-line sorting; preserve translations
+  and all canonical model boundaries.
+- The documented tests and missing acceptance gates are in
+  `docs/v2/PR121_HTML_VALIDATION.md`. After pushing, inspect **new-head** CI;
+  do not merge/promote or remove native V2/V1 fallback without review and
+  the distinct Windows acceptance gates.
