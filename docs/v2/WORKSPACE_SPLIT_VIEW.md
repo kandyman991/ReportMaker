@@ -17,22 +17,51 @@ behaviour changes.
   sizes are saved per user (Qt settings), never in a report project. First run is
   Modules on the left, Preview on the right.
 
-## The rule that keeps it safe
-Each tool is **one widget owned by the window**, and it is open in **at most one
-tab**. Choosing a tool that is open elsewhere *moves* it (the tab it left becomes
-an empty tab, or disappears if its pane has other tabs). So there is still exactly
-one report session, one set of drafts and one browser view, and moving a tool never
-loses an unapplied edit. Two copies of Modules would need two draft owners per
-field, which is the interference this work removes.
+## The same tool in both panes
+Every tab holds **its own copy** of a tool, so Modules (or Editor, Preview, Photos,
+Assistant) can be open in the left and the right pane at once. Picking a tool for a tab
+never takes it from another tab. The window's first copy of each tool is the attribute
+(`branch`, `editor_tab`, ...) that existing code uses; extra copies come from factories.
+
+What keeps copies from interfering:
+* **One session, one draft coordinator.** Every copy shows the same report and shares the
+  one `DraftCoordinator` (so there is still a single draft guard on the session).
+* **A draft owner id per copy.** Modules copies stage as `branch`, `branch-2`, ...; Editor
+  copies as `page-editor`, `page-editor-2`, .... A field being edited in one copy turns
+  read-only, with that draft's text, in every other copy (Modules or Editor) and unlocks
+  when the draft is applied or reverted. Typing into a locked field changes nothing.
+* **Assistant copies share one browser profile** (`SharedBrowserProfile`), so there is one
+  login and no clash between two profiles using the same storage path.
+* **A new copy starts with the current page style** (template/footer) of the first one.
+* **Closing a tab** parks the first copy (state kept) and deletes an extra copy, **unless the
+  extra copy still holds unapplied edits**: then it is kept hidden so those edits are not
+  orphaned; opening Modules in an empty tab brings it back, and Save's Apply/Discard/Cancel
+  prompt covers every copy.
+* **Limits.** At most 4 copies of a tool and 8 tabs per pane (each Assistant copy is a web
+  view). Hitting the limit leaves the tab as it was and says so in the status bar.
+
+## Toolbars act only on the visible Modules
+The *Module editing* and *Branch navigation* toolbars (and Contents) are Modules commands.
+They act on `V2MainWindow.modules_target()`:
+* the Modules copy in the **active pane**, or if that pane shows another tool, the Modules
+  copy in the **other visible pane**;
+* never a copy that is hidden behind another tab or parked;
+* if no Modules is visible, the commands, their drop-down buttons and their shortcuts are
+  **disabled** (tooltip: "needs a visible Modules tab"), and the callbacks refuse if reached
+  some other way. The Photos tool inserts only into a visible Modules for the same reason.
+
+New / Open / Save / Save As / Report info / Customers / Languages / Layout template are
+project commands and stay enabled whatever tool is showing. Undo and Redo are Modules
+commands today (they are disabled while only the Editor is visible).
 
 ## Code
 * `v2/workspace.py` is arrangement only: `Workspace` (two `WorkspacePane`
   `QTabWidget`s in a `QSplitter` named `v2WorkspaceSplitter`), `ToolPicker`, the
-  tool list and the saved state. It knows nothing about reports or drafts.
+  tool list, copy management and the saved state. It knows nothing about reports or drafts.
 * `V2MainWindow.tabs` is now the `Workspace`. The old `QTabWidget` calls
   (`setCurrentWidget`, `currentWidget`, `widget`, `count`, `tabText`, ...) still work,
-  addressing tools rather than tab positions, so existing code and tests are unchanged.
-* The window refreshes **every visible tool** (not only the current tab) after a
+  addressing tools (and the exact copy for `setCurrentWidget`/`currentWidget`) rather than tab positions, so existing code and tests are unchanged.
+* The window refreshes **every visible copy** (not only the current tab) after a
   session change or when drafts appear/clear: Preview beside Modules follows an
   applied edit without switching tabs. The Assistant only loads its website when it
   becomes visible.
@@ -53,9 +82,9 @@ still fails them (`__main__.py`, `test_v2_shell.py`, `test_v2_lifecycle.py`).
 ## Tests
 `tests/test_v2_workspace.py`: default arrangements, picking tools per tab (menu, picker,
 rail), moving/closing/un-splitting, saved-state round trip and damaged-state fallback,
-single widgets and kept drafts after a move, Preview following edits, activation only
+separate copies, kept drafts after a move, Preview following edits, activation only
 when visible, and the Editor page width. Three tests that put Modules and Editor side by
-side run once PR #114 (draft sync between them) is in the tree and are skipped before that.
+side, two Modules or two Editors locking each other, and the toolbar scoping are covered too.
 
 ## Not done / limits
 * Offscreen Qt on Linux only. Not checked: native Windows rendering and DPI, the
@@ -63,9 +92,10 @@ side run once PR #114 (draft sync between them) is in the tree and are skipped b
 * At 160 % zoom in a half-width pane on a 960-1100 px window, a card can be wider than the
   pane by a few to ~100 px (the canvas has no horizontal scrollbar; use the Pan commands, zoom
   out, or turn the split off). Checked across the five stress scenarios x 960/1100/1366/1920 px x
-  55/100/160 % zoom with Modules beside the Editor: no overlap or clipping anywhere, and overflow in
+  55/100/160 % zoom with Modules beside the Editor, and with two Modules side by side: no overlap or clipping anywhere, and overflow in
   4 of those 60 combinations, all at 160 %.
-* Tabs cannot be dragged between panes (use *Move to the other pane*); a tool cannot be
-  shown twice at once (by design, see above).
-* The top toolbars still act on Modules even when Modules is not the visible tool;
-  scoping them per tool is separate work.
+* Tabs cannot be dragged between panes (use *Move to the other pane*). Dragging a module
+  from one Modules copy onto another is refused (each copy only accepts its own drags).
+* The view state remembered per project (selection, scroll, collapsed modules) comes from the
+  first Modules copy.
+* Editor has no toolbar commands yet (Undo/Redo and Find act on Modules only).

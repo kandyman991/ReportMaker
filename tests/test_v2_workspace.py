@@ -10,7 +10,13 @@ import unittest
 
 from reportmaker.v2.drafts import DraftCoordinator
 from reportmaker.v2.projections import NodeAddress, find_node
-from reportmaker.v2.workspace import PAGE_TOOL, TOOLS, default_state
+from reportmaker.v2.workspace import (
+    MAX_INSTANCES,
+    MAX_TABS_PER_PANE,
+    PAGE_TOOL,
+    TOOLS,
+    default_state,
+)
 
 TOOL_IDS = [spec.id for spec in TOOLS]
 
@@ -75,7 +81,7 @@ class DefaultArrangementTests(_WorkspaceCase):
         self.assertGreaterEqual(min(left, right), 400)
         self.assertLess(abs(left - right), 40, "starts as an even split")
 
-    def test_every_tool_is_the_same_widget_wherever_it_is_shown(self):
+    def test_the_window_attributes_are_the_first_copy_of_each_tool(self):
         win = self.make(default_state(split=True))
         for tool_id, widget in zip(TOOL_IDS, self.tool_widgets(win), strict=True):
             self.assertIs(win.tabs.tool_widget(tool_id), widget)
@@ -123,23 +129,56 @@ class PickingToolsTests(_WorkspaceCase):
                 self.assertEqual(button.objectName(), "v2TabMenu")
                 self.assertIsNotNone(button.menu())
 
-    def test_choosing_a_tool_open_elsewhere_moves_it(self):
+    def test_the_same_tool_can_be_open_in_both_panes(self):
         win = self.make(default_state(split=True))
-        win.tabs.assign(win.tabs.right, 0, "modules")  # Modules was alone on the left
+        win.tabs.assign(win.tabs.right, 0, "modules")
         self.pump()
-        self.assertEqual(self.layout_of(win)["right"], ["modules"])
-        self.assertEqual(self.layout_of(win)["left"], [""], "the emptied tab offers a new choice")
-        self.assertTrue(win.branch.isVisible())
-        self.assertFalse(win.preview_tab.isVisible())
-        self.assertEqual(win.tabs.describe_location("preview"), None)
+        self.assertEqual(self.layout_of(win), {"left": ["modules"], "right": ["modules"]})
+        left, right = win.tabs.left.currentWidget(), win.tabs.right.currentWidget()
+        self.assertIs(left, win.branch)
+        self.assertIsNot(right, left, "each tab has its own copy")
+        self.assertTrue(left.isVisible() and right.isVisible())
+        self.assertNotEqual(left.owner, right.owner, "and its own draft owner")
+        self.assertEqual(len(win.tabs.copies("modules")), 2)
+        self.assertFalse(win.preview_tab.isVisible(), "Preview was replaced in its tab and is parked")
 
-    def test_moving_within_a_pane_keeps_the_tab_count_right(self):
+    def test_picking_a_tool_for_a_tab_never_takes_it_from_another_tab(self):
         win = self.make()
         win.tabs.show_tool("editor")
         win.tabs.show_tool("preview")
         self.assertEqual(self.layout_of(win)["left"], ["modules", "editor", "preview"])
-        win.tabs.assign(win.tabs.left, 0, "preview")  # Preview replaces Modules' tab
-        self.assertEqual(self.layout_of(win)["left"], ["preview", "editor"])
+        win.tabs.assign(win.tabs.left, 0, "preview")  # the Modules tab now shows a second Preview
+        self.assertEqual(self.layout_of(win)["left"], ["preview", "editor", "preview"])
+        first, third = win.tabs.left.widget(0), win.tabs.left.widget(2)
+        self.assertIsNot(first, third)
+
+    def test_a_tool_that_is_open_somewhere_is_selected_not_duplicated_by_the_rail(self):
+        win = self.make(default_state(split=True))
+        win.findChild(type(win.split_action), "rail_preview").trigger()
+        self.pump()
+        self.assertEqual(self.layout_of(win), {"left": ["modules"], "right": ["preview"]})
+        self.assertIs(win.tabs.active_pane, win.tabs.right)
+
+    def test_the_picker_says_where_a_tool_is_already_open(self):
+        win = self.make(default_state(split=True))
+        picker = win.tabs.new_tab(win.tabs.right)
+        note = picker.tiles["modules"].note.text()
+        self.assertIn("left pane", note)
+        self.assertIn("another copy", note)
+        self.assertNotIn("left pane", picker.tiles["photos"].note.text())
+
+    def test_there_is_a_limit_to_how_many_copies_one_tool_gets(self):
+        win = self.make()
+        for _ in range(MAX_INSTANCES - 1):
+            win.tabs.new_tab()
+            win.tabs.assign(win.tabs.left, win.tabs.left.currentIndex(), "modules")
+        self.assertEqual(len(win.tabs.copies("modules")), MAX_INSTANCES)
+        win.tabs.new_tab()
+        spare = win.tabs.left.currentIndex()
+        win.tabs.assign(win.tabs.left, spare, "modules")
+        self.assertEqual(len(win.tabs.copies("modules")), MAX_INSTANCES)
+        self.assertEqual(win.tabs.left.tool_at(spare), "", "the tab still offers a choice")
+        self.assertIn("already open", win.statusBar().currentMessage())
 
     def test_the_rail_opens_a_tool_in_a_new_tab_or_selects_the_tab_that_has_it(self):
         win = self.make()
@@ -272,13 +311,16 @@ class StateTests(_WorkspaceCase):
             {"left": ["nope", 7, None, "editor", "editor"], "right": ["preview", "editor"], "split": True},
             {"split": True, "left": ["modules"], "right": ["preview"], "sizes": [0, -5], "left_current": 99},
             {"split": True, "left": ["modules"], "sizes": "wide", "active": 3},
+            {"split": True, "left": ["preview"] * 30, "right": ["modules"] * 30},
         ]
         for state in bad_states:
             with self.subTest(state=state):
                 win = self.make(state)
                 layout = self.layout_of(win)
                 tools = [t for t in layout["left"] + layout["right"] if t]
-                self.assertEqual(len(tools), len(set(tools)), "no tool twice")
+                self.assertLessEqual(max((tools.count(t) for t in set(tools)), default=0),
+                                     MAX_INSTANCES)
+                self.assertLessEqual(len(layout["left"]), MAX_TABS_PER_PANE)
                 self.assertTrue(layout["left"], "the left pane is never empty")
                 self.assertIsNotNone(win.tabs.currentWidget())
 
@@ -316,7 +358,7 @@ class StateTests(_WorkspaceCase):
 
 
 class SharedStateTests(_WorkspaceCase):
-    """The tools are single widgets, so moving them can never fork the report."""
+    """Moving a tab moves the very same copy, so it never forks the report or loses its state."""
 
     def test_moving_modules_keeps_its_unapplied_edit(self):
         from PySide6.QtTest import QTest
@@ -425,6 +467,318 @@ class SideBySideInterferenceTests(_WorkspaceCase):
             with self.subTest(width=width):
                 self.assertEqual(win.branch.horizontalScrollBar().maximum(), 0)
                 self.assertGreaterEqual(win.branch.viewport().width(), 400)
+
+
+class SameToolInBothPanesTests(_WorkspaceCase):
+    """Each tab has its own copy of a tool; copies never overwrite each other."""
+
+    def modules_pair(self):
+        win = self.make({"split": True, "left": ["modules"], "right": ["modules"]})
+        report = win.session.report_snapshot()
+        inner = report.modules[0].blocks[0].module
+        address = NodeAddress(report.id, inner.id, inner.blocks[0].id, "text")
+        return win, win.tabs.left.currentWidget(), win.tabs.right.currentWidget(), address
+
+    @staticmethod
+    def type_into(editor, text):
+        from PySide6.QtTest import QTest
+        editor.setFocus()
+        editor.moveCursor(editor.textCursor().MoveOperation.End)
+        QTest.keyClicks(editor, text)
+
+    def test_two_modules_show_the_same_report_and_stage_under_different_owners(self):
+        win, left, right, address = self.modules_pair()
+        self.assertEqual(left.visible_nodes, right.visible_nodes)
+        self.assertEqual({left.owner, right.owner}, {"branch", "branch-2"})
+        self.assertIs(left.drafts, right.drafts, "one coordinator, one draft guard per session")
+        self.type_into(left.editor_for(address), " LEFT")
+        self.assertEqual(win.branch.drafts.draft_owner(address), left.owner)
+
+    def test_a_field_edited_in_one_modules_locks_in_the_other(self):
+        from PySide6.QtTest import QTest
+        _win, left, right, address = self.modules_pair()
+        self.type_into(left.editor_for(address), " LEFT-EDIT")
+        QTest.qWait(450)  # the other copy redraws once typing pauses
+        other = right.editor_for(address)
+        self.assertTrue(other.isReadOnly())
+        self.assertIn("LEFT-EDIT", other.toPlainText())
+        before = left.drafts.text(address)
+        self.type_into(other, " RIGHT-EDIT")
+        self.assertNotIn("RIGHT-EDIT", other.toPlainText())
+        self.assertEqual(left.drafts.text(address), before)
+        self.assertEqual(left.drafts.draft_owner(address), left.owner)
+
+    def test_applying_in_one_modules_updates_the_other_and_unlocks_it(self):
+        from PySide6.QtTest import QTest
+        _win, left, right, address = self.modules_pair()
+        self.type_into(left.editor_for(address), " LEFT-EDIT")
+        QTest.qWait(450)
+        self.assertTrue(left.apply_draft(address))
+        QTest.qWait(450)
+        other = right.editor_for(address)
+        self.assertFalse(other.isReadOnly())
+        self.assertIn("LEFT-EDIT", other.toPlainText())
+        self.assertFalse(left.drafts.pending)
+
+    def test_two_editors_lock_each_other_the_same_way(self):
+        from PySide6.QtTest import QTest
+        win = self.make({"split": True, "left": ["editor"], "right": ["editor"]})
+        first, second = win.tabs.left.currentWidget(), win.tabs.right.currentWidget()
+        self.assertEqual({first.owner, second.owner}, {"page-editor", "page-editor-2"})
+        address = next(iter(first._editors))
+        self.type_into(first._editors[address], " FIRST")
+        QTest.qWait(80)
+        locked = second._editors[address]
+        self.assertTrue(locked.isReadOnly())
+        self.assertIn("FIRST", locked.toPlainText())
+        self.type_into(locked, " SECOND")
+        self.assertNotIn("SECOND", win.branch.drafts.text(address))
+
+    def test_both_previews_follow_an_applied_edit(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QLabel
+        win = self.make({"split": True, "left": ["modules"], "right": ["preview"]})
+        win.tabs.new_tab(win.tabs.left)
+        win.tabs.assign(win.tabs.left, 1, "preview")
+        self.assertEqual(len(win.tabs.copies("preview")), 2)
+        report = win.session.report_snapshot()
+        inner = report.modules[0].blocks[0].module
+        address = NodeAddress(report.id, inner.id, inner.blocks[0].id, "text")
+        win.branch.editor_for(address).setPlainText("Seal replaced twice")
+        win.branch.apply_draft(address)
+        QTest.qWait(80)
+        for preview in win.tabs.copies("preview"):
+            shown = " ".join(label.text() for label in preview.findChildren(QLabel))
+            self.assertIn("Seal replaced twice", shown)
+
+    def test_a_new_copy_starts_with_the_current_page_style(self):
+        from dataclasses import replace
+
+        from reportmaker.export import ExportStyle
+        win = self.make()
+        style = replace(ExportStyle(), footer_note="Footer for this layout")
+        win._set_page_style(style)
+        win.tabs.show_tool("editor")
+        win.tabs.new_tab()
+        win.tabs.assign(win.tabs.left, win.tabs.left.currentIndex(), "editor")
+        copies = win.tabs.copies("editor")
+        self.assertEqual(len(copies), 2)
+        self.assertTrue(all(c.style.footer_note == "Footer for this layout" for c in copies))
+
+    def test_all_assistant_copies_share_one_browser_profile(self):
+        win = self.make({"split": True, "left": ["assistant"], "right": ["assistant"]})
+        first, second = win.tabs.left.currentWidget(), win.tabs.right.currentWidget()
+        self.assertIsNot(first, second)
+        self.assertIs(first.shared_profile, second.shared_profile)
+        from unittest import mock
+
+        from reportmaker.v2 import chat_tab
+        sentinel = object()  # a real QWebEngineProfile needs Chromium, which CI avoids
+        with mock.patch.object(chat_tab, "_make_profile", return_value=sentinel) as make:
+            self.assertIs(first.shared_profile.get(), sentinel)
+            self.assertIs(second.shared_profile.get(), sentinel)
+        make.assert_called_once()
+
+    def test_closing_an_extra_copy_deletes_it_and_stops_it_listening(self):
+        win, _left, right, address = self.modules_pair()
+        win.tabs.close_tab(win.tabs.right, right)
+        self.pump()
+        self.assertEqual(win.tabs.copies("modules"), [win.branch])
+        self.assertEqual(self.layout_of(win)["right"], [""])
+        # The report keeps changing without the deleted copy being told.
+        win.branch.editor_for(address).setPlainText("after closing")
+        self.assertTrue(win.branch.apply_draft(address))
+        self.pump()
+
+    def test_closing_the_first_copy_parks_it_and_keeps_its_state(self):
+        win, _left, right, _address = self.modules_pair()
+        win.branch.set_zoom(130)
+        win.tabs.close_tab(win.tabs.left, win.branch)
+        self.assertIn(win.branch, win.tabs.copies("modules"))
+        self.assertEqual(win.branch._zoom_pct, 130)
+        win.tabs.show_tool("modules")  # select the copy that is open on the right
+        self.assertIs(win.tabs.currentWidget(), right)
+
+    def test_a_closed_copy_with_unapplied_edits_is_kept_so_they_are_not_orphaned(self):
+        win, _left, right, address = self.modules_pair()
+        self.type_into(right.editor_for(address), " KEEP-ME")
+        win.tabs.close_tab(win.tabs.right, right)
+        self.pump()
+        self.assertIn(right, win.tabs.copies("modules"))
+        self.assertEqual(win.branch.drafts.draft_owner(address), right.owner)
+        self.assertTrue(win.branch.drafts.pending)
+        # Reopening Modules in an empty tab brings that same copy back with its edit.
+        win.tabs.assign(win.tabs.right, 0, "modules")
+        self.assertIs(win.tabs.right.currentWidget(), right)
+        self.assertIn("KEEP-ME", right.editor_for(address).toPlainText())
+
+    def test_moving_a_second_copy_to_the_other_pane_keeps_that_copy(self):
+        win, _left, right, _address = self.modules_pair()
+        right.set_zoom(70)
+        win.tabs.move_to_other(win.tabs.right, right)
+        self.assertIs(win.tabs.left.widget(1), right)
+        self.assertEqual(right._zoom_pct, 70)
+
+    def test_the_saved_layout_restores_both_copies(self):
+        win, *_ = self.modules_pair()
+        other = self.make(win.tabs.state())
+        self.assertEqual(self.layout_of(other), {"left": ["modules"], "right": ["modules"]})
+        self.assertEqual(len(other.tabs.copies("modules")), 2)
+
+
+class ToolbarScopeTests(_WorkspaceCase):
+    """The Module and navigation toolbars act only on a Modules tab the user can see."""
+
+    def module_actions(self, win):
+        from PySide6.QtGui import QAction
+        return [a for a in (win.findChild(QAction, n) for n in win._module_action_names)
+                if a is not None]
+
+    def action(self, win, name):
+        from PySide6.QtGui import QAction
+        return win.findChild(QAction, name)
+
+    def test_with_modules_visible_the_commands_are_available(self):
+        win = self.make()
+        self.assertIs(win.modules_target(), win.branch)
+        for name in ("v2AddModule", "v2AddParagraph", "v2ZoomIn", "v2Search", "v2UndoChange"):
+            self.assertTrue(self.action(win, name).isEnabled(), name)
+
+    def test_the_toolbar_groups_are_exactly_the_modules_commands(self):
+        win = self.make()
+        names = set(win._module_action_names)
+        self.assertEqual(
+            names & {"v2NewProject", "v2OpenProject", "v2SaveProject", "v2SaveProjectAs",
+                     "v2ReportInfo", "v2Translations", "v2ImportTemplate"}, set())
+        for expected in ("v2AddModule", "v2Indent", "v2PastePhoto", "v2ZoomIn", "v2PanLeft",
+                         "v2Contents", "v2Search", "v2RedoChange"):
+            self.assertIn(expected, names)
+
+    def test_with_another_tool_alone_on_screen_every_modules_command_is_off(self):
+        win = self.make()
+        win.tabs.show_tool("preview")
+        self.pump()
+        self.assertIsNone(win.modules_target())
+        for action in self.module_actions(win):
+            self.assertFalse(action.isEnabled(), action.objectName())
+            self.assertIn("needs a visible Modules tab", action.toolTip())
+        for name in ("v2NewProject", "v2OpenProject", "v2SaveProject", "v2ReportInfo"):
+            self.assertTrue(self.action(win, name).isEnabled(), name + " belongs to the project")
+
+    def test_the_modules_only_drop_downs_switch_off_with_their_commands(self):
+        from PySide6.QtWidgets import QToolButton
+        win = self.make()
+        menus = ("v2InsertMenu", "v2ArrangeMenu", "v2NavigateMenu", "v2ViewMenu")
+        self.assertTrue(all(win.findChild(QToolButton, n).isEnabled() for n in menus))
+        win.tabs.show_tool("editor")
+        self.pump()
+        self.assertFalse(any(win.findChild(QToolButton, n).isEnabled() for n in menus))
+        for name in ("v2ProjectMenu", "v2LanguagesMenu"):
+            self.assertTrue(win.findChild(QToolButton, name).isEnabled(), name)
+
+    def test_the_commands_come_back_when_modules_is_shown_again(self):
+        win = self.make()
+        win.tabs.show_tool("preview")
+        win.tabs.show_tool("modules")
+        self.pump()
+        self.assertTrue(self.action(win, "v2AddParagraph").isEnabled())
+        self.assertNotIn("needs a visible", self.action(win, "v2AddParagraph").toolTip())
+
+    def test_a_hidden_modules_is_never_changed_even_if_a_command_is_forced(self):
+        win = self.make()
+        win.tabs.show_tool("preview")
+        before_zoom = win.branch._zoom_pct
+        before_nodes = win.branch.visible_nodes
+        for name in ("v2ZoomIn", "v2AddParagraph", "v2AddModule", "v2UndoChange", "v2PanRight"):
+            self.action(win, name).trigger()  # disabled: Qt does not even emit it
+        self.assertEqual(win.branch._zoom_pct, before_zoom)
+        # And if a callback were reached some other way it still refuses.
+        self.assertIsNone(win._cmd("zoom_by", 10)())
+        self.assertIsNone(win._cmd("add_paragraph")())
+        self.pump()
+        self.assertEqual(win.branch._zoom_pct, before_zoom)
+        self.assertEqual(win.branch.visible_nodes, before_nodes)
+        self.assertIn("Show Modules", win.statusBar().currentMessage())
+
+    def test_the_command_reaches_the_visible_modules_in_the_other_pane(self):
+        win = self.make(default_state(split=True))  # Modules left, Preview right
+        win.tabs.set_active(win.tabs.right)
+        self.pump()
+        self.assertIs(win.modules_target(), win.branch)
+        self.assertTrue(self.action(win, "v2ZoomIn").isEnabled())
+        self.action(win, "v2ZoomIn").trigger()
+        self.assertEqual(win.branch._zoom_pct, 110)
+
+    def test_with_two_modules_visible_the_active_pane_decides(self):
+        win = self.make({"split": True, "left": ["modules"], "right": ["modules"]})
+        left, right = win.tabs.left.currentWidget(), win.tabs.right.currentWidget()
+        win.tabs.set_active(win.tabs.right)
+        self.pump()
+        self.assertIs(win.modules_target(), right)
+        self.action(win, "v2ZoomIn").trigger()
+        self.assertEqual((left._zoom_pct, right._zoom_pct), (100, 110))
+        win.tabs.set_active(win.tabs.left)
+        self.pump()
+        self.assertIs(win.modules_target(), left)
+        self.action(win, "v2ZoomOut").trigger()
+        self.assertEqual((left._zoom_pct, right._zoom_pct), (90, 110))
+
+    def test_a_modules_in_a_background_tab_is_not_a_target(self):
+        win = self.make({"split": True, "left": ["modules", "preview"], "right": ["editor"]})
+        win.tabs.left.setCurrentIndex(1)  # Preview on top, Modules behind it
+        self.pump()
+        self.assertIsNone(win.modules_target())
+        self.assertFalse(self.action(win, "v2AddParagraph").isEnabled())
+
+    def test_a_structural_command_adds_to_the_visible_copy_and_both_copies_update(self):
+        win = self.make({"split": True, "left": ["modules"], "right": ["modules"]})
+        left, right = win.tabs.left.currentWidget(), win.tabs.right.currentWidget()
+        win.tabs.set_active(win.tabs.right)
+        before = len(win.session.report_snapshot().modules)
+        self.action(win, "v2AddModule").trigger()
+        self.pump(20)
+        self.assertEqual(len(win.session.report_snapshot().modules), before + 1)
+        self.assertEqual(left.visible_nodes, right.visible_nodes)
+
+    def test_the_photos_tool_inserts_only_into_a_visible_modules(self):
+        win = self.make()
+        self.assertFalse(win._modules_commands.add_photo(asset_id="missing"))
+        win.tabs.show_tool("photos")
+        self.pump()
+        self.assertIsNone(win.modules_target())
+        calls = []
+        win.branch.add_photo = lambda **kw: calls.append(kw) or True
+        self.assertFalse(win._modules_commands.add_photo(asset_id="x"))
+        self.assertEqual(calls, [], "Modules is hidden behind Photos")
+        win.tabs.show_tool("modules")
+        self.assertTrue(win._modules_commands.add_photo(asset_id="x"))
+        self.assertEqual(calls, [{"asset_id": "x"}])
+
+    def test_find_and_contents_need_a_visible_modules_too(self):
+        win = self.make(default_state(split=True))
+        win.tabs.assign(win.tabs.left, 0, "editor")  # Modules is no longer on screen
+        self.pump()
+        self.assertFalse(self.action(win, "v2Search").isEnabled())
+        self.assertFalse(self.action(win, "v2Contents").isEnabled())
+        win.search_branches()  # forced: reports instead of searching a hidden canvas
+        self.assertIn("Show Modules", win.statusBar().currentMessage())
+
+    def test_move_and_indent_follow_the_selection_of_the_visible_copy(self):
+        win = self.make({"split": True, "left": ["modules"], "right": ["modules"]})
+        left, right = win.tabs.left.currentWidget(), win.tabs.right.currentWidget()
+        report = win.session.report_snapshot()
+        first = report.modules[0].id
+        left._selected_module_id = first
+        right._selected_module_id = None
+        left.selectionChanged.emit()
+        win.tabs.set_active(win.tabs.left)
+        self.pump()
+        with_selection = self.action(win, "v2Focus").isEnabled()
+        win.tabs.set_active(win.tabs.right)
+        self.pump()
+        self.assertTrue(with_selection)
+        self.assertFalse(self.action(win, "v2Focus").isEnabled(),
+                         "Focus follows the copy that is active, which has no selection")
 
 
 class EditorPageWidthTests(_WorkspaceCase):

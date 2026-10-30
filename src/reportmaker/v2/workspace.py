@@ -1,19 +1,21 @@
 """Two-pane workspace: every pane has its own tabs and each tab shows a tool.
 
-The tools (Modules, Editor, Photos, Assistant, Preview) are single widgets
-owned by the window. A tool is open in at most one tab at a time, so there is
-exactly one set of drafts, one report session and one browser view no matter how
-the workspace is arranged. Choosing a tool that is open somewhere else moves it
-there instead of opening a copy.
+The tools (Modules, Editor, Photos, Assistant, Preview) can be open in as many
+tabs as the user likes, in either pane. Each tab holds its own copy of the tool;
+the window gives every copy of Modules and of Editor its own draft owner id, so
+two copies that show the same field lock each other instead of overwriting each
+other. A copy that is not on screen is kept (hidden) so that going back to a tool
+finds it as it was; extra copies are deleted when their tab goes away, unless
+they still hold unapplied edits.
 
-This module only arranges existing widgets. It knows nothing about the report,
-drafts or commands; the window tells it which widget is which tool and reacts
-to ``toolShown`` / ``currentChanged`` / ``layoutChanged``.
+This module only arranges widgets. It knows nothing about the report, drafts or
+commands: the window registers a first copy and a factory for more copies of each
+tool, and reacts to ``toolShown`` / ``currentChanged`` / ``layoutChanged``.
 """
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QTimer, Signal
@@ -39,6 +41,8 @@ from .theme import LIGHT
 PAGE_TOOL = "workspaceTool"  # dynamic property on a page: its tool id, "" for a picker
 SPLIT_MIN_WIDTH = 960        # two readable panes plus the rail
 SINGLE_MIN_WIDTH = 660
+MAX_INSTANCES = 4            # copies of one tool; each Assistant copy is a web view
+MAX_TABS_PER_PANE = 8
 
 
 @dataclass(frozen=True)
@@ -144,8 +148,8 @@ class ToolPicker(QWidget):
         outer.addStretch(1)
         title = QLabel("Open a tool in this tab", self)
         title.setObjectName("v2PickerTitle")
-        hint = QLabel("A tool can be open in one tab at a time. Picking one that is open "
-                      "elsewhere moves it here.", self)
+        hint = QLabel("Each tab has its own copy of the tool, so the same tool can be open "
+                      "in both panes.", self)
         hint.setObjectName("v2PickerHint")
         hint.setWordWrap(True)
         outer.addWidget(title)
@@ -170,7 +174,8 @@ class ToolPicker(QWidget):
     def refresh(self) -> None:
         for spec in TOOLS:
             where = self.workspace.describe_location(spec.id)
-            self.tiles[spec.id].set_note(spec.blurb if where is None else where + " · click to move it here")
+            self.tiles[spec.id].set_note(
+                spec.blurb if where is None else where + " · this opens another copy")
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -248,9 +253,7 @@ class WorkspacePane(QTabWidget):
         menu.clear()
         current = page.property(PAGE_TOOL) or ""
         for spec in TOOLS:
-            where = self.workspace.describe_location(spec.id)
-            text = spec.label if where is None or spec.id == current else f"{spec.label} — {where}"
-            action = QAction(text, menu)
+            action = QAction(spec.label, menu)
             action.setObjectName("tabTool_" + spec.id)
             action.setCheckable(True)
             action.setChecked(spec.id == current)
@@ -280,11 +283,12 @@ class WorkspacePane(QTabWidget):
 
 
 class Workspace(QWidget):
-    """Left pane, right pane, and the rules for moving tools between them."""
+    """Left pane, right pane, and the rules for opening, moving and closing tools."""
 
-    toolShown = Signal(str)     # a tool became visible in a pane
+    toolShown = Signal(str, QWidget)  # a copy of a tool became visible in a pane
     currentChanged = Signal(int)  # active pane's tool, as an index into TOOLS (-1: empty tab)
     layoutChanged = Signal()    # split toggled, tool moved/opened/closed, splitter dragged
+    notice = Signal(str)        # something the user should be told (a limit was reached)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -296,7 +300,7 @@ class Workspace(QWidget):
         self._splitter.setChildrenCollapsible(False)
         self._splitter.setHandleWidth(7)
         outer.addWidget(self._splitter)
-        # Tools that are not on screen live here, hidden but still in the window's tree.
+        # Copies that are not on screen live here, hidden but still in the window's tree.
         self._parking = QWidget(self)
         self._parking.setObjectName("v2ToolParking")
         self._parking.hide()
@@ -308,7 +312,10 @@ class Workspace(QWidget):
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 1)
         self.right.hide()
-        self._tools: dict[str, QWidget] = {}
+        # tool id -> every live copy, the first being the window's own attribute
+        # (``branch``, ``editor_tab``, ...), which is never deleted.
+        self._copies: dict[str, list[QWidget]] = {}
+        self._factories: dict[str, Callable[[], QWidget]] = {}
         self._split = False
         self._active = self.left
         self._batch = 0
@@ -322,18 +329,57 @@ class Workspace(QWidget):
         if app is not None:
             app.focusChanged.connect(self._focus_changed)
 
-    # -- tools -----------------------------------------------------------
-    def register_tools(self, widgets: Mapping[str, QWidget]) -> None:
-        unknown = set(widgets) - set(SPEC)
+    # -- copies of tools ----------------------------------------------------
+    def register_tools(self, widgets: Mapping[str, QWidget],
+                       factories: Mapping[str, Callable[[], QWidget]] | None = None) -> None:
+        """``widgets``: the first copy of each tool. ``factories``: make another copy."""
+        unknown = (set(widgets) | set(factories or {})) - set(SPEC)
         if unknown:
             raise KeyError(sorted(unknown))
         for tool_id, widget in widgets.items():
             widget.setProperty(PAGE_TOOL, tool_id)
             widget.setParent(self._parking)
-            self._tools[tool_id] = widget
+            self._copies[tool_id] = [widget]
+        self._factories.update(factories or {})
 
     def tool_widget(self, tool_id: str) -> QWidget:
-        return self._tools[tool_id]
+        """The window's own (first) copy of a tool."""
+        return self._copies[tool_id][0]
+
+    def copies(self, tool_id: str) -> list[QWidget]:
+        """Every live copy of a tool, on screen or parked."""
+        return list(self._copies.get(tool_id, ()))
+
+    def _acquire(self, tool_id: str) -> QWidget | None:
+        """A copy that is not in any tab: a parked one, else a new one (up to the cap)."""
+        copies = self._copies[tool_id]
+        for widget in copies:
+            if self.pane_of(widget) is None:
+                return widget
+        factory = self._factories.get(tool_id)
+        if factory is None or len(copies) >= MAX_INSTANCES:
+            return None
+        widget = factory()
+        widget.setProperty(PAGE_TOOL, tool_id)
+        widget.setParent(self._parking)
+        copies.append(widget)
+        return widget
+
+    def _release(self, widget: QWidget) -> None:
+        """A tab let go of this copy: park it, or delete an extra copy nobody needs."""
+        widget.setParent(self._parking)
+        tool_id = widget.property(PAGE_TOOL) or ""
+        copies = self._copies.get(tool_id, [])
+        if not copies or widget is copies[0]:
+            return
+        can_dispose = getattr(widget, "can_dispose", None)
+        if callable(can_dispose) and not can_dispose():
+            return  # it still holds unapplied edits; keep it so they are not orphaned
+        copies.remove(widget)
+        dispose = getattr(widget, "dispose", None)
+        if callable(dispose):
+            dispose()
+        widget.deleteLater()
 
     def panes(self) -> tuple[WorkspacePane, ...]:
         return (self.left, self.right) if self._split else (self.left,)
@@ -344,26 +390,41 @@ class Workspace(QWidget):
                 return pane
         return None
 
+    def locate_all(self, tool_id: str) -> list[tuple[WorkspacePane, int]]:
+        """Every tab showing the tool, the active pane's first."""
+        order = (self._active, self.right if self._active is self.left else self.left)
+        return [(pane, index) for pane in order for index in range(pane.count())
+                if pane.tool_at(index) == tool_id]
+
     def locate(self, tool_id: str) -> tuple[WorkspacePane, int] | None:
-        for pane in (self.left, self.right):
-            index = pane.index_of_tool(tool_id)
-            if index >= 0:
-                return pane, index
-        return None
+        found = self.locate_all(tool_id)
+        return found[0] if found else None
 
     def describe_location(self, tool_id: str) -> str | None:
-        """"Open in the right pane", or None when the tool is not open anywhere."""
-        found = self.locate(tool_id)
-        if found is None:
-            return None
-        pane, _ = found
-        if not self._split:
-            return "Open in another tab"
-        return f"Open in the {pane.side} pane"
+        """"Open in the left pane", or None when no tab shows the tool."""
+        sides = []
+        for pane, _ in self.locate_all(tool_id):
+            where = f"the {pane.side} pane" if self._split else "another tab"
+            if where not in sides:
+                sides.append(where)
+        return ("Open in " + " and ".join(sides)) if sides else None
+
+    def visible_instances(self) -> list[tuple[str, QWidget]]:
+        """(tool id, widget) for what each visible pane is showing, the active pane first."""
+        order = [self._active] + [p for p in self.panes() if p is not self._active]
+        return [(pane.current_tool(), pane.currentWidget()) for pane in order
+                if pane in self.panes() and pane.current_tool()]
 
     def visible_tools(self) -> list[str]:
-        """The tool each visible pane is showing right now."""
-        return [t for t in (pane.current_tool() for pane in self.panes()) if t]
+        return [tool_id for tool_id, _ in self.visible_instances()]
+
+    def target_for(self, tool_id: str) -> QWidget | None:
+        """The visible copy of a tool that commands should act on.
+
+        The active pane wins; otherwise the other visible pane; otherwise None,
+        so a command never reaches a copy the user cannot see.
+        """
+        return next((w for t, w in self.visible_instances() if t == tool_id), None)
 
     def current_tool(self) -> str:
         return self._active.current_tool()
@@ -394,25 +455,38 @@ class Workspace(QWidget):
                 workspace._flush()
             return False
 
-    def _take(self, pane: WorkspacePane, index: int) -> None:
-        """Remove a tab; a tool is parked, an empty tab is discarded."""
+    def _detach(self, pane: WorkspacePane, index: int) -> QWidget | None:
+        """Take a tab out of a pane without deciding what happens to its widget."""
         page = pane.widget(index)
         pane.removeTab(index)
+        return page
+
+    def _discard(self, page: QWidget | None) -> None:
         if page is None:
             return
         if page.property(PAGE_TOOL):
-            page.setParent(self._parking)
+            self._release(page)
         else:
             page.deleteLater()
 
-    def _put_tool(self, pane: WorkspacePane, tool_id: str, index: int | None = None) -> int:
-        widget = self._tools[tool_id]
-        spec = SPEC[tool_id]
+    def _take(self, pane: WorkspacePane, index: int) -> None:
+        """Remove a tab; a tool copy is released, an empty tab is discarded."""
+        self._discard(self._detach(pane, index))
+
+    def _attach(self, pane: WorkspacePane, widget: QWidget, index: int | None = None) -> int:
+        spec = SPEC[widget.property(PAGE_TOOL)]
         position = pane.count() if index is None else index
         position = pane.insertTab(position, widget, _tab_icon(spec), spec.label)
         pane.setTabToolTip(position, spec.tooltip)
         pane.decorate(widget)
         return position
+
+    def _put_tool(self, pane: WorkspacePane, tool_id: str, index: int | None = None) -> int:
+        """Open a copy of the tool in the pane; -1 when no copy is available."""
+        if pane.count() >= MAX_TABS_PER_PANE:
+            return -1
+        widget = self._acquire(tool_id)
+        return -1 if widget is None else self._attach(pane, widget, index)
 
     def _put_picker(self, pane: WorkspacePane, index: int | None = None) -> int:
         picker = ToolPicker(self)
@@ -441,12 +515,14 @@ class Workspace(QWidget):
     def _announce(self, pane: WorkspacePane) -> None:
         tool_id = pane.current_tool()
         if tool_id and (pane is self.left or self._split):
-            self.toolShown.emit(tool_id)
+            self.toolShown.emit(tool_id, pane.currentWidget())
 
     def new_tab(self, pane: WorkspacePane | None = None) -> QWidget:
         """An empty tab that offers every tool."""
         pane = pane or self._active
         with self._Batch(self):
+            if pane.count() >= MAX_TABS_PER_PANE:
+                return pane.currentWidget()
             index = self._put_picker(pane)
             pane.setCurrentIndex(index)
             self._set_active(pane)
@@ -454,33 +530,40 @@ class Workspace(QWidget):
         return pane.widget(index)
 
     def assign(self, pane: WorkspacePane, index: int, tool_id: str) -> None:
-        """Make the tab at ``index`` show ``tool_id``, taking it from wherever it was."""
-        if tool_id not in self._tools:
+        """Make the tab at ``index`` show a copy of ``tool_id``."""
+        if tool_id not in self._copies:
             raise KeyError(tool_id)
         with self._Batch(self):
-            if pane.widget(index) is self._tools[tool_id]:
+            if pane.tool_at(index) == tool_id:
                 pane.setCurrentIndex(index)
             else:
-                source = self.locate(tool_id)
-                if source is not None:
-                    source_pane, source_index = source
-                    if source_pane.count() == 1:
-                        self._take(source_pane, source_index)
-                        self._put_picker(source_pane)
-                    else:
-                        self._take(source_pane, source_index)
-                        if source_pane is pane and source_index < index:
-                            index -= 1
-                    self._mark(source_pane)
-                self._take(pane, index)
+                old = self._detach(pane, index)
                 position = self._put_tool(pane, tool_id, index)
-                pane.setCurrentIndex(position)
+                if position < 0:
+                    # At the copy limit: leave the tab as it was and say why.
+                    self._attach_back(pane, old, index)
+                    pane.setCurrentIndex(index)
+                    self.notice.emit(
+                        f"{SPEC[tool_id].label} is already open in {MAX_INSTANCES} tabs; "
+                        "close one first.")
+                else:
+                    self._discard(old)
+                    pane.setCurrentIndex(position)
             self._set_active(pane)
             self._mark(pane)
 
+    def _attach_back(self, pane: WorkspacePane, widget: QWidget | None, index: int) -> None:
+        if widget is None:
+            return
+        if widget.property(PAGE_TOOL):
+            self._attach(pane, widget, index)
+        else:
+            pane.insertTab(index, widget, "New tab")
+            pane.decorate(widget)
+
     def show_tool(self, tool_id: str) -> None:
-        """Bring a tool on screen: select its tab, or open it in the active pane."""
-        if tool_id not in self._tools:
+        """Bring a tool on screen: select a tab that shows it, or open it in the active pane."""
+        if tool_id not in self._copies:
             raise KeyError(tool_id)
         found = self.locate(tool_id)
         with self._Batch(self):
@@ -494,7 +577,31 @@ class Workspace(QWidget):
                     self.assign(pane, pane.currentIndex(), tool_id)
                 else:
                     position = self._put_tool(pane, tool_id)
-                    pane.setCurrentIndex(position)
+                    if position >= 0:
+                        pane.setCurrentIndex(position)
+            self._set_active(pane)
+            self._mark(pane)
+
+    def show_widget(self, widget: QWidget) -> None:
+        """Select the tab that shows exactly this copy, opening it if it is parked."""
+        pane = self.pane_of(widget)
+        if pane is None:
+            tool_id = widget.property(PAGE_TOOL) or ""
+            if tool_id not in self._copies or widget not in self._copies[tool_id]:
+                raise ValueError("Not a workspace tool")
+            with self._Batch(self):
+                pane = self._active if self._active in self.panes() else self.left
+                if pane.count() >= MAX_TABS_PER_PANE:
+                    return
+                if pane.current_tool() == "" and pane.count():
+                    self._discard(self._detach(pane, pane.currentIndex()))
+                self._attach(pane, widget)
+                pane.setCurrentWidget(widget)
+                self._set_active(pane)
+                self._mark(pane)
+            return
+        with self._Batch(self):
+            pane.setCurrentWidget(widget)
             self._set_active(pane)
             self._mark(pane)
 
@@ -515,22 +622,22 @@ class Workspace(QWidget):
 
     def move_to_other(self, pane: WorkspacePane, page: QWidget) -> None:
         other = self.right if pane is self.left else self.left
-        tool_id = page.property(PAGE_TOOL) or ""
         index = pane.indexOf(page)
         if index < 0:
             return
         with self._Batch(self):
             if not self._split:
                 self.set_split(True)
-            if pane.count() == 1:
-                self._take(pane, index)
+            if other.count() >= MAX_TABS_PER_PANE:
+                return
+            moved = self._detach(pane, index)
+            if pane.count() == 0:
                 self._put_picker(pane)
-            else:
-                self._take(pane, index)
-            if tool_id:
-                position = self._put_tool(other, tool_id)
+            if moved.property(PAGE_TOOL):
+                position = self._attach(other, moved)  # the same copy, state and all
             else:
                 position = self._put_picker(other)
+                moved.deleteLater()
             other.setCurrentIndex(position)
             self._set_active(other)
             self._mark(pane)
@@ -545,21 +652,22 @@ class Workspace(QWidget):
             if on:
                 self._split = True
                 if self.right.count() == 0:
-                    if self.locate("preview") is None:
-                        self._put_tool(self.right, "preview")
-                    else:
+                    if self.locate("preview") is not None or self._put_tool(self.right, "preview") < 0:
                         self._put_picker(self.right)
                     self.right.setCurrentIndex(0)
                 self.right.show()
                 self._splitter.setSizes([1, 1])
             else:
-                carried = self.right.tools()
+                carried = []
                 while self.right.count():
-                    self._take(self.right, 0)
+                    carried.append(self._detach(self.right, 0))
                 self._split = False
                 self.right.hide()
-                for tool_id in carried:
-                    self._put_tool(self.left, tool_id)
+                for widget in carried:
+                    if widget.property(PAGE_TOOL) and self.left.count() < MAX_TABS_PER_PANE:
+                        self._attach(self.left, widget)  # the same copy, state and all
+                    else:
+                        self._discard(widget)
                 self._set_active(self.left)
             self._mark(self.left)
             self._mark(self.right)
@@ -609,10 +717,12 @@ class Workspace(QWidget):
         return len(TOOLS)
 
     def widget(self, index: int) -> QWidget:
-        return self._tools[TOOLS[index].id]
+        return self._copies[TOOLS[index].id][0]
 
     def indexOf(self, widget: QWidget) -> int:
-        return next((i for i, spec in enumerate(TOOLS) if self._tools.get(spec.id) is widget), -1)
+        tool_id = widget.property(PAGE_TOOL) or ""
+        return next((i for i, spec in enumerate(TOOLS) if spec.id == tool_id
+                     and widget in self._copies.get(tool_id, ())), -1)
 
     def tabText(self, index: int) -> str:
         return TOOLS[index].legacy_label
@@ -621,14 +731,12 @@ class Workspace(QWidget):
         return self._current_index()
 
     def currentWidget(self) -> QWidget | None:
-        tool_id = self._active.current_tool()
-        return self._tools[tool_id] if tool_id else self._active.currentWidget()
+        return self._active.currentWidget()
 
     def setCurrentWidget(self, widget: QWidget) -> None:
-        index = self.indexOf(widget)
-        if index < 0:
+        if self.indexOf(widget) < 0:
             raise ValueError("Not a workspace tool")
-        self.show_tool(TOOLS[index].id)
+        self.show_widget(widget)
 
     def setCurrentIndex(self, index: int) -> None:
         self.show_tool(TOOLS[index].id)
@@ -648,14 +756,16 @@ class Workspace(QWidget):
         """Rebuild the arrangement from ``state``; anything unusable falls back to defaults."""
         state = state if isinstance(state, Mapping) else {}
         wants_split = state.get("split") is True
-        used: set[str] = set()
+        wanted: dict[str, int] = {}
 
         def tools_for(side: str) -> list[str]:
             raw = state.get(side)
             ids = []
             for tool_id in raw if isinstance(raw, list) else []:
-                if isinstance(tool_id, str) and tool_id in self._tools and tool_id not in used:
-                    used.add(tool_id)
+                if (isinstance(tool_id, str) and tool_id in self._copies
+                        and wanted.get(tool_id, 0) < MAX_INSTANCES
+                        and len(ids) < MAX_TABS_PER_PANE):
+                    wanted[tool_id] = wanted.get(tool_id, 0) + 1
                     ids.append(tool_id)
             return ids
 
@@ -666,10 +776,9 @@ class Workspace(QWidget):
             self._split = wants_split
             left_ids, right_ids = tools_for("left"), tools_for("right")
             if not wants_split:
-                left_ids, right_ids = left_ids + right_ids, []
-            if not left_ids and "modules" not in used and "modules" in self._tools:
+                left_ids, right_ids = (left_ids + right_ids)[:MAX_TABS_PER_PANE], []
+            if not left_ids and "modules" in self._copies:
                 left_ids = ["modules"]
-                used.add("modules")
             for tool_id in left_ids:
                 self._put_tool(self.left, tool_id)
             for tool_id in right_ids:
@@ -677,9 +786,9 @@ class Workspace(QWidget):
             self.right.setVisible(wants_split)
             for pane, key in ((self.left, "left_current"), (self.right, "right_current")):
                 raw = state.get(key)
-                wanted = raw if isinstance(raw, int) and not isinstance(raw, bool) else 0
+                wanted_index = raw if isinstance(raw, int) and not isinstance(raw, bool) else 0
                 if pane.count():
-                    pane.setCurrentIndex(max(0, min(wanted, pane.count() - 1)))
+                    pane.setCurrentIndex(max(0, min(wanted_index, pane.count() - 1)))
             sizes = state.get("sizes")
             if (isinstance(sizes, list) and len(sizes) == 2
                     and all(isinstance(s, int) and not isinstance(s, bool) and s > 0 for s in sizes)):

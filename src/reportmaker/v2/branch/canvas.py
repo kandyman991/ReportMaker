@@ -575,8 +575,14 @@ class BranchCanvas(QScrollArea):
     selectionChanged = Signal()
     visibilityChanged = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, owner: str = "branch") -> None:
         super().__init__(parent)
+        if not isinstance(owner, str) or not owner.strip():
+            raise ValueError("A Modules canvas needs a nonempty draft owner id")
+        # The id under which this canvas stages drafts. Several canvases can show
+        # the same report at once; each stages under its own id so that two of
+        # them can never silently overwrite one field's draft.
+        self._owner = owner
         self.setObjectName("v2BranchCanvas")
         self.setWidgetResizable(True)
         # Long reports still scroll with wheel/touchpad, keyboard and focus;
@@ -600,6 +606,8 @@ class BranchCanvas(QScrollArea):
         self._gateway = None
         self.drafts = None
         self._unsubscribe = None
+        self._unsubscribe_pending = None
+        self._unsubscribe_changes = None
         self._editors = {}
         self._draft_bars = {}
         self._pending_panel = None
@@ -995,17 +1003,40 @@ class BranchCanvas(QScrollArea):
     def editor_for(self, address: NodeAddress):
         return self._editors.get(address)
 
-    def bind_session(self, session: ReportSession, gateway: CommandGateway) -> None:
+    @property
+    def owner(self) -> str:
+        return self._owner
+
+    def bind_session(self, session: ReportSession, gateway: CommandGateway,
+                     drafts: DraftCoordinator | None = None) -> None:
+        """Show ``session``. A second canvas passes the first one's ``drafts`` so
+        that the session has one draft guard and one view of every pending edit."""
         if self.drafts is not None and self.drafts.pending:
             raise PendingDraftError("Resolve drafts before switching sessions")
-        if self._unsubscribe is not None:
-            self._unsubscribe()
+        self._detach()
         self._session, self._gateway = session, gateway
-        self.drafts = DraftCoordinator(session, gateway)
-        self.drafts.subscribe_pending(lambda _pending: self._update_pending_panel())
-        self.drafts.subscribe_changes(self._draft_changed)
+        self.drafts = drafts if drafts is not None else DraftCoordinator(session, gateway)
+        self._unsubscribe_pending = self.drafts.subscribe_pending(
+            lambda _pending: self._update_pending_panel())
+        self._unsubscribe_changes = self.drafts.subscribe_changes(self._draft_changed)
         self._unsubscribe = session.subscribe(self._on_change)
         self._refresh()
+
+    def _detach(self) -> None:
+        for name in ("_unsubscribe", "_unsubscribe_pending", "_unsubscribe_changes"):
+            stop = getattr(self, name, None)
+            if stop is not None:
+                stop()
+                setattr(self, name, None)
+
+    def can_dispose(self) -> bool:
+        """False while this canvas still holds unapplied edits of its own."""
+        return self.drafts is None or not self.drafts.pending_addresses(owner=self._owner)
+
+    def dispose(self) -> None:
+        """Stop listening before a closed copy of this canvas is deleted."""
+        self._foreign_timer.stop()
+        self._detach()
 
     def _on_change(self, change) -> None:
         # New/Open changes generation: never restore selection or caret from
@@ -1576,7 +1607,7 @@ class BranchCanvas(QScrollArea):
         caption_editor.setPalette(palette)
         caption_editor.setPlainText(self.drafts.text(caption_addr))
         stale = self.drafts.text_stale(caption_addr)
-        external = self.drafts.draft_owner(caption_addr) not in (None, "branch")
+        external = self.drafts.draft_owner(caption_addr) not in (None, self._owner)
         caption_editor.setReadOnly(stale or external)
         if stale or external:
             note = QLabel(("Caption changed while a draft was pending; copy text and Revert."
@@ -1631,7 +1662,7 @@ class BranchCanvas(QScrollArea):
         if panel is None or message is None or self.drafts is None:
             return
         pending = self.drafts.pending_addresses()
-        own = self.drafts.pending_addresses(owner="branch")
+        own = self.drafts.pending_addresses(owner=self._owner)
         if pending:
             message.setText(
                 "UNAPPLIED EDITS — Insert, move, drag and Save are paused. "
@@ -1652,12 +1683,12 @@ class BranchCanvas(QScrollArea):
         """Atomic explicit approval; never auto-commit a toolbar or drag action."""
         if self.drafts is None:
             return False
-        own = self.drafts.pending_addresses(owner="branch")
+        own = self.drafts.pending_addresses(owner=self._owner)
         if not own:
             self.feedback.emit("No Modules drafts to apply; check the Editor tab")
             return False
         try:
-            self.drafts.commit_batch(own, owner="branch")
+            self.drafts.commit_batch(own, owner=self._owner)
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit("Edits retained; cannot apply: " + str(exc))
             self._update_pending_panel()
@@ -1703,7 +1734,7 @@ class BranchCanvas(QScrollArea):
         """Require explicit confirmation before discarding uncommitted work."""
         if self.drafts is None:
             return False
-        own = self.drafts.pending_addresses(owner="branch")
+        own = self.drafts.pending_addresses(owner=self._owner)
         if not own:
             return False
         answer = QMessageBox.question(
@@ -1715,14 +1746,14 @@ class BranchCanvas(QScrollArea):
         if answer != QMessageBox.StandardButton.Yes:
             return False
         for address in own:
-            self.drafts.discard(address, owner="branch")
+            self.drafts.discard(address, owner=self._owner)
         self._refresh()
         self.feedback.emit("Unapplied Modules edits discarded")
         return True
 
     def _changed(self, address, text, buttons):
         try:
-            self.drafts.update(address, text)
+            self.drafts.update(address, text, owner=self._owner)
             # A native editor may inherit nearby visual character formatting
             # while typing; the staged Unicode ranges are authoritative.
             # Highlighter-only refresh does not mutate Qt's text undo stack.
@@ -1767,7 +1798,7 @@ class BranchCanvas(QScrollArea):
             return False
         self._capture(address)
         try:
-            change = self.drafts.commit(address)
+            change = self.drafts.commit(address, owner=self._owner)
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit("Draft retained: " + str(exc))
             return False
@@ -1779,7 +1810,7 @@ class BranchCanvas(QScrollArea):
         if self.drafts is None:
             return
         self._capture(address)
-        self.drafts.discard(address)
+        self.drafts.discard(address, owner=self._owner)
         self._refresh()
         self.feedback.emit("Draft reverted")
 
@@ -2320,7 +2351,8 @@ class BranchCanvas(QScrollArea):
     def _stage_format(self, address, start, end, field, value, *, paragraph=False):
         try:
             changed = self.drafts.format(
-                address, start, end, field, value, paragraph=paragraph)
+                address, start, end, field, value, paragraph=paragraph,
+                owner=self._owner)
             if changed:
                 editor = self._editors.get(address)
                 if editor is not None:
@@ -2414,7 +2446,7 @@ class BranchCanvas(QScrollArea):
 
     def _table_changed(self, address, row, column, text) -> None:
         try:
-            self.drafts.update_cell(address, row, column, text)
+            self.drafts.update_cell(address, row, column, text, owner=self._owner)
             self._draft_bars[address].setVisible(self.drafts.is_dirty(address))
             self.feedback.emit("Unapplied table edit — Apply or Revert before Save/Undo")
         except (ValueError, LookupError, RuntimeError) as exc:
@@ -2433,7 +2465,7 @@ class BranchCanvas(QScrollArea):
             return False
         self._capture_table_cell(address)
         try:
-            self.drafts.commit(address)
+            self.drafts.commit(address, owner=self._owner)
         except (ValueError, LookupError, RuntimeError) as exc:
             self.feedback.emit("Table draft retained: " + str(exc))
             return False
@@ -2445,7 +2477,7 @@ class BranchCanvas(QScrollArea):
         if self.drafts is None:
             return
         self._capture_table_cell(address)
-        self.drafts.discard(address)
+        self.drafts.discard(address, owner=self._owner)
         self._refresh()
         self.feedback.emit("Table draft reverted")
 
@@ -2463,7 +2495,7 @@ class BranchCanvas(QScrollArea):
                 index = selected_column
             else:
                 raise ValueError("Unsupported table operation")
-            if not self.drafts.modify_table(address, operation, index):
+            if not self.drafts.modify_table(address, operation, index, owner=self._owner):
                 return False
             next_rows = self.drafts.table_rows(address)
             row = max(0, min(selected_row + (operation == "insert_row"),
@@ -2483,7 +2515,7 @@ class BranchCanvas(QScrollArea):
 
     def _inline_table(self, card, address):
         rows, stale = self.drafts.table_preview(address)
-        external = self.drafts.draft_owner(address) not in (None, "branch")
+        external = self.drafts.draft_owner(address) not in (None, self._owner)
         if external:
             label = QLabel("Pending edits belong to the other editor; return there "
                            "to Apply or Revert.", card)
@@ -2610,7 +2642,7 @@ class BranchCanvas(QScrollArea):
                 # either the canonical model or the pending draft.
                 staged_rich = RichFormatting()
             paint_rich(editor, text, staged_rich)
-        external = self.drafts.draft_owner(address) not in (None, "branch")
+        external = self.drafts.draft_owner(address) not in (None, self._owner)
         stale = self.drafts.text_stale(address)
         if stale:
             message = ("Source changed while a draft was pending. Copy staged text "
@@ -2892,7 +2924,7 @@ class BranchCanvas(QScrollArea):
             QTimer.singleShot(0, self._restore_cursor)
 
     def _draft_changed(self, address, owner, previous_owner) -> None:
-        if owner in (None, "branch") and previous_owner in (None, "branch"):
+        if owner in (None, self._owner) and previous_owner in (None, self._owner):
             return  # this canvas's own drafts already redraw themselves
         self._foreign_stale = True
         if self.isVisible():

@@ -210,14 +210,17 @@ class NaturalPagePaper(QFrame):
 class DocumentEditorTab(QWidget):
     """Canonical block editor; no private Report copy or direct ProjectEditor access."""
 
-    def __init__(self, session, branch, parent=None):
+    def __init__(self, session, branch, parent=None, *, owner: str = "page-editor"):
         super().__init__(parent)
         self.setObjectName("v2DocumentEditorTab")
         # Explicit button foreground/background only; document typography
         # and printable paper colors stay owned by the editor projection.
         self.setStyleSheet(BUTTON_CHROME)
         self.session, self.branch = session, branch
-        self.port = branch.drafts.for_editor("page-editor")
+        # Every Editor copy stages under its own id, so two copies showing the
+        # same field can never silently overwrite each other's draft.
+        self.owner = owner
+        self.port = branch.drafts.for_editor(owner)
         self.style = ExportStyle()
         self._owned = set()
         self._module_id = None
@@ -230,7 +233,7 @@ class DocumentEditorTab(QWidget):
         # Fields another editor (the Modules canvas) currently holds drafts for.
         self._foreign: set = set()
         self._sync_queued = False
-        branch.drafts.subscribe_changes(self._draft_changed)
+        self._unsubscribe_changes = branch.drafts.subscribe_changes(self._draft_changed)
         outer = QVBoxLayout(self)
         self.info = QLabel(
             "Document-oriented editor · continuous schematic, not exact Word pagination. "
@@ -260,8 +263,17 @@ class DocumentEditorTab(QWidget):
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         outer.addWidget(self.scroll, 1)
-        self.session.subscribe(self._changed)
+        self._unsubscribe_session = self.session.subscribe(self._changed)
         self.refresh()
+
+    def can_dispose(self) -> bool:
+        """False while this copy still holds unapplied edits of its own."""
+        return not self._owned
+
+    def dispose(self) -> None:
+        """Stop listening before a closed copy of this tab is deleted."""
+        self._unsubscribe_changes()
+        self._unsubscribe_session()
 
     def set_style(self, style: ExportStyle) -> None:
         if self._owned:
@@ -277,7 +289,7 @@ class DocumentEditorTab(QWidget):
         self._queue_sync()
 
     def _draft_changed(self, address, owner, previous_owner):
-        if owner in (None, "page-editor") and previous_owner in (None, "page-editor"):
+        if owner in (None, self.owner) and previous_owner in (None, self.owner):
             return  # this tab's own drafts
         self._queue_sync()
 
@@ -292,7 +304,7 @@ class DocumentEditorTab(QWidget):
         self.sync_foreign_drafts()
 
     def _is_foreign(self, address) -> bool:
-        return self.branch.drafts.draft_owner(address) not in (None, "page-editor")
+        return self.branch.drafts.draft_owner(address) not in (None, self.owner)
 
     def sync_foreign_drafts(self):
         """Make every field another editor holds a draft for read-only, in place.

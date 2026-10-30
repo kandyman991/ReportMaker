@@ -6,19 +6,57 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, QUrl
+from PySide6.QtCore import QObject, QStandardPaths, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
 
 CHAT_URL = QUrl("https://chatgpt.com/")
 
 
+def _make_profile(parent: QObject, ephemeral: bool, root: Path | None):
+    """The web profile: throw-away, or the user's persistent one under ``root``."""
+    from PySide6.QtWebEngineCore import QWebEngineProfile
+    if ephemeral:
+        return QWebEngineProfile(parent)
+    profile = QWebEngineProfile("reportmaker-chatgpt", parent)
+    if root is None:
+        root = Path(QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.AppLocalDataLocation)) / "browser"
+    root.mkdir(parents=True, exist_ok=True)
+    profile.setPersistentStoragePath(str(root / "storage"))
+    profile.setCachePath(str(root / "cache"))
+    profile.setPersistentCookiesPolicy(
+        QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies)
+    return profile
+
+
+class SharedBrowserProfile:
+    """One web profile for every Assistant tab in a window.
+
+    Two profiles may not use the same storage name and path, and the user logs in
+    once, so all copies of the Assistant share this one. It is created the first
+    time a copy actually loads the website, never earlier.
+    """
+
+    def __init__(self, parent: QObject, *, ephemeral: bool = False,
+                 root: Path | None = None) -> None:
+        self._parent, self._ephemeral, self._root = parent, ephemeral, root
+        self._profile = None
+
+    def get(self):
+        if self._profile is None:
+            self._profile = _make_profile(self._parent, self._ephemeral, self._root)
+        return self._profile
+
+
 class ChatTab(QWidget):
     def __init__(self, *, load_website: bool = True,
                  browser_profile_root: Path | None = None,
-                 ephemeral_browser: bool = False, parent=None):
+                 ephemeral_browser: bool = False, shared_profile: SharedBrowserProfile | None = None,
+                 parent=None):
         super().__init__(parent)
         self.setObjectName("v2ChatGPTTab")
+        self.shared_profile = shared_profile
         self.load_website = load_website
         self.browser_profile_root = browser_profile_root
         self.ephemeral_browser = ephemeral_browser
@@ -50,22 +88,11 @@ class ChatTab(QWidget):
             return
         # Load only when the user opens this tab; synthetic Qt tests and normal
         # Branch editing must not start Chromium or create browser profile files.
-        from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
+        from PySide6.QtWebEngineCore import QWebEnginePage
         from PySide6.QtWebEngineWidgets import QWebEngineView
 
-        if self.ephemeral_browser:
-            profile = QWebEngineProfile(self)
-        else:
-            profile = QWebEngineProfile("reportmaker-chatgpt", self)
-            root = self.browser_profile_root
-            if root is None:
-                root = Path(QStandardPaths.writableLocation(
-                    QStandardPaths.StandardLocation.AppLocalDataLocation)) / "browser"
-            root.mkdir(parents=True, exist_ok=True)
-            profile.setPersistentStoragePath(str(root / "storage"))
-            profile.setCachePath(str(root / "cache"))
-            profile.setPersistentCookiesPolicy(
-                QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies)
+        profile = (self.shared_profile.get() if self.shared_profile is not None
+                   else _make_profile(self, self.ephemeral_browser, self.browser_profile_root))
         browser = QWebEngineView(self)
         browser.setMinimumSize(0, 0)
         page = QWebEnginePage(profile, browser)
