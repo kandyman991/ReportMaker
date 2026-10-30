@@ -60,6 +60,11 @@ side run once PR #114 (draft sync between them) is in the tree and are skipped b
 ## Not done / limits
 * Offscreen Qt on Linux only. Not checked: native Windows rendering and DPI, the
   frozen app, real window sizes below 960 px with the split on.
+* At 160 % zoom in a half-width pane on a 960-1100 px window, a card can be wider than the
+  pane by a few to ~100 px (the canvas has no horizontal scrollbar; use the Pan commands, zoom
+  out, or turn the split off). Checked across the five stress scenarios x 960/1100/1366/1920 px x
+  55/100/160 % zoom with Modules beside the Editor: no overlap or clipping anywhere, and overflow in
+  4 of those 60 combinations, all at 160 %.
 * Tabs cannot be dragged between panes (use *Move to the other pane*); a tool cannot be
   shown twice at once (by design, see above).
 * The top toolbars still act on Modules even when Modules is not the visible tool;
