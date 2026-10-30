@@ -21,6 +21,7 @@ from ..export import ExportStyle
 from ..model import HeadingBlock, ParagraphBlock, PhotoBlock, TableBlock
 from ..photo_editor import render_photo
 from .contrast import BUTTON_CHROME
+from .editing_keys import handle_plain_paste
 from .navigation import subtree_range, window_for
 from .projections import NodeAddress, find_node, project_branch
 
@@ -68,6 +69,10 @@ class NaturalPageText(QPlainTextEdit):
     def wheelEvent(self, event):
         # Never trap scroll within a paragraph; allow the parent document to move.
         event.ignore()
+
+    def keyPressEvent(self, event):
+        if not handle_plain_paste(self, event):
+            super().keyPressEvent(event)
 
 
 class NaturalPageTable(QTableWidget):
