@@ -162,7 +162,11 @@ class V2BranchCanvasTests(unittest.TestCase):
             matching = [g for g in window.branch.findChildren(ConnectorGutter)
                         if g._depth == deepest]
             self.assertEqual(len(matching), 1)
-            self.assertEqual(matching[0].width(), 18 + 25 * deepest)
+            # Indentation narrows to fit the window but levels never collapse
+            # onto one another, however deep the model is.
+            step = matching[0].step
+            self.assertGreaterEqual(step, 6)
+            self.assertEqual(matching[0].width(), 18 + step * deepest)
             self.assertEqual(len(matching[0]._ancestors), deepest - 1)
         finally:
             # M1.4 modal Close is tested separately; avoid blocking headless teardown.
