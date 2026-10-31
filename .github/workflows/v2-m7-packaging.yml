@@ -156,6 +156,15 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # PyInstaller documents these controls for stable Python bytecode
+          # ordering and Windows PE build timestamps. Use source commit time,
+          # never a per-run clock value.
+          $epoch = (git show -s --format=%ct HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $epoch -notmatch '^[0-9]{10,}$') {
+            throw "Unable to establish deterministic source commit epoch"
+          }
+          $env:PYTHONHASHSEED = "1"
+          $env:SOURCE_DATE_EPOCH = $epoch
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 `
             --hidden-import PySide6.QtWebEngineWidgets `
             --hidden-import PySide6.QtWebEngineCore `

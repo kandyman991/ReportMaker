@@ -62,6 +62,20 @@ class HistoricalWindowsReleaseSafetyTests(unittest.TestCase):
         self.assertIn("RC2_SOURCE_SHA: 9865178a0ccdfe27e79fc16640c0c3eca50fe099",
                       (WORKFLOWS / "windows-rc2.yml").read_text())
 
+    def test_deterministic_pyinstaller_environment_is_source_pinned(self):
+        workflow = (WORKFLOWS / "v2-m7-packaging.yml").read_text(encoding="utf-8")
+        builder = (ROOT / "scripts/build_v2_m73_local.ps1").read_text(encoding="utf-8")
+        self.assertIn("git show -s --format=%ct HEAD", workflow)
+        self.assertIn("git show -s --format=%ct $sourceSha", builder)
+        for item in (workflow, builder):
+            self.assertIn('PYTHONHASHSEED = "1"', item)
+            self.assertIn("SOURCE_DATE_EPOCH =", item)
+            self.assertIn("Unable to establish deterministic source commit epoch", item)
+        self.assertLess(workflow.index('PYTHONHASHSEED = "1"'),
+                        workflow.index('python -m PyInstaller --noconfirm'))
+        self.assertLess(builder.index('PYTHONHASHSEED = "1"'),
+                        builder.index('& $python -m PyInstaller --noconfirm'))
+
     def test_rc3_release_publisher_is_unmodified_and_remains_separately_gated(self):
         rc3 = WORKFLOWS / "windows-rc3.yml"
         iss = ROOT / "packaging/windows/ReportMaker-RC3.iss"

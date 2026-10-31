@@ -38,6 +38,12 @@ The comparator:
 - Returns exit code **0** for matching byte hashes across all recorded items, **1** for genuine recorded differences, and **2** for malformed input.
 - Makes **no claim of full hermetic reproducibility**: OS image and Inno Setup compiler are not hermetically pinned, and manifest matching cannot prove external inputs, digital signatures, Windows installer GUI quality or real production readiness. A matching metadata pair is supporting evidence, not a cryptographic attestation from an independent trusted builder.
 
+## First independent build comparison and deterministic-build correction
+
+Two explicitly non-releasing `workflow_dispatch` runs on branch head `af672cacdf824a30b6936bf157fef9d9b56a86d7`, run IDs `41225402662` and `41225409877`, both **passed** Windows V2 freeze/install/native+HTML offscreen smoke, full installed-payload comparison and uninstall. Both produced metadata only, with the same Windows image, Python 3.14.10, 22 wheel hashes and 3,199 frozen payload paths. However, actual SHA-256 **differed** for two PyInstaller-generated files: `ReportMakerV2.exe` and `_internal/base_library.zip`; Inno installer SHA-256 also differed. This is a reproducibility **finding**, not a functional Windows installation failure. The comparator correctly returned exit code 1.
+
+The isolated V2 CI and matching local build helper now set `PYTHONHASHSEED=1` and `SOURCE_DATE_EPOCH` to the checked-out Git source commit timestamp immediately before PyInstaller. PyInstaller [documents](https://pyinstaller.org/en/stable/advanced-topics.html#creating-a-reproducible-build) both controls for bytecode hashing and Windows PE timestamps. Using a Git commit timestamp avoids injecting each runner's clock into the bundle. **This correction is not validated as reproducible until two fresh, matching-head Windows builds are compared**; if the installer alone still differs, investigate the Inno toolchain and embedded metadata independently. No binary is modified in place.
+
 ## Required independent PR and release gates
 
 1. Static tests: full SHA pins in only manual M0/RC2 publishers; source SHA and manual triggers unchanged, RC3 publisher+installer unchanged at known reviewed SHA-256 values.

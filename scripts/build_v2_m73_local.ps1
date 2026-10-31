@@ -67,6 +67,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Native V2 source smoke failed" }
     & $python -m reportmaker.v2 --html --offline-self-test
     if ($LASTEXITCODE -ne 0) { throw "HTML V2 source offline test failed" }
+    # Match hosted Python bytecode hashing and PE header timestamps.
+    $sourceEpoch = (& git show -s --format=%ct $sourceSha).Trim()
+    if ($LASTEXITCODE -ne 0 -or $sourceEpoch -notmatch '^[0-9]{10,}$') {
+        throw "Unable to establish deterministic source commit epoch"
+    }
+    $priorHashSeed = $env:PYTHONHASHSEED
+    $priorSourceDateEpoch = $env:SOURCE_DATE_EPOCH
+    $env:PYTHONHASHSEED = "1"
+    $env:SOURCE_DATE_EPOCH = $sourceEpoch
     & $python -m PyInstaller --noconfirm --clean --windowed --onedir --name ReportMakerV2 --specpath $specDir `
         --hidden-import PySide6.QtWebEngineWidgets `
         --hidden-import PySide6.QtWebEngineCore `
@@ -86,7 +95,10 @@ try {
         --collect-all pillow_heif `
         --collect-data reportmaker `
         packaging/windows/v2_launcher.py
-    if ($LASTEXITCODE -ne 0) { throw "V2 freezing failed" }
+    $freezeExit = $LASTEXITCODE
+    $env:PYTHONHASHSEED = $priorHashSeed
+    $env:SOURCE_DATE_EPOCH = $priorSourceDateEpoch
+    if ($freezeExit -ne 0) { throw "V2 freezing failed" }
     $frozen = Join-Path $root "dist\ReportMakerV2"
     $frozenExe = Join-Path $frozen "ReportMakerV2.exe"
     if (-not (Test-Path $frozenExe)) { throw "Frozen V2 executable missing" }
