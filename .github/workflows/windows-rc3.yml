@@ -1,14 +1,11 @@
 name: ReportMaker Windows RC3 pinned installer
 
 # This workflow is intentionally separate from windows-installer.yml (historical M0).
-# This one-time source-pinned publisher runs when its configuration merges to main.
-# Later changes and reruns never overwrite the immutable RC3 tag.
+# SECURITY ARCHIVE: RC3 is an immutable published prerelease. Never rerun
+# its un-hashed Python 3.12 builder or its release publisher. There is NO
+# push trigger (including when this file first merges) and the job is
+# hard-disabled even for workflow_dispatch. Historical logic stays for audit.
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/windows-rc3.yml
-      - packaging/windows/ReportMaker-RC3.iss
   workflow_dispatch:
 
 permissions:
@@ -26,11 +23,11 @@ env:
 jobs:
   build-test-and-publish:
     # Never publish from a PR, fork, non-main branch or a different repository.
-    if: github.repository == 'kandyman991/ReportMaker' && github.ref == 'refs/heads/main'
+    if: ${{ false }} # permanently archived; never recreate/publish RC3
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout approved RC3 build configuration
         uses: actions/checkout@v4
