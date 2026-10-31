@@ -69,7 +69,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -c "import platform, struct, sys; assert sys.version_info[:3] == (3, 14, 10) and platform.system() == 'Windows' and struct.calcsize('P') == 8, sys.version"
+          python -c "import platform, struct, sys; sys.exit(0 if sys.version_info[:3] == (3, 14, 10) and platform.system() == 'Windows' and struct.calcsize('P') == 8 else 'Unsupported Windows Python runtime: ' + sys.version)"
           if ($LASTEXITCODE -ne 0) { throw "Windows build requires security-patched Python 3.14.10 x64" }
 
       - name: Parse native acceptance builder without execution

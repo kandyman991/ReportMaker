@@ -50,7 +50,7 @@ try {
     & py -3.14 -m venv $venvDir
     if ($LASTEXITCODE -ne 0) { throw "Unable to create Python 3.12 environment" }
     $python = Join-Path $venvDir "Scripts\python.exe"
-    & $python -c "import platform,struct,sys; assert platform.system()=='Windows' and struct.calcsize('P')==8 and (3,14,10) <= sys.version_info[:3] < (3,15,0), sys.version"
+    & $python -c "import platform,struct,sys; sys.exit(0 if platform.system()=='Windows' and struct.calcsize('P')==8 and (3,14,10) <= sys.version_info[:3] < (3,15,0) else 'Unsupported Windows Python runtime: ' + sys.version)"
     if ($LASTEXITCODE -ne 0) { throw "Requires security-patched Python 3.14.10+ Windows x64 (not Python 3.15)" }
     $lock = Join-Path $root "packaging/windows/requirements-win314-x64.lock"
     $report = Join-Path $output "m73-verified-wheels.json"
