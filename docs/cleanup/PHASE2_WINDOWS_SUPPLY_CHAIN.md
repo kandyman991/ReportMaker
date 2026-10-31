@@ -1,5 +1,7 @@
 # Phase 2 / issue #105 — Windows V2 supply-chain hardening
 
+**Historical #125 increment (merged): its Python 3.12 lock and evidence are preserved; the newer isolated Python 3.14 preview migration is tracked in [PHASE2_WINDOWS_PYTHON314.md](PHASE2_WINDOWS_PYTHON314.md).**
+
 **Status: proposed isolated PR, not a release, production signoff, or V1 retirement.** Based on `main@d77102e9abc6b88bc6a21ba4ef604a62b0a8a996` after the approved #123 merge. Independent Windows CI/review/owner authorization are still mandatory. PR #124 is a separate, unmerged Linux CI change and is **not** a dependency of this branch.
 
 ## What is protected in this increment

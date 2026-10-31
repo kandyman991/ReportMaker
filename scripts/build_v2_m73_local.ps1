@@ -40,19 +40,19 @@ try {
         throw "Tracked worktree must be clean; do not test an uncommitted build"
     }
     if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
-        throw "Python 3.12 x64 launcher 'py' is required"
+        throw "Python 3.14 x64 launcher 'py' is required"
     }
     # Clean venv is required: preinstalled packages can evade hash verification.
     $venvDir = Join-Path $output "_build-venv"
     if (Test-Path $venvDir) {
         throw "Build virtualenv already exists. Choose a fresh OutputDirectory for reproducible validation."
     }
-    & py -3.12 -m venv $venvDir
+    & py -3.14 -m venv $venvDir
     if ($LASTEXITCODE -ne 0) { throw "Unable to create Python 3.12 environment" }
     $python = Join-Path $venvDir "Scripts\python.exe"
-    & $python -c "import platform,struct; assert platform.system()=='Windows' and struct.calcsize('P')==8"
-    if ($LASTEXITCODE -ne 0) { throw "Python must be Windows x64" }
-    $lock = Join-Path $root "packaging/windows/requirements-win312-x64.lock"
+    & $python -c "import platform,struct,sys; assert platform.system()=='Windows' and struct.calcsize('P')==8 and (3,14,10) <= sys.version_info[:3] < (3,15,0), sys.version"
+    if ($LASTEXITCODE -ne 0) { throw "Requires security-patched Python 3.14.10+ Windows x64 (not Python 3.15)" }
+    $lock = Join-Path $root "packaging/windows/requirements-win314-x64.lock"
     $report = Join-Path $output "m73-verified-wheels.json"
     & $python scripts/windows_supply_chain.py --lock $lock --verify-only
     if ($LASTEXITCODE -ne 0) { throw "Reviewed Windows dependency lock invalid" }

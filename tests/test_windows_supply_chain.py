@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-LOCK = ROOT / "packaging/windows/requirements-win312-x64.lock"
+LOCK = ROOT / "packaging/windows/requirements-win314-x64.lock"
 W = ROOT / ".github/workflows/v2-m7-packaging.yml"
 
 
@@ -32,6 +32,28 @@ class WindowsSupplyChainTests(unittest.TestCase):
         self.assertEqual(entries["pillow"]["version"], "13.0.0")
         self.assertEqual(entries["pyside6-webengine"]["version"], "6.12.0.140")
         self.assertTrue(all(e["hashes"] for e in entries.values()))
+
+    def test_windows_python_migration_is_non_release_and_retains_rollback_lock(self):
+        previous = ROOT / "packaging/windows/requirements-win312-x64.lock"
+        self.assertTrue(previous.is_file(), "Keep the last successful Windows 3.12 build manifest")
+        current = supply.parse_lock(LOCK)
+        self.assertEqual(len(current), 22)
+        self.assertEqual(len(supply.parse_lock(previous)), 22)
+        workflow = W.read_text(encoding="utf-8")
+        builder = (ROOT / "scripts/build_v2_m73_local.ps1").read_text(encoding="utf-8")
+        self.assertIn('python-version: "3.14.10"', workflow)
+        self.assertIn('sys.version_info[:3] == (3, 14, 10)', workflow)
+        self.assertIn('Assert security-patched Windows Python runtime', workflow)
+        self.assertIn('& py -3.14 -m venv', builder)
+        self.assertIn('(3,14,10) <= sys.version_info[:3] < (3,15,0)', builder)
+        self.assertNotIn('requirements-win312-x64.lock', workflow)
+        self.assertNotIn('requirements-win312-x64.lock', builder)
+        for legacy in (".github/workflows/windows-rc2.yml",
+                       ".github/workflows/windows-rc3.yml",
+                       ".github/workflows/windows-installer.yml"):
+            self.assertTrue((ROOT / legacy).is_file())
+        self.assertIn("inputs.manual_qa_installer == true", workflow)
+        self.assertNotIn("gh release create", workflow)
 
     def test_lock_rejects_url_unhashed_and_duplicate_dependencies(self):
         with TemporaryDirectory() as directory:
@@ -146,7 +168,7 @@ class WindowsSupplyChainTests(unittest.TestCase):
         workflow = W.read_text()
         local = (ROOT / "scripts/build_v2_m73_local.ps1").read_text()
         for text in (workflow, local):
-            self.assertIn("requirements-win312-x64.lock", text)
+            self.assertIn("requirements-win314-x64.lock", text)
             self.assertIn("--require-hashes --only-binary=:all:", text)
             self.assertIn("--no-build-isolation", text)
             self.assertIn("windows_supply_chain.py", text)
