@@ -67,6 +67,7 @@ Use synthetic examples already in `tests/test_m2_project.py:example`, `tests/tes
 | HTML Chromium/QWebChannel source smoke | **Passed** | On Legion with `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`; exited 0 |
 | Python compileall | **Passed** | On Legion at baseline SHA |
 | Full Python regression suite | **Passed: 644 tests, 179.132 s** | On clean post-#121 `main` SHA (no new golden test yet); Legion Python 3.14.4 offscreen; exit 0 |
+| Full Phase 1 PR code-head Python suite | **Passed: 645 tests, 180.880 s** | Legion Python 3.14.4, Qt offscreen, `54eeb2e71d9c55ad5bd66428c944f34e29089410` (later PR commits are documentation-only; final-head GitHub CI is separate) |
 | Synthetic `.rmproj` / export protection | **Passed: 1 additional focused golden test** | PR branch `tests/test_cleanup_phase1_golden.py` passed on Legion; includes source image unchanged, media library, translation staleness, nested TOC, DOCX/PDF and .rmproj re-save |
 | Native desktop visual acceptance on Legion | **Not run here** | Offscreen is not real rendered interactive GUI acceptance |
 | Hosted Windows exact-PR-head CI | **Not run yet** | Will execute on proposed PR where configured |
@@ -74,4 +75,4 @@ Use synthetic examples already in `tests/test_m2_project.py:example`, `tests/tes
 
 ## Next Phase 1 actions
 
-Full 644-test baseline and a 1-test synthetic golden regression are recorded. Run the full suite on the exact PR branch head (which adds the golden regression), review fixture coverage gaps and file follow-ups; independently review exact PR head and check hosted CI. The baseline documentation is *not* acceptance of V1 retirement, default HTML promotion, or Windows release.
+The original baseline passed 644 tests; the Phase 1 PR code head with the new golden regression passed **645 tests**. The 11 protected shared modules and V1-only candidates are inventoried in `docs/cleanup/DEPENDENCY_BOUNDARIES.md`. Remaining: independent architecture/security/data-integrity review, final-head hosted Windows CI, and optional follow-up native GUI/fixture-parity tests; physical installed-Windows acceptance remains explicitly separate. The baseline documentation is *not* acceptance of V1 retirement, default HTML promotion, or Windows release.
