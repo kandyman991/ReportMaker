@@ -130,7 +130,8 @@ class PhysicalAndSignerChecks(unittest.TestCase):
         s = (ROOT / "scripts/verify_windows_installer_authenticode.ps1").read_text()
         for required in ("Get-AuthenticodeSignature", "Get-FileHash", "ApprovedSignerThumbprint",
                          "TimeStamperCertificate", "signtool.exe", "verify /pa /all /tw /v",
-                         "Win32NT", "Get-Command"):
+                         "Win32NT", "Get-Command", "ProvenanceJson",
+                         "ExpectedMainCommit", "provenance.installer.sha256"):
             self.assertIn(required, s)
         for unsafe in ("signtool sign", "gh release create", "ConvertFrom-SecureString"):
             self.assertNotIn(unsafe, s)

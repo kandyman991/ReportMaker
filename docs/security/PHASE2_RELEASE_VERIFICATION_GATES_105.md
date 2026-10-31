@@ -46,7 +46,7 @@ On a **genuine Windows** host with Windows SDK SignTool installed, after indepen
   -ApprovedSignerThumbprint "<reviewed-publisher-certificate-SHA1-thumbprint>"
 ```
 
-The script makes **no signing request** and has no credentials; it checks `Get-FileHash`, Windows native Authenticode trust, signer certificate thumbprint, timestamp certificate, plus SignTool `verify /pa /all /tw /v` with zero/warning-free exit. This script is **not executable as acceptance evidence on Linux**. If the signing service returns a certificate or timestamp mismatch, release is blocked. Microsoft references: <https://learn.microsoft.com/en-us/windows/win32/seccrypto/using-signtool-to-verify-a-file-signature> and <https://learn.microsoft.com/en-us/windows/win32/seccrypto/time-stamping-authenticode-signatures>.
+The script makes **no signing request** and has no credentials. It first checks the original Windows build provenance's exact main source/config revision and unsigned installer checksum, then checks `Get-FileHash`, Windows native Authenticode trust, signer certificate thumbprint, timestamp certificate, plus SignTool `verify /pa /all /tw /v` with zero/warning-free exit. This script is **not executable as acceptance evidence on Linux**. If the signing service returns a certificate or timestamp mismatch, release is blocked. Microsoft references: <https://learn.microsoft.com/en-us/windows/win32/seccrypto/using-signtool-to-verify-a-file-signature> and <https://learn.microsoft.com/en-us/windows/win32/seccrypto/time-stamping-authenticode-signatures>.
 
 ### Qt WebEngine / Chromium triage remains HOLD
 

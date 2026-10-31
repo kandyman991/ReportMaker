@@ -4,6 +4,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$Installer,
+    [Parameter(Mandatory=$true)][string]$ProvenanceJson,
+    [Parameter(Mandatory=$true)][ValidatePattern('^[A-Fa-f0-9]{40}$')][string]$ExpectedMainCommit,
     [Parameter(Mandatory=$true)][ValidatePattern('^[A-Fa-f0-9]{64}$')][string]$ExpectedSignedSha256,
     [Parameter(Mandatory=$true)][ValidatePattern('^[A-Fa-f0-9]{40}$')][string]$ApprovedSignerThumbprint,
     [Parameter(Mandatory=$true)][ValidatePattern('^[A-Fa-f0-9]{64}$')][string]$UnsignedBuildSha256
@@ -12,6 +14,22 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
     throw 'Windows Authenticode verification requires a native Windows verification host'
+}
+if (!(Test-Path -LiteralPath $ProvenanceJson -PathType Leaf)) { throw 'Original build provenance missing' }
+$provenance = Get-Content -LiteralPath $ProvenanceJson -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($provenance.schema -ne 'reportmaker.windows-v2-build-provenance.v1' -or
+    $provenance.installer.filename -ne 'ReportMaker-V2-M7-Preview-Setup.exe' -or
+    $provenance.python -ne '3.14.10') {
+    throw 'Signed installer must be matched to reviewed Windows V2 provenance'
+}
+$source = $ExpectedMainCommit.ToLowerInvariant()
+if ($provenance.source_commit -cne $source -or
+    $provenance.reviewed_branch_head_commit -cne $source -or
+    $provenance.configuration_commit -cne $source) {
+    throw 'Unsigned build provenance does not belong to the approved main source'
+}
+if ($provenance.installer.sha256 -cne $UnsignedBuildSha256.ToLowerInvariant()) {
+    throw 'Unsigned installer hash differs from pinned build provenance'
 }
 if (!(Test-Path -LiteralPath $Installer -PathType Leaf)) { throw 'Signed installer not found' }
 if ([IO.Path]::GetExtension($Installer) -ine '.exe') { throw 'Only Windows .exe installer accepted' }
@@ -42,6 +60,7 @@ if ($LASTEXITCODE -ne 0) { throw "SignTool Authenticode verification failed or w
     status = 'verified_on_windows'
     installer_sha256 = $actual
     previous_unsigned_installer_sha256 = $UnsignedBuildSha256.ToLowerInvariant()
+    reviewed_source_commit = $source
     approved_signer_thumbprint = $signer
     signer_subject = $sig.SignerCertificate.Subject
     timestamp_signer = $ts.Subject
