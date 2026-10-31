@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-31T09:55:50.185Z",
+  "generatedAt": "2026-10-31T17:03:00.978Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,11 +11,21 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
-    "message": "Merge pull request #123 from kandyman991/chore/cleanup-phase1-baseline-20261031\n\nPhase 1: save cleanup roadmap, parity inventory and golden regression baseline",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/066b1b0a70f40d813edc32f247b107b1aedc13fa"
+    "sha": "9014e92a48f89f49e0171c86e9637d2e423d0e36",
+    "message": "Merge PR #125: Windows V2 supply-chain hardening (non-release)\n\nOwner-authorized Phase 2 increment for issue #105. Preserve non-release constraints, V1 fallback, historic artifacts and publishing gates. Issue #105 remains open for Python migration, release-action pinning, repeat-build verification, Qt updates, and physical Windows acceptance.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/9014e92a48f89f49e0171c86e9637d2e423d0e36"
   },
   "openPullRequests": [
+    {
+      "number": 124,
+      "title": "Phase 2 (increment 1): Linux application CI, pinned validation actions and advisory visibility",
+      "draft": false,
+      "head": "chore/phase2-linux-ci-security-20261031",
+      "headSha": "06a73427eca6a838a02061e21c824cfd92bbcffb",
+      "base": "main",
+      "updatedAt": "2026-10-31T10:04:53Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/pull/124"
+    },
     {
       "number": 120,
       "title": "V2: reconcile canvas fit and cross-editor locks with the reviewed fixes on main",
@@ -41,7 +51,7 @@
     {
       "number": 122,
       "title": "Roadmap: gated repository consolidation across V1, native V2 and HTML Studio",
-      "updatedAt": "2026-10-31T09:03:40Z",
+      "updatedAt": "2026-10-31T10:01:10Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/122"
     },
     {
@@ -53,13 +63,13 @@
     {
       "number": 106,
       "title": "Quality follow-up: Linux CI, security scanning, repo metadata and maintainability backlog",
-      "updatedAt": "2026-10-29T19:36:19Z",
+      "updatedAt": "2026-10-31T10:05:30Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/106"
     },
     {
       "number": 105,
       "title": "Release security: lock complete Windows build dependency graph and pin action revisions",
-      "updatedAt": "2026-10-29T19:35:40Z",
+      "updatedAt": "2026-10-31T11:33:32Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/105"
     },
     {
@@ -191,114 +201,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 41190654697,
-      "name": "ReportMaker continuity contract",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
-      "event": "push",
-      "updatedAt": "2026-10-31T09:55:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41190654697"
-    },
-    {
-      "id": 41190654688,
+      "id": 41222594758,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
+      "headSha": "9014e92a48f89f49e0171c86e9637d2e423d0e36",
       "event": "push",
-      "updatedAt": "2026-10-31T09:55:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41190654688"
+      "updatedAt": "2026-10-31T17:02:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41222594758"
     },
     {
-      "id": 41190654678,
+      "id": 41222594723,
+      "name": "ReportMaker continuity contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "9014e92a48f89f49e0171c86e9637d2e423d0e36",
+      "event": "push",
+      "updatedAt": "2026-10-31T17:02:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41222594723"
+    },
+    {
+      "id": 41222594714,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
+      "headSha": "9014e92a48f89f49e0171c86e9637d2e423d0e36",
       "event": "push",
-      "updatedAt": "2026-10-31T09:55:46Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41190654678"
+      "updatedAt": "2026-10-31T17:02:57Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41222594714"
     },
     {
-      "id": 41187323995,
+      "id": 41206392074,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/phase2-windows-supply-chain-105",
+      "headSha": "36b988c41cd6e8b5c16feec54db04243f804d988",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T13:37:19Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41206392074"
+    },
+    {
+      "id": 41206391989,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/phase2-windows-supply-chain-105",
+      "headSha": "36b988c41cd6e8b5c16feec54db04243f804d988",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T13:39:07Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41206391989"
+    },
+    {
+      "id": 41206391972,
+      "name": "V2 M6.6 precise page and Word fidelity",
+      "status": "completed",
+      "conclusion": "skipped",
+      "branch": "security/phase2-windows-supply-chain-105",
+      "headSha": "36b988c41cd6e8b5c16feec54db04243f804d988",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T13:37:14Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41206391972"
+    },
+    {
+      "id": 41206391954,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/phase2-windows-supply-chain-105",
+      "headSha": "36b988c41cd6e8b5c16feec54db04243f804d988",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T13:39:01Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41206391954"
+    },
+    {
+      "id": 41206391926,
+      "name": "V2 M7.1 isolated Windows installer preflight",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/phase2-windows-supply-chain-105",
+      "headSha": "36b988c41cd6e8b5c16feec54db04243f804d988",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T13:42:55Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41206391926"
+    },
+    {
+      "id": 41206391921,
       "name": "V2 M6.5 staged metadata localization contract",
       "status": "completed",
       "conclusion": "skipped",
-      "branch": "chore/cleanup-phase1-baseline-20261031",
-      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
+      "branch": "security/phase2-windows-supply-chain-105",
+      "headSha": "36b988c41cd6e8b5c16feec54db04243f804d988",
       "event": "pull_request",
-      "updatedAt": "2026-10-31T09:06:43Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323995"
+      "updatedAt": "2026-10-31T13:37:14Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41206391921"
     },
     {
-      "id": 41187323906,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "chore/cleanup-phase1-baseline-20261031",
-      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T09:09:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323906"
-    },
-    {
-      "id": 41187323889,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "chore/cleanup-phase1-baseline-20261031",
-      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T09:06:51Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323889"
-    },
-    {
-      "id": 41187323868,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "chore/cleanup-phase1-baseline-20261031",
-      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T09:08:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323868"
-    },
-    {
-      "id": 41187323862,
-      "name": "V2 M6.6 precise page and Word fidelity",
+      "id": 41197282285,
+      "name": "V2 M6.5 staged metadata localization contract",
       "status": "completed",
       "conclusion": "skipped",
-      "branch": "chore/cleanup-phase1-baseline-20261031",
-      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
+      "branch": "security/phase2-windows-supply-chain-105",
+      "headSha": "98a71973099580608389d93e9576333e51063d9f",
       "event": "pull_request",
-      "updatedAt": "2026-10-31T09:06:50Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323862"
-    },
-    {
-      "id": 41187175248,
-      "name": "V2 M6.6 precise page and Word fidelity",
-      "status": "completed",
-      "conclusion": "skipped",
-      "branch": "chore/cleanup-phase1-baseline-20261031",
-      "headSha": "cf7ba647ebc036b45d66ff705b7537a5dbfdfbe2",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T09:04:40Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187175248"
-    },
-    {
-      "id": 41187175239,
-      "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "chore/cleanup-phase1-baseline-20261031",
-      "headSha": "cf7ba647ebc036b45d66ff705b7537a5dbfdfbe2",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T09:07:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187175239"
+      "updatedAt": "2026-10-31T11:32:37Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41197282285"
     }
   ]
 }
