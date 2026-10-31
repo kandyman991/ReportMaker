@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-30T18:53:19.072Z",
+  "generatedAt": "2026-10-31T09:55:50.185Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "343abb10379c26f1f9f5ba452b131a524a0d4e91",
-    "message": "Integrate V2 HTML Studio as an opt-in UI (#121)\n\nPreserve native V2 default and V1 fallback. Include QWebChannel sandbox, canonical edits, draft flushing, rich-text and translation fidelity, Windows packaging tests and independent-review linked-identity protection.\n\nFinal review: Linux 644 tests / 1792 subtests green; all applicable exact-head Windows CI workflows green, including frozen and installed HTML/native smokes and uninstall. Physical Windows 33-case UI acceptance remains a distinct release/default-promotion gate.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/343abb10379c26f1f9f5ba452b131a524a0d4e91"
+    "sha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
+    "message": "Merge pull request #123 from kandyman991/chore/cleanup-phase1-baseline-20261031\n\nPhase 1: save cleanup roadmap, parity inventory and golden regression baseline",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/066b1b0a70f40d813edc32f247b107b1aedc13fa"
   },
   "openPullRequests": [
     {
@@ -38,6 +38,12 @@
     }
   ],
   "openIssues": [
+    {
+      "number": 122,
+      "title": "Roadmap: gated repository consolidation across V1, native V2 and HTML Studio",
+      "updatedAt": "2026-10-31T09:03:40Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/122"
+    },
     {
       "number": 116,
       "title": "Plan safe V1 retirement: preserve V2 shared engines, imports, media and Windows data",
@@ -181,124 +187,118 @@
       "title": "Windows acceptance: import DOCX/DOTX page template with page setup, letterhead header/footer and reusable assets",
       "updatedAt": "2026-10-27T09:11:10Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/24"
-    },
-    {
-      "number": 23,
-      "title": "Windows acceptance: editable report typography (family, size, emphasis, spacing) persisted and exported",
-      "updatedAt": "2026-10-27T09:11:08Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/23"
     }
   ],
   "recentWorkflowRuns": [
     {
-      "id": 41110678817,
+      "id": 41190654697,
+      "name": "ReportMaker continuity contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
+      "event": "push",
+      "updatedAt": "2026-10-31T09:55:46Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41190654697"
+    },
+    {
+      "id": 41190654688,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
+      "event": "push",
+      "updatedAt": "2026-10-31T09:55:46Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41190654688"
+    },
+    {
+      "id": 41190654678,
       "name": "M0 architecture and model gates",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "343abb10379c26f1f9f5ba452b131a524a0d4e91",
+      "headSha": "066b1b0a70f40d813edc32f247b107b1aedc13fa",
       "event": "push",
-      "updatedAt": "2026-10-30T18:53:14Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41110678817"
+      "updatedAt": "2026-10-31T09:55:46Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41190654678"
     },
     {
-      "id": 41110678448,
+      "id": 41187323995,
+      "name": "V2 M6.5 staged metadata localization contract",
+      "status": "completed",
+      "conclusion": "skipped",
+      "branch": "chore/cleanup-phase1-baseline-20261031",
+      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T09:06:43Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323995"
+    },
+    {
+      "id": 41187323906,
+      "name": "M0 architecture and model gates",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "chore/cleanup-phase1-baseline-20261031",
+      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T09:09:47Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323906"
+    },
+    {
+      "id": 41187323889,
       "name": "ReportMaker continuity contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "main",
-      "headSha": "343abb10379c26f1f9f5ba452b131a524a0d4e91",
-      "event": "push",
-      "updatedAt": "2026-10-30T18:53:18Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41110678448"
-    },
-    {
-      "id": 41110678370,
-      "name": "M1 Windows customer UI smoke test",
-      "status": "in_progress",
-      "conclusion": null,
-      "branch": "main",
-      "headSha": "343abb10379c26f1f9f5ba452b131a524a0d4e91",
-      "event": "push",
-      "updatedAt": "2026-10-30T18:53:14Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41110678370"
-    },
-    {
-      "id": 41109648282,
-      "name": "V2 M2 structural placement",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "v2-html-studio",
-      "headSha": "612f6cfed0129b065504b7bac5cf8e7f7d613c65",
+      "branch": "chore/cleanup-phase1-baseline-20261031",
+      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
       "event": "pull_request",
-      "updatedAt": "2026-10-30T18:47:07Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41109648282"
+      "updatedAt": "2026-10-31T09:06:51Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323889"
     },
     {
-      "id": 41109648219,
+      "id": 41187323868,
       "name": "M1 Windows customer UI smoke test",
       "status": "completed",
       "conclusion": "success",
-      "branch": "v2-html-studio",
-      "headSha": "612f6cfed0129b065504b7bac5cf8e7f7d613c65",
+      "branch": "chore/cleanup-phase1-baseline-20261031",
+      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
       "event": "pull_request",
-      "updatedAt": "2026-10-30T18:47:37Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41109648219"
+      "updatedAt": "2026-10-31T09:08:15Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323868"
     },
     {
-      "id": 41109648214,
-      "name": "V2 M7.1 isolated Windows installer preflight",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "v2-html-studio",
-      "headSha": "612f6cfed0129b065504b7bac5cf8e7f7d613c65",
-      "event": "pull_request",
-      "updatedAt": "2026-10-30T18:52:47Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41109648214"
-    },
-    {
-      "id": 41109648202,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "v2-html-studio",
-      "headSha": "612f6cfed0129b065504b7bac5cf8e7f7d613c65",
-      "event": "pull_request",
-      "updatedAt": "2026-10-30T18:45:52Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41109648202"
-    },
-    {
-      "id": 41109648199,
+      "id": 41187323862,
       "name": "V2 M6.6 precise page and Word fidelity",
       "status": "completed",
       "conclusion": "skipped",
-      "branch": "v2-html-studio",
-      "headSha": "612f6cfed0129b065504b7bac5cf8e7f7d613c65",
+      "branch": "chore/cleanup-phase1-baseline-20261031",
+      "headSha": "46b30f0d1b6d227c2a58184fb817efcd5d9dd15b",
       "event": "pull_request",
-      "updatedAt": "2026-10-30T18:45:44Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41109648199"
+      "updatedAt": "2026-10-31T09:06:50Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187323862"
     },
     {
-      "id": 41109648195,
+      "id": 41187175248,
+      "name": "V2 M6.6 precise page and Word fidelity",
+      "status": "completed",
+      "conclusion": "skipped",
+      "branch": "chore/cleanup-phase1-baseline-20261031",
+      "headSha": "cf7ba647ebc036b45d66ff705b7537a5dbfdfbe2",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T09:04:40Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187175248"
+    },
+    {
+      "id": 41187175239,
       "name": "M0 architecture and model gates",
       "status": "completed",
-      "conclusion": "success",
-      "branch": "v2-html-studio",
-      "headSha": "612f6cfed0129b065504b7bac5cf8e7f7d613c65",
+      "conclusion": "cancelled",
+      "branch": "chore/cleanup-phase1-baseline-20261031",
+      "headSha": "cf7ba647ebc036b45d66ff705b7537a5dbfdfbe2",
       "event": "pull_request",
-      "updatedAt": "2026-10-30T18:47:57Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41109648195"
-    },
-    {
-      "id": 41109648193,
-      "name": "V2 M1.2 session, commands and persistence",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "v2-html-studio",
-      "headSha": "612f6cfed0129b065504b7bac5cf8e7f7d613c65",
-      "event": "pull_request",
-      "updatedAt": "2026-10-30T18:46:13Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41109648193"
+      "updatedAt": "2026-10-31T09:07:52Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41187175239"
     }
   ]
 }
