@@ -41,6 +41,8 @@ On a **genuine Windows** host with Windows SDK SignTool installed, after indepen
 ```powershell
 ./scripts/verify_windows_installer_authenticode.ps1 `
   -Installer "C:\\QA\\ReportMaker-V2-SIGNED-Setup.exe" `
+  -ProvenanceJson "C:/QA/windows-v2-provenance.json" `
+  -ExpectedMainCommit "<approved-main-commit>" `
   -ExpectedSignedSha256 "<signed-installer-sha256>" `
   -UnsignedBuildSha256 "<unsigned-build-sha256-from-provenance>" `
   -ApprovedSignerThumbprint "<reviewed-publisher-certificate-SHA1-thumbprint>"
