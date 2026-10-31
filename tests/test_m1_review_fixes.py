@@ -128,14 +128,16 @@ class FinalReviewCorrections(unittest.TestCase):
         self.assertEqual(len(child_machines), 1)
         self.assertEqual(self.store.list_hierarchy("not-found"), ([], {}, {}))
 
-    def test_release_requires_manual_dispatch_and_pinned_m0_source(self):
+    def test_historical_m0_release_is_archived_manual_only_and_source_pinned(self):
         workflow = (Path(__file__).resolve().parents[1]
                     / ".github" / "workflows" / "windows-installer.yml").read_text(
                         encoding="utf-8",
                     )
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotRegex(workflow, r"(?m)^  push:")
-        self.assertIn("if: github.ref == 'refs/heads/main'", workflow)
+        self.assertIn("if: ${{ false }}", workflow)
+        self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("actions: write", workflow)
         self.assertIn("M0_SOURCE_SHA: 1981d802194bb2619e689533ac35dabde0f706da", workflow)
         self.assertIn("ref: ${{ env.M0_SOURCE_SHA }}", workflow)
         self.assertIn('sha=$env:M0_SOURCE_SHA', workflow)
