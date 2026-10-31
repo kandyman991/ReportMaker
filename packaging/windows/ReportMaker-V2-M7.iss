@@ -31,7 +31,7 @@ MinVersion=10.0.17763
 Name: "desktopicon"; Description: "Create V2 preview desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "{#SourceRoot}\dist\ReportMakerV2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceRoot}\dist\ReportMakerV2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs notimestamp
 
 [Icons]
 Name: "{autoprograms}\ReportMaker V2 Preview"; Filename: "{app}\{#MyAppExeName}"
