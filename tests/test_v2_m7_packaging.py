@@ -99,7 +99,7 @@ class M7PackageContractTests(unittest.TestCase):
     def test_hosted_ci_builds_and_installs_without_publishing(self):
         workflow = (ROOT / ".github/workflows/v2-m7-packaging.yml").read_text(encoding="utf-8")
         for marker in (
-            "windows-latest", "architecture: x64", "contents: read",
+            "windows-2022", "architecture: x64", "contents: read",
             "--onedir", "--name ReportMakerV2", "--offline-self-test",
             "ReportMaker-V2-M7.iss", "Start-Process", "/VERYSILENT",
             "Get-FileHash", "unins000.exe", "persist-credentials: false",
@@ -118,13 +118,23 @@ class M7PackageContractTests(unittest.TestCase):
         # short-lived, unsigned, and never a GitHub Release.
         self.assertIn("default: false", workflow)
         self.assertIn("manual_qa_installer:", workflow)
-        self.assertEqual(workflow.count("actions/upload-artifact@v4"), 1)
+        artifact_action = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+        self.assertEqual(workflow.count(artifact_action), 2)
         manual_gate = "if: ${{ github.event_name == 'workflow_dispatch' && inputs.manual_qa_installer == true }}"
         self.assertEqual(workflow.count(manual_gate), 2)
         self.assertIn("retention-days: 1", workflow)
-        self.assertLess(workflow.index(manual_gate), workflow.index("actions/upload-artifact@v4"))
+        self.assertIn("retention-days: 7", workflow)
+        manual_upload = workflow.split("- name: Attach 1-day M7.3 manual QA installer", 1)[1]
+        self.assertIn(manual_gate, manual_upload)
+        self.assertIn(artifact_action, manual_upload)
+        self.assertIn("ReportMaker-V2-M7-Preview-Setup.exe", manual_upload)
+        metadata_upload = workflow.split("- name: Attach metadata only", 1)[1].split(
+            "- name: Prepare M7.3 unsigned manual-test installer", 1)[0]
+        self.assertIn(artifact_action, metadata_upload)
+        self.assertIn("v2-provenance/*.json", metadata_upload)
+        self.assertNotIn("ReportMaker-V2-M7-Preview-Setup.exe", metadata_upload)
         self.assertLess(workflow.index("Silent install, compare binary, smoke and uninstall"),
-                        workflow.index("actions/upload-artifact@v4"))
+                        workflow.index("- name: Attach metadata only"))
         self.assertLess(workflow.index("Freeze actual V2 executable"),
                         workflow.index("Build local-only distinct per-user V2 installer"))
         self.assertLess(workflow.index("Build local-only distinct per-user V2 installer"),
