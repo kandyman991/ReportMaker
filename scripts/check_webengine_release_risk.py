@@ -4,9 +4,29 @@ import json
 from pathlib import Path
 import re
 import sys
+from urllib.parse import urlsplit
 
 POLICY = Path(__file__).resolve().parents[1] / "security/webengine_release_review.json"
 CRITICAL_CVE_BASELINE = frozenset({"CVE-2026-76024", "CVE-2026-118306", "CVE-2026-118331", "CVE-2026-118348", "CVE-2026-118344"})
+
+
+# A generic link or self-attested statement cannot establish that Qt has
+# backported a particular Chromium fix into the shipped binary. Accept only
+# audited Qt-maintained primary references, followed by human review.
+QT_VENDOR_HOSTS = frozenset({
+    "qt.io", "www.qt.io", "doc.qt.io", "code.qt.io",
+    "bugreports.qt.io", "wiki.qt.io", "download.qt.io",
+})
+
+
+def is_vendor_evidence(link: object) -> bool:
+    if not isinstance(link, str):
+        return False
+    parsed = urlsplit(link.strip())
+    return (parsed.scheme == "https"
+            and parsed.hostname in QT_VENDOR_HOSTS
+            and not parsed.username and not parsed.password
+            and bool(parsed.path) and parsed.path != "/")
 
 
 def check(policy: dict, provenance: dict | None = None) -> dict:
@@ -16,8 +36,8 @@ def check(policy: dict, provenance: dict | None = None) -> dict:
         failures.append("Invalid review policy schema")
     if policy.get("release_decision") != "approved":
         failures.append("Vendor WebEngine security decision is HOLD")
-    if not policy.get("vendor_patch_backport_evidence", "").strip():
-        failures.append("No Qt vendor patch/backport verification")
+    if not is_vendor_evidence(policy.get("vendor_patch_backport_evidence")):
+        failures.append("No verified Qt-maintained vendor patch/backport reference")
     advisories = policy.get("known_advisories", [])
     if not isinstance(advisories, list) or not advisories:
         failures.append("Missing critical Chromium advisory triage")
@@ -32,8 +52,8 @@ def check(policy: dict, provenance: dict | None = None) -> dict:
             failures.append("Invalid CVE identifier")
         if advisory.get("status") not in ("verified_fixed", "not_affected_with_evidence"):
             failures.append(f"{advisory.get('id')}: no verified Qt fix/non-applicability")
-        if not advisory.get("resolution_evidence", "").strip():
-            failures.append(f"{advisory.get('id')}: missing vendor-backed resolution evidence")
+        if not is_vendor_evidence(advisory.get("resolution_evidence")):
+            failures.append(f"{advisory.get('id')}: missing primary Qt vendor resolution evidence")
     if provenance:
         qt = provenance.get("qt_runtime", {})
         if qt.get("qt") != bundle.get("pyside6"):
