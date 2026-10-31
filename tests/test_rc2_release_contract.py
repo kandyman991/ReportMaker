@@ -1,4 +1,4 @@
-"""Offline safeguards for the one-time RC2 Windows release workflow."""
+"""Offline safeguards for archived RC2 release source and dead publisher."""
 from pathlib import Path
 import re
 import unittest
@@ -17,8 +17,8 @@ class RC2BuildContractTests(unittest.TestCase):
         self.assertIn(f"RC2_SOURCE_SHA: {SOURCE_SHA}", workflow)
         self.assertIn("on:\n  workflow_dispatch:", workflow)
         self.assertNotIn("  push:", workflow)
-        self.assertIn("github.repository == 'kandyman991/ReportMaker'", workflow)
-        self.assertIn("github.ref == 'refs/heads/main'", workflow)
+        self.assertIn("if: ${{ false }}", workflow)
+        self.assertNotIn("contents: write", workflow)
         self.assertIn("ref: ${{ env.RC2_SOURCE_SHA }}", workflow)
         self.assertIn("persist-credentials: false", workflow)
         self.assertIn("merge-base --is-ancestor", workflow)

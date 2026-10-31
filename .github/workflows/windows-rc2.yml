@@ -2,7 +2,7 @@ name: ReportMaker Windows RC2 pinned installer
 
 # This workflow is intentionally separate from windows-installer.yml (historical M0).
 # RC2 was initially started by the workflow's first push to main (run 40518468145).
-# After the verified RC2 release, manual dispatch avoids rebuilding an immutable tag
+# SECURITY ARCHIVE: job is disabled; manual dispatch cannot republish immutable RC2.
 # just because the publisher implementation/documentation was corrected.
 on:
   workflow_dispatch:
@@ -22,11 +22,11 @@ env:
 jobs:
   build-test-and-publish:
     # Never publish from a PR, fork, non-main branch or a different repository.
-    if: github.repository == 'kandyman991/ReportMaker' && github.ref == 'refs/heads/main'
+    if: ${{ false }} # historical RC2 is already published; no re-release
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout approved RC2 build configuration
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262

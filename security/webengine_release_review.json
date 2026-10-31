@@ -1,0 +1,60 @@
+{
+  "schema": "reportmaker.webengine-security-review.v1",
+  "review_date_utc": "2026-10-31",
+  "bundle": {
+    "pyside6": "6.12.0",
+    "qt_webengine": "6.140.0",
+    "chromium_baseline": "140.0.7339.225",
+    "qt_reported_chromium_patch": "152.0.7977.83",
+    "chrome_stable_reference": "156.0.8078.79"
+  },
+  "release_decision": "hold",
+  "vendor_patch_backport_evidence": "",
+  "known_advisories": [
+    {
+      "id": "CVE-2026-76024",
+      "severity": "critical",
+      "component": "Chromium MediaStream",
+      "status": "untriaged",
+      "basis": "Chrome stable 156 update 2026-10-29; whether Qt backports the fix is unknown",
+      "source": "https://chromereleases.googleblog.com/2026/10/",
+      "resolution_evidence": ""
+    },
+    {
+      "id": "CVE-2026-118306",
+      "severity": "critical",
+      "component": "Chromium FileSystem",
+      "status": "untriaged",
+      "basis": "Chrome stable 156 update 2026-10-27; Qt applicability not established",
+      "source": "https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html",
+      "resolution_evidence": ""
+    },
+    {
+      "id": "CVE-2026-118331",
+      "severity": "critical",
+      "component": "Chromium FileAPI",
+      "status": "untriaged",
+      "basis": "Chrome stable 156 update 2026-10-27; Qt applicability not established",
+      "source": "https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html",
+      "resolution_evidence": ""
+    },
+    {
+      "id": "CVE-2026-118348",
+      "severity": "critical",
+      "component": "Chromium Skia",
+      "status": "untriaged",
+      "basis": "Chrome stable 156 update 2026-10-27; Qt applicability not established",
+      "source": "https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html",
+      "resolution_evidence": ""
+    },
+    {
+      "id": "CVE-2026-118344",
+      "severity": "critical",
+      "component": "Chromium Layout",
+      "status": "untriaged",
+      "basis": "Chrome stable 156 update 2026-10-27; Qt applicability not established",
+      "source": "https://chromereleases.googleblog.com/2026/10/stable-channel-update-for-desktop_0562499947.html",
+      "resolution_evidence": ""
+    }
+  ]
+}

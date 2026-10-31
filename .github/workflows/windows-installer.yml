@@ -1,7 +1,8 @@
 name: Windows installer (M0 prototype)
 
 # M1 and later revisions must NOT auto-publish under the M0 release name.
-# Manual M0 re-publication is pinned to the last approved M0-only source.
+# SECURITY ARCHIVE: M0 rolling release and cleanup jobs are both disabled.
+# No dispatch may rewrite historical tags, release assets or delete artifacts.
 on:
   workflow_dispatch:
 
@@ -18,9 +19,9 @@ permissions:
 
 jobs:
   installer:
-    if: github.ref == 'refs/heads/main'
+    if: ${{ false }} # historical rolling M0 is frozen; no tag rewrites
     permissions:
-      contents: write
+      contents: read
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -136,14 +137,15 @@ jobs:
           Write-Host "Installer published to https://github.com/$repo/releases/tag/$tag"
 
   purge-legacy-storage:
-    # Separate least-privilege cleanup job; no temporary installer artifact storage.
+    if: ${{ false }} # Never delete release evidence or historic build artifacts.
+    # Historic cleanup code retained for audit, but permanently disabled.
     # Runs only after the rolling release has been published successfully.
     needs: installer
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
-      actions: write
+      actions: read
     steps:
       - name: Remove legacy ReportMaker installer artifacts
         shell: bash

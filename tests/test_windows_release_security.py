@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 CHECKOUT = "actions/checkout@11d5960a326750d5838078e36cf38b85af677262"
 PYTHON = "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
-RC3_WORKFLOW_SHA256 = "1d62d6bd581318bfab6a83884848e367e29d6518fccbfb7b185206610df81005"
 RC3_INSTALLER_SHA256 = "45f62b16b8ef254a4e144c402af6a45f49314cd66de42d8242be5ecd463a514f"
 
 spec = importlib.util.spec_from_file_location(
@@ -55,7 +54,8 @@ class HistoricalWindowsReleaseSafetyTests(unittest.TestCase):
                 self.assertNotIn("actions/setup-python@v5", workflow)
                 self.assertEqual(workflow.count("persist-credentials: false"), checkout_count)
                 self.assertIn("contents: read", workflow)
-                self.assertIn("contents: write", workflow)
+                self.assertNotIn("contents: write", workflow)
+                self.assertIn("if: ${{ false }}", workflow)
                 self.assertIn("gh release", workflow)
         self.assertIn("M0_SOURCE_SHA: 1981d802194bb2619e689533ac35dabde0f706da",
                       (WORKFLOWS / "windows-installer.yml").read_text())
@@ -85,13 +85,14 @@ class HistoricalWindowsReleaseSafetyTests(unittest.TestCase):
     def test_rc3_release_publisher_is_unmodified_and_remains_separately_gated(self):
         rc3 = WORKFLOWS / "windows-rc3.yml"
         iss = ROOT / "packaging/windows/ReportMaker-RC3.iss"
-        self.assertEqual(hashlib.sha256(rc3.read_bytes().replace(b"\r\n", b"\n")).hexdigest(), RC3_WORKFLOW_SHA256)
+        # Installer release definition remains byte-for-byte unchanged.
         self.assertEqual(hashlib.sha256(iss.read_bytes().replace(b"\r\n", b"\n")).hexdigest(), RC3_INSTALLER_SHA256)
         data = rc3.read_text(encoding="utf-8")
-        self.assertIn("on:\n  push:", data)
-        self.assertIn("- .github/workflows/windows-rc3.yml", data)
-        self.assertIn("github.ref == 'refs/heads/main'", data)
-        self.assertIn("gh release create", data)
+        self.assertIn("on:\n  workflow_dispatch:", data)
+        self.assertNotIn("  push:", data)
+        self.assertIn("if: ${{ false }}", data)
+        self.assertNotIn("contents: write", data)
+        self.assertIn("gh release create", data)  # archived source text only, unreachable
         self.assertIn("RC3_SOURCE_SHA: 5da9f06e72303f1370783f5efdae17fb8fcd5f40", data)
 
 

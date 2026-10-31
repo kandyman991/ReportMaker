@@ -24,3 +24,5 @@ jobs:
         run: python -m pip install --disable-pip-version-check packaging==26.3
       - name: Compare shipped Qt WebEngine/PySide6 pin to latest PyPI release
         run: python scripts/check_qt_webengine_updates.py
+      - name: Report Chromium critical-CVE review holds (advisory only; never publish)
+        run: python scripts/check_webengine_release_risk.py

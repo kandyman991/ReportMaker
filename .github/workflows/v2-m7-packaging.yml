@@ -28,6 +28,11 @@ on:
         required: true
         type: boolean
         default: false
+      attest_nonrelease_metadata:
+        description: "Trusted-main-only OIDC attestation of JSON provenance/SBOM metadata; never publishes or signs installers"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -369,3 +374,53 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+
+  # This is intentionally a SEPARATE job. Untrusted pull-request jobs retain
+  # contents:read and cannot obtain OIDC tokens or write attestations.
+  # A trusted main-only explicit opt-in attests JSON metadata, NOT the installer
+  # and is never a release or Authenticode code-signing claim.
+  attest-nonrelease-metadata:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'kandyman991/ReportMaker' && github.ref == 'refs/heads/main' && inputs.attest_nonrelease_metadata == true }}
+    needs: [locked-windows-dependency-audit, windows-v2-frozen-installed-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download metadata from this successful trusted workflow run only
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ReportMaker-V2-SUPPLY-CHAIN-${{ github.sha }}
+          path: ${{ runner.temp }}/attestable-v2-metadata
+
+      - name: Reject unexpected files, missing fields or installer bytes
+        shell: bash
+        env:
+          METADATA_DIR: ${{ runner.temp }}/attestable-v2-metadata
+          REVIEWED_MAIN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYVALIDATE'
+          import json, os, pathlib, re
+          root = pathlib.Path(os.environ["METADATA_DIR"])
+          names = sorted(p.name for p in root.iterdir())
+          assert names == ["windows-v2-provenance.json", "windows-v2-sbom.cdx.json"], names
+          p = json.loads((root / names[0]).read_text(encoding="utf-8"))
+          b = json.loads((root / names[1]).read_text(encoding="utf-8"))
+          assert p["source_commit"] == os.environ["REVIEWED_MAIN_SHA"]
+          assert p["reviewed_branch_head_commit"] == os.environ["REVIEWED_MAIN_SHA"]
+          assert p["python"] == "3.14.10"
+          assert len(p["wheels"]) == len(b["components"]) == 22
+          assert len(p["frozen_payload"]) >= 3000
+          assert re.fullmatch(r"[0-9a-f]{64}", p["installer"]["sha256"])
+          assert b["bomFormat"] == "CycloneDX"
+          print("Trusted-main metadata assertions passed; no binary will be attested or uploaded.")
+          PYVALIDATE
+
+      - name: Create short-lived OIDC-backed GitHub attestation for JSON only
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: ${{ runner.temp }}/attestable-v2-metadata/*.json
