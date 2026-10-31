@@ -13,6 +13,12 @@ on:
       - "packaging/windows/**"
       - "scripts/verify_v2_frozen_archive.py"
       - "scripts/windows_supply_chain.py"
+      # Security-gate changes must also exercise the exact-head frozen Windows preview.
+      - "scripts/check_qt_webengine_updates.py"
+      - "scripts/check_webengine_release_risk.py"
+      - "security/webengine_release_review.json"
+      - ".github/workflows/qt-webengine-security-watch.yml"
+      - "tests/test_webengine_*.py"
       - "src/reportmaker/**"
       - "tests/test_v2_*.py"
       - "tests/test_windows_supply_chain.py"

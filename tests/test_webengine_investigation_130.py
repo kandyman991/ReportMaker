@@ -53,6 +53,17 @@ class IndependentWheelWatcherTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     updates.current_versions(ROOT / "pyproject.toml", lock)
 
+    def test_qt_security_changes_trigger_nonrelease_windows_preflight(self):
+        workflow = (ROOT / ".github/workflows/v2-m7-packaging.yml").read_text()
+        for path in ("scripts/check_qt_webengine_updates.py",
+                     "scripts/check_webengine_release_risk.py",
+                     "security/webengine_release_review.json",
+                     ".github/workflows/qt-webengine-security-watch.yml",
+                     "tests/test_webengine_*.py"):
+            self.assertIn(f'- "{path}"', workflow)
+        self.assertIn("default: false", workflow)
+        self.assertIn("contents: read", workflow)
+
     def test_live_pypi_lookup_has_fixed_package_allowlist(self):
         with self.assertRaisesRegex(ValueError, "Unrecognized package"):
             updates.latest_release("not-pyside6")
