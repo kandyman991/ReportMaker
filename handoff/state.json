@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/ReportMaker",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-31T17:32:26.094Z",
+  "generatedAt": "2026-10-31T18:15:28.012Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md and ../docs/CHECKPOINTS.md before making changes.",
@@ -11,9 +11,9 @@
     "Verify live PR head, base, CI and release before starting work."
   ],
   "head": {
-    "sha": "372026e31713049c7dbdc0bce6f0a4a5741b7935",
-    "message": "Merge PR #126: security-patched Python 3.14.10 for Windows V2 (non-release)\n\nOwner-authorized non-release migration for issue #105, with verified Windows installed/uninstalled packaging and detached independent review. Keep #105 open; do not publish any release, retire V1, modify legacy RC assets or default HTML.",
-    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/372026e31713049c7dbdc0bce6f0a4a5741b7935"
+    "sha": "444fe04af015e90c34f493885968e38d3bc685b4",
+    "message": "Merge PR #127: pin manual Windows publishers and verify repeat builds (non-release)\n\nOwner-authorized Phase 2 security increment for issue #105. Pin M0/RC2 Action revisions, preserve RC3 release trigger unchanged, and retain deterministic V2 preview build evidence. No publishing, release artifact changes, V1 retirement or HTML default promotion. Keep issue #105 open for remaining release-control and acceptance work.",
+    "htmlUrl": "https://github.com/kandyman991/ReportMaker/commit/444fe04af015e90c34f493885968e38d3bc685b4"
   },
   "openPullRequests": [
     {
@@ -69,7 +69,7 @@
     {
       "number": 105,
       "title": "Release security: lock complete Windows build dependency graph and pin action revisions",
-      "updatedAt": "2026-10-31T17:15:58Z",
+      "updatedAt": "2026-10-31T18:06:10Z",
       "htmlUrl": "https://github.com/kandyman991/ReportMaker/issues/105"
     },
     {
@@ -201,114 +201,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 41224997925,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "372026e31713049c7dbdc0bce6f0a4a5741b7935",
-      "event": "push",
-      "updatedAt": "2026-10-31T17:32:20Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41224997925"
-    },
-    {
-      "id": 41224997902,
+      "id": 41228497152,
       "name": "M1 Windows customer UI smoke test",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "372026e31713049c7dbdc0bce6f0a4a5741b7935",
+      "headSha": "444fe04af015e90c34f493885968e38d3bc685b4",
       "event": "push",
-      "updatedAt": "2026-10-31T17:32:14Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41224997902"
+      "updatedAt": "2026-10-31T18:15:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41228497152"
     },
     {
-      "id": 41224997896,
-      "name": "M0 architecture and model gates",
+      "id": 41228497101,
+      "name": "ReportMaker continuity contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "372026e31713049c7dbdc0bce6f0a4a5741b7935",
+      "headSha": "444fe04af015e90c34f493885968e38d3bc685b4",
       "event": "push",
-      "updatedAt": "2026-10-31T17:32:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41224997896"
+      "updatedAt": "2026-10-31T18:15:24Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41228497101"
     },
     {
-      "id": 41223431858,
+      "id": 41228497023,
       "name": "M0 architecture and model gates",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "security/phase2-python314-windows-105",
-      "headSha": "27a3b23ddd5471f682ae943395d78ff876b2d1c7",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T17:14:56Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41223431858"
+      "status": "queued",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "444fe04af015e90c34f493885968e38d3bc685b4",
+      "event": "push",
+      "updatedAt": "2026-10-31T18:15:21Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41228497023"
     },
     {
-      "id": 41223431825,
-      "name": "ReportMaker continuity contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "security/phase2-python314-windows-105",
-      "headSha": "27a3b23ddd5471f682ae943395d78ff876b2d1c7",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T17:13:03Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41223431825"
-    },
-    {
-      "id": 41223431806,
-      "name": "V2 M6.6 precise page and Word fidelity",
-      "status": "completed",
-      "conclusion": "skipped",
-      "branch": "security/phase2-python314-windows-105",
-      "headSha": "27a3b23ddd5471f682ae943395d78ff876b2d1c7",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T17:12:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41223431806"
-    },
-    {
-      "id": 41223431800,
+      "id": 41226981154,
       "name": "V2 M7.1 isolated Windows installer preflight",
       "status": "completed",
       "conclusion": "success",
-      "branch": "security/phase2-python314-windows-105",
-      "headSha": "27a3b23ddd5471f682ae943395d78ff876b2d1c7",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T17:21:15Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41223431800"
+      "branch": "security/phase2-release-pin-repeatability-105",
+      "headSha": "62a7a2e5ca3691524c536ee4ef6fb1fda49b8476",
+      "event": "workflow_dispatch",
+      "updatedAt": "2026-10-31T18:04:58Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41226981154"
     },
     {
-      "id": 41223431782,
-      "name": "M1 Windows customer UI smoke test",
+      "id": 41226975134,
+      "name": "V2 M7.1 isolated Windows installer preflight",
       "status": "completed",
       "conclusion": "success",
-      "branch": "security/phase2-python314-windows-105",
-      "headSha": "27a3b23ddd5471f682ae943395d78ff876b2d1c7",
-      "event": "pull_request",
-      "updatedAt": "2026-10-31T17:14:55Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41223431782"
+      "branch": "security/phase2-release-pin-repeatability-105",
+      "headSha": "62a7a2e5ca3691524c536ee4ef6fb1fda49b8476",
+      "event": "workflow_dispatch",
+      "updatedAt": "2026-10-31T18:02:20Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41226975134"
     },
     {
-      "id": 41223431776,
+      "id": 41226963368,
+      "name": "ReportMaker continuity contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/phase2-release-pin-repeatability-105",
+      "headSha": "62a7a2e5ca3691524c536ee4ef6fb1fda49b8476",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T17:56:55Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41226963368"
+    },
+    {
+      "id": 41226963323,
       "name": "V2 M6.5 staged metadata localization contract",
       "status": "completed",
       "conclusion": "skipped",
-      "branch": "security/phase2-python314-windows-105",
-      "headSha": "27a3b23ddd5471f682ae943395d78ff876b2d1c7",
+      "branch": "security/phase2-release-pin-repeatability-105",
+      "headSha": "62a7a2e5ca3691524c536ee4ef6fb1fda49b8476",
       "event": "pull_request",
-      "updatedAt": "2026-10-31T17:12:54Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41223431776"
+      "updatedAt": "2026-10-31T17:56:47Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41226963323"
     },
     {
-      "id": 41223223773,
+      "id": 41226963314,
+      "name": "M1 Windows customer UI smoke test",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/phase2-release-pin-repeatability-105",
+      "headSha": "62a7a2e5ca3691524c536ee4ef6fb1fda49b8476",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T17:58:09Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41226963314"
+    },
+    {
+      "id": 41226963311,
       "name": "V2 M6.6 precise page and Word fidelity",
       "status": "completed",
       "conclusion": "skipped",
-      "branch": "security/phase2-python314-windows-105",
-      "headSha": "ff5697e2d238b454d314d136e6bd9800b4ad2686",
+      "branch": "security/phase2-release-pin-repeatability-105",
+      "headSha": "62a7a2e5ca3691524c536ee4ef6fb1fda49b8476",
       "event": "pull_request",
-      "updatedAt": "2026-10-31T17:10:25Z",
-      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41223223773"
+      "updatedAt": "2026-10-31T17:56:47Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41226963311"
+    },
+    {
+      "id": 41226963304,
+      "name": "V2 M7.1 isolated Windows installer preflight",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "security/phase2-release-pin-repeatability-105",
+      "headSha": "62a7a2e5ca3691524c536ee4ef6fb1fda49b8476",
+      "event": "pull_request",
+      "updatedAt": "2026-10-31T18:04:03Z",
+      "htmlUrl": "https://github.com/kandyman991/ReportMaker/actions/runs/41226963304"
     }
   ]
 }
