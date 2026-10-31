@@ -44,6 +44,12 @@ Two explicitly non-releasing `workflow_dispatch` runs on branch head `af672cacdf
 
 The isolated V2 CI and matching local build helper now set `PYTHONHASHSEED=1` and `SOURCE_DATE_EPOCH` to the checked-out Git source commit timestamp immediately before PyInstaller. PyInstaller [documents](https://pyinstaller.org/en/stable/advanced-topics.html#creating-a-reproducible-build) both controls for bytecode hashing and Windows PE timestamps. Using a Git commit timestamp avoids injecting each runner's clock into the bundle. **This correction is not validated as reproducible until two fresh, matching-head Windows builds are compared**; if the installer alone still differs, investigate the Inno toolchain and embedded metadata independently. No binary is modified in place.
 
+## Second comparison — frozen payload now byte-identical
+
+On the corrected Python-build head `8611060a4f0368eae6d849cfec6323f0d9a43061`, independent Windows non-release runs `41226203261` and `41226210228` both passed. Their SHA-256 manifests showed **all 3,199 frozen payload files byte-identical**, plus all 22 wheel hashes and source/config/interpreter/runner metadata identical. The installer SHA-256 **still differed**, so the comparison correctly returned exit code 1: installer reproducibility is *not* yet established.
+
+The official [Inno Setup security documentation](https://jrsoftware.org/is6help/topic_securitymeasures.htm) identifies `notimestamp` for `[Files]` as a way to omit nondeterministic source-file timestamps. The V2-only `ReportMaker-V2-M7.iss` now uses it while preserving its V1-isolated AppId and all install behavior. This is **a pending correction**, not a claim of installer reproducibility; new exact-head hosted Windows build/install/uninstall and two independent metadata-only runs must pass and agree before the installer is called byte-repeatable. The RC2/RC3/M0 historical installer definitions and all published assets remain untouched.
+
 ## Required independent PR and release gates
 
 1. Static tests: full SHA pins in only manual M0/RC2 publishers; source SHA and manual triggers unchanged, RC3 publisher+installer unchanged at known reviewed SHA-256 values.

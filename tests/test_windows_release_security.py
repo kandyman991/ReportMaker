@@ -76,6 +76,12 @@ class HistoricalWindowsReleaseSafetyTests(unittest.TestCase):
         self.assertLess(builder.index('PYTHONHASHSEED = "1"'),
                         builder.index('& $python -m PyInstaller --noconfirm'))
 
+    def test_only_v2_preview_installer_omits_unstable_file_timestamps(self):
+        iss = (ROOT / "packaging/windows/ReportMaker-V2-M7.iss").read_text(
+            encoding="utf-8")
+        self.assertIn("Flags: ignoreversion recursesubdirs createallsubdirs notimestamp", iss)
+        self.assertIn("AppId={{7E079D45-D689-46C4-9E56-E2C4DDE89312}", iss)
+
     def test_rc3_release_publisher_is_unmodified_and_remains_separately_gated(self):
         rc3 = WORKFLOWS / "windows-rc3.yml"
         iss = ROOT / "packaging/windows/ReportMaker-RC3.iss"
