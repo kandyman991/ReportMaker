@@ -77,6 +77,17 @@ class WindowsSupplyChainTests(unittest.TestCase):
             }]}))
             with self.assertRaisesRegex(ValueError, "Unverified"):
                 supply.verified_wheels(path, lock)
+            report = {"install": [
+                {"metadata": {"name": name, "version": entry["version"]},
+                 "download_info": {
+                     "url": "https://example.invalid/" +
+                            ("pillow%5Cevil.whl" if name == "pillow" else name + ".whl"),
+                     "archive_info": {"hashes": {"sha256": entry["hashes"][0]}}}}
+                for name, entry in lock.items()
+            ]}
+            path.write_text(json.dumps(report))
+            with self.assertRaisesRegex(ValueError, "Unverified"):
+                supply.verified_wheels(path, lock)
 
     def test_fake_provenance_outputs_only_public_wheel_names_and_hashes(self):
         lock = supply.parse_lock(LOCK)
@@ -95,6 +106,7 @@ class WindowsSupplyChainTests(unittest.TestCase):
             base = Path(directory)
             (base / "pip.json").write_text(json.dumps(report))
             (base / "installer.exe").write_bytes(b"synthetic private test only")
+            (base / "packaging.yml").write_text("synthetic reviewed configuration")
             (base / "frozen").mkdir()
             (base / "frozen" / "launcher.exe").write_bytes(b"synthetic")
             with (patch.object(supply, "installed_versions", return_value=actual),
@@ -103,11 +115,24 @@ class WindowsSupplyChainTests(unittest.TestCase):
                   })):
                 provenance = supply.generate(
                     LOCK, base / "pip.json", base / "installer.exe",
-                    "a" * 40, "b" * 40, base / "out", base / "frozen"
+                    "a" * 40, "b" * 40, base / "out", base / "frozen",
+                    "c" * 40, base / "packaging.yml"
                 )
             self.assertEqual(len(provenance["wheels"]), len(lock))
             self.assertEqual(provenance["source_commit"], "a" * 40)
             self.assertEqual(provenance["configuration_commit"], "b" * 40)
+            self.assertEqual(provenance["reviewed_branch_head_commit"], "c" * 40)
+            self.assertEqual(provenance["configuration_file"]["path"], "packaging.yml")
+            self.assertEqual(provenance["configuration_file"]["sha256"],
+                             supply.sha256_file(base / "packaging.yml"))
+            with self.assertRaisesRegex(ValueError, "Frozen payload directory"):
+                supply.generate(LOCK, base / "pip.json", base / "installer.exe",
+                                "a" * 40, "b" * 40, base / "out", None,
+                                "c" * 40, base / "packaging.yml")
+            with self.assertRaisesRegex(ValueError, "configuration file"):
+                supply.generate(LOCK, base / "pip.json", base / "installer.exe",
+                                "a" * 40, "b" * 40, base / "out", base / "frozen",
+                                "c" * 40, base / "does-not-exist.yml")
             self.assertEqual(len(provenance["frozen_payload"]), 1)
             self.assertEqual(provenance["installer"]["filename"], "installer.exe")
             generated = (base / "out" / "windows-v2-provenance.json").read_text()
@@ -127,6 +152,10 @@ class WindowsSupplyChainTests(unittest.TestCase):
             self.assertIn("windows_supply_chain.py", text)
         self.assertIn("runs-on: windows-2022", workflow)
         self.assertIn("Record source/config/wheel/Qt/Chromium/installer provenance", workflow)
+        self.assertIn("Verify clean source before freezing", workflow)
+        self.assertIn("--branch-head-sha", workflow)
+        self.assertIn("--configuration-file", workflow)
+        self.assertIn("--configuration-file", local)
         self.assertIn("retention-days: 7", workflow)
         self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("inputs.manual_qa_installer == true", workflow)

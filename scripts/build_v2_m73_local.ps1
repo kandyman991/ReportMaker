@@ -115,7 +115,9 @@ try {
 
     & $python scripts/windows_supply_chain.py --lock $lock --pip-report $report `
         --installer $setup --frozen-dir $frozen `
-        --source-sha $sourceSha --config-sha $sourceSha --output $output
+        --source-sha $sourceSha --config-sha $sourceSha `
+        --branch-head-sha $sourceSha `
+        --configuration-file "scripts/build_v2_m73_local.ps1" --output $output
     if ($LASTEXITCODE -ne 0) { throw "Local Windows build provenance failed" }
 
     $manifest = [ordered]@{

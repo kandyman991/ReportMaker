@@ -134,6 +134,17 @@ jobs:
           python -m unittest discover -s tests -p test_v2_m67_checkpoint.py -v
           if ($LASTEXITCODE -ne 0) { throw "M6.7 checkpoint regression failed" }
 
+      - name: Verify clean source before freezing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git diff --exit-code HEAD -- src/reportmaker packaging/windows packaging/windows/v2_launcher.py
+          if ($LASTEXITCODE -ne 0) { throw "Tracked source changed after checkout" }
+          $untracked = @(git ls-files --others --exclude-standard -- src/reportmaker packaging/windows)
+          if ($LASTEXITCODE -ne 0 -or $untracked.Count -ne 0) {
+            throw "Unreviewed source files are present in frozen package input"
+          }
+
       - name: Freeze actual V2 executable, not V1
         shell: pwsh
         run: |
@@ -283,13 +294,16 @@ jobs:
             --installer "$env:RUNNER_TEMP/m7-v2-setup/ReportMaker-V2-M7-Preview-Setup.exe" `
             --frozen-dir "dist/ReportMakerV2" `
             --source-sha $sourceSha --config-sha "${{ github.sha }}" `
+            --branch-head-sha "${{ github.event.pull_request.head.sha || github.sha }}" `
+            --configuration-file ".github/workflows/v2-m7-packaging.yml" `
             --output $directory
           if ($LASTEXITCODE -ne 0) { throw "Windows dependency provenance failed verification" }
           $details = Get-Content (Join-Path $directory "windows-v2-provenance.json") -Raw | ConvertFrom-Json
           @(
             "### Non-release Windows V2 dependency provenance"
             ""
-            "Source: $($details.source_commit); configuration: $($details.configuration_commit)"
+            "Checked-out source: $($details.source_commit); reviewed branch head: $($details.reviewed_branch_head_commit)"
+            "Configuration: $($details.configuration_commit); workflow SHA-256: $($details.configuration_file.sha256)"
             "Windows runner: $($details.github_runner_image.name) $($details.github_runner_image.version)"
             "Python: $($details.python); Qt: $($details.qt_runtime.qt); Chromium: $($details.qt_runtime.chromium)"
             "Chromium patch: $($details.qt_runtime.chromium_security_patch)"

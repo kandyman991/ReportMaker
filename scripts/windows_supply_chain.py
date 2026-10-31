@@ -107,7 +107,8 @@ def verified_wheels(report_path: Path, lock: dict[str, dict]) -> list[dict]:
         url = download.get("url", "")
         filename = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
         if (digest not in lock[name]["hashes"] or not filename.endswith(".whl")
-                or "/" in filename or "\\\\" in filename):
+                or "/" in filename or "\\" in filename
+                or any(ord(char) < 32 or ord(char) == 127 for char in filename)):
             raise ValueError(f"Unverified wheel archive in pip report: {name}")
         # Keep only filenames and SHA hashes; no private indexes or tokens.
         wheels.append({"name": name, "version": version,
@@ -138,9 +139,15 @@ def runtime_versions() -> dict:
 
 def generate(lock_path: Path, pip_report: Path, installer: Path,
              source_sha: str, config_sha: str, output: Path,
-             frozen_dir: Path | None = None) -> dict:
-    if not SHA.fullmatch(source_sha) or not SHA.fullmatch(config_sha):
-        raise ValueError("Both source/config SHA must be full Git commit IDs")
+             frozen_dir: Path | None = None, branch_head_sha: str | None = None,
+             configuration_file: Path | None = None) -> dict:
+    if (not SHA.fullmatch(source_sha) or not SHA.fullmatch(config_sha)
+            or not branch_head_sha or not SHA.fullmatch(branch_head_sha)):
+        raise ValueError("Source, config and reviewed branch head must be full Git commit IDs")
+    if configuration_file is None or not configuration_file.is_file():
+        raise ValueError("Existing build configuration file is required")
+    if frozen_dir is None or not frozen_dir.is_dir():
+        raise ValueError("Frozen payload directory is required")
     lock = parse_lock(lock_path)
     versions = installed_versions()
     verify_installed(lock, versions)
@@ -150,23 +157,25 @@ def generate(lock_path: Path, pip_report: Path, installer: Path,
     image = os.environ.get("ImageOS", "")
     image_version = os.environ.get("ImageVersion", "")
     payload = []
-    if frozen_dir is not None:
-        if not frozen_dir.is_dir():
-            raise ValueError("Frozen payload directory is missing")
-        for path in sorted(frozen_dir.rglob("*")):
-            if path.is_symlink():
-                raise ValueError("Frozen payload contains symlink")
-            if path.is_file():
-                relative = path.relative_to(frozen_dir).as_posix()
-                payload.append({"path": relative, "sha256": sha256_file(path)})
-        if not payload:
-            raise ValueError("Empty frozen application directory")
+    for path in sorted(frozen_dir.rglob("*")):
+        if path.is_symlink():
+            raise ValueError("Frozen payload contains symlink")
+        if path.is_file():
+            relative = path.relative_to(frozen_dir).as_posix()
+            payload.append({"path": relative, "sha256": sha256_file(path)})
+    if not payload:
+        raise ValueError("Empty frozen application directory")
     now = datetime.now(timezone.utc).isoformat()
     details = {
         "schema": "reportmaker.windows-v2-build-provenance.v1",
         "generated_utc": now,
         "source_commit": source_sha,
         "configuration_commit": config_sha,
+        "reviewed_branch_head_commit": branch_head_sha,
+        "configuration_file": {
+            "path": configuration_file.name,
+            "sha256": sha256_file(configuration_file),
+        },
         "platform": platform.platform(),
         "architecture": platform.machine(),
         "python": platform.python_version(),
@@ -204,6 +213,8 @@ def main() -> None:
     parser.add_argument("--pip-report", type=Path)
     parser.add_argument("--installer", type=Path)
     parser.add_argument("--frozen-dir", type=Path)
+    parser.add_argument("--branch-head-sha")
+    parser.add_argument("--configuration-file", type=Path)
     parser.add_argument("--source-sha")
     parser.add_argument("--config-sha")
     parser.add_argument("--output", type=Path)
@@ -213,10 +224,12 @@ def main() -> None:
         print(f"Validated {len(packages)} hash-locked Windows wheel distributions.")
         return
     if not all((args.pip_report, args.installer, args.source_sha,
-                args.config_sha, args.output)):
-        parser.error("Full provenance requires pip report, installer, source/config SHA and output")
+                args.config_sha, args.output, args.frozen_dir,
+                args.branch_head_sha, args.configuration_file)):
+        parser.error("Full provenance requires pip report, installer, source/config/branch head SHAs, frozen directory, configuration file and output")
     result = generate(args.lock, args.pip_report, args.installer,
-                      args.source_sha, args.config_sha, args.output, args.frozen_dir)
+                      args.source_sha, args.config_sha, args.output, args.frozen_dir,
+                      args.branch_head_sha, args.configuration_file)
     print(f"Installer SHA-256: {result['installer']['sha256']}")
     print(f"Lock SHA-256: {result['lock_sha256']}")
     print(f"Chromium: {result['qt_runtime']['chromium']} "
