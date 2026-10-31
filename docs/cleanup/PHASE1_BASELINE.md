@@ -66,12 +66,12 @@ Use synthetic examples already in `tests/test_m2_project.py:example`, `tests/tes
 | Native V2 offline source smoke | **Passed** | On Legion Python 3.14.4 offscreen at baseline SHA |
 | HTML Chromium/QWebChannel source smoke | **Passed** | On Legion with `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`; exited 0 |
 | Python compileall | **Passed** | On Legion at baseline SHA |
-| Full Python regression suite | **In progress / exact result to be appended** | Test output in temporary Legion log, not committed |
-| Synthetic `.rmproj` / export protection | **Existing coverage identified** | M2, M4, M6, web commands and migration tests; fresh full-suite results to follow |
+| Full Python regression suite | **Passed: 644 tests, 179.132 s** | On clean post-#121 `main` SHA (no new golden test yet); Legion Python 3.14.4 offscreen; exit 0 |
+| Synthetic `.rmproj` / export protection | **Passed: 1 additional focused golden test** | PR branch `tests/test_cleanup_phase1_golden.py` passed on Legion; includes source image unchanged, media library, translation staleness, nested TOC, DOCX/PDF and .rmproj re-save |
 | Native desktop visual acceptance on Legion | **Not run here** | Offscreen is not real rendered interactive GUI acceptance |
 | Hosted Windows exact-PR-head CI | **Not run yet** | Will execute on proposed PR where configured |
 | Physical Windows 33-case acceptance | **Not run** | Separate #96 gate; cannot be claimed by Phase 1 |
 
 ## Next Phase 1 actions
 
-Complete and record full-suite outcome, run/add a focused synthetic golden contract regression, review fixture coverage gaps and file follow-ups; independently review exact PR head and check hosted CI. The baseline documentation is *not* acceptance of V1 retirement, default HTML promotion, or Windows release.
+Full 644-test baseline and a 1-test synthetic golden regression are recorded. Run the full suite on the exact PR branch head (which adds the golden regression), review fixture coverage gaps and file follow-ups; independently review exact PR head and check hosted CI. The baseline documentation is *not* acceptance of V1 retirement, default HTML promotion, or Windows release.
