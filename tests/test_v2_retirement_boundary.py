@@ -107,7 +107,7 @@ print('STRICT_V2_NO_V1_IMPORT_PASS')
         self.assertIn("branches: [main, feature/v2-m7-3-native-acceptance]", workflow)
         self.assertLess(workflow.index("python scripts/verify_v2_frozen_archive.py"),
                         workflow.index("Build local-only distinct per-user V2 installer"))
-        self.assertIn("actions/upload-artifact@v4", workflow)
+        self.assertIn("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02", workflow)
         self.assertIn("inputs.manual_qa_installer == true", workflow)
         self.assertIn("retention-days: 1", workflow)
         self.assertNotIn("gh release create", workflow)

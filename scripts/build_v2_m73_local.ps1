@@ -42,18 +42,26 @@ try {
     if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
         throw "Python 3.12 x64 launcher 'py' is required"
     }
-    $venvDir = Join-Path $root ".venv"
-    if (-not (Test-Path $venvDir)) {
-        & py -3.12 -m venv $venvDir
-        if ($LASTEXITCODE -ne 0) { throw "Unable to create Python 3.12 environment" }
+    # Clean venv is required: preinstalled packages can evade hash verification.
+    $venvDir = Join-Path $output "_build-venv"
+    if (Test-Path $venvDir) {
+        throw "Build virtualenv already exists. Choose a fresh OutputDirectory for reproducible validation."
     }
+    & py -3.12 -m venv $venvDir
+    if ($LASTEXITCODE -ne 0) { throw "Unable to create Python 3.12 environment" }
     $python = Join-Path $venvDir "Scripts\python.exe"
     & $python -c "import platform,struct; assert platform.system()=='Windows' and struct.calcsize('P')==8"
     if ($LASTEXITCODE -ne 0) { throw "Python must be Windows x64" }
-    & $python -m pip install --disable-pip-version-check -e ".[desktop]"
-    if ($LASTEXITCODE -ne 0) { throw "Desktop dependency installation failed" }
-    & $python -m pip install --disable-pip-version-check -r packaging/windows/requirements-build.txt
-    if ($LASTEXITCODE -ne 0) { throw "Pinned PyInstaller dependency installation failed" }
+    $lock = Join-Path $root "packaging/windows/requirements-win312-x64.lock"
+    $report = Join-Path $output "m73-verified-wheels.json"
+    & $python scripts/windows_supply_chain.py --lock $lock --verify-only
+    if ($LASTEXITCODE -ne 0) { throw "Reviewed Windows dependency lock invalid" }
+    & $python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: --report $report -r $lock
+    if ($LASTEXITCODE -ne 0) { throw "Hash-verified Windows dependency installation failed" }
+    & $python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
+    if ($LASTEXITCODE -ne 0) { throw "Source installation failed" }
+    & $python -m pip check
+    if ($LASTEXITCODE -ne 0) { throw "Locked build environment contains incompatible packages" }
     $env:QT_QPA_PLATFORM = "offscreen"
     & $python -m reportmaker.v2 --offline-self-test
     if ($LASTEXITCODE -ne 0) { throw "Native V2 source smoke failed" }
@@ -104,6 +112,11 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Local isolated V2 installer build failed" }
     $setup = Join-Path $output "ReportMaker-V2-M7-Preview-Setup.exe"
     if (-not (Test-Path $setup)) { throw "Preview installer missing" }
+
+    & $python scripts/windows_supply_chain.py --lock $lock --pip-report $report `
+        --installer $setup --frozen-dir $frozen `
+        --source-sha $sourceSha --config-sha $sourceSha --output $output
+    if ($LASTEXITCODE -ne 0) { throw "Local Windows build provenance failed" }
 
     $manifest = [ordered]@{
         scope = "M7.3 local-only Windows preview; not native UI acceptance"
