@@ -80,8 +80,12 @@ these five CVEs at this review date. They remain `untriaged` and the policy
   It never installs packages, changes the lock, opens an issue automatically, or publishes.
 - `scripts/check_webengine_release_risk.py --strict` requires an actual
   `--provenance <windows-v2-provenance.json>`. It compares **all four** relevant Qt
-  runtime fields (Qt, QtWebEngine, Chromium base, Qt Chromium security patch), and fails
-  on missing/malformed/duplicate/removed critical CVE review records. Default scheduled
+  runtime fields (Qt, QtWebEngine, Chromium base, Qt Chromium security patch), checks
+  the installed PySide6 and WebEngine wheel versions, and requires the structured Windows
+  build provenance schema, installer SHA-256, source commits, lock digest, and wheel inventory.
+  It fails on missing/malformed/duplicate/removed critical CVE review records. This schema
+  check does **not** authenticate provenance: independent signed attestation and physical
+  installed-payload verification remain mandatory. Default scheduled
   advisory mode remains non-blocking. Test fixtures with fake vendor URLs and runtime
   data prove validation behavior only, **not** security remediation.
 - `security/webengine_release_review.json` intentionally remains on `hold`; existing

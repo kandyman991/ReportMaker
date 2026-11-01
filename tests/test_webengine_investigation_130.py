@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -63,6 +64,7 @@ class IndependentWheelWatcherTests(unittest.TestCase):
             self.assertIn(f'- "{path}"', workflow)
         self.assertIn("default: false", workflow)
         self.assertIn("contents: read", workflow)
+        self.assertIn("python -m unittest discover -s tests -p test_webengine_*.py -v", workflow)
 
     def test_live_pypi_lookup_has_fixed_package_allowlist(self):
         with self.assertRaisesRegex(ValueError, "Unrecognized package"):
@@ -82,11 +84,30 @@ class ReleaseWebEngineGateTests(unittest.TestCase):
 
     @staticmethod
     def matching_provenance() -> dict:
-        return {"qt_runtime": {
-            "qt": "6.12.0", "qt_webengine": "6.140.0",
-            "chromium": "140.0.7339.225",
-            "chromium_security_patch": "152.0.7977.83",
-        }}
+        # Synthetic *structural* fixture, not an attestation or a real installer.
+        return {
+            "schema": risk.PROVENANCE_SCHEMA,
+            "source_commit": "a" * 40,
+            "configuration_commit": "a" * 40,
+            "reviewed_branch_head_commit": "a" * 40,
+            "installer": {"filename": "ReportMaker-V2-M7-Preview-Setup.exe",
+                          "sha256": "b" * 64},
+            "lock_sha256": hashlib.sha256(risk.WINDOWS_LOCK.read_bytes()).hexdigest(),
+            "platform": "Windows-2022",
+            "python": "3.14.10",
+            "wheels": [
+                {"name": "pyside6", "version": "6.12.0", "sha256": "c" * 64},
+                {"name": "pyside6-webengine", "version": "6.12.0.140",
+                 "sha256": "d" * 64}
+            ],
+            "qt_runtime": {
+                "qt": "6.12.0", "qt_webengine": "6.140.0",
+                "chromium": "140.0.7339.225",
+                "chromium_security_patch": "152.0.7977.83",
+                "pyside6": "6.12.0",
+                "pyside6_webengine_wheel": "6.12.0.140",
+            },
+        }
 
     def test_strict_requires_actual_runtime_even_for_reviewed_policy(self):
         policy = self.reviewed_policy()
@@ -109,6 +130,29 @@ class ReleaseWebEngineGateTests(unittest.TestCase):
             del changed["qt_runtime"][field]
             self.assertEqual(risk.check(policy, changed,
                                         require_provenance=True)["status"], "hold")
+
+    def test_partial_and_forged_provenance_records_cannot_pass_strict_gate(self):
+        policy = self.reviewed_policy()
+        minimal = {"qt_runtime": self.matching_provenance()["qt_runtime"]}
+        self.assertEqual(risk.check(policy, minimal, require_provenance=True)["status"], "hold")
+        for field, bad in (
+            ("schema", "not-real-provenance"),
+            ("lock_sha256", "0" * 64),
+            ("installer", {}),
+            ("wheels", []),
+            ("python", "3.14.9"),
+            ("source_commit", ""),
+        ):
+            changed = self.matching_provenance()
+            changed[field] = bad
+            with self.subTest(field=field):
+                self.assertEqual(risk.check(policy, changed, require_provenance=True)["status"], "hold")
+        changed = self.matching_provenance()
+        changed["qt_runtime"]["pyside6_webengine_wheel"] = "6.12.0.999"
+        self.assertEqual(risk.check(policy, changed, require_provenance=True)["status"], "hold")
+        changed = self.matching_provenance()
+        changed["wheels"][1]["version"] = "6.12.0.999"
+        self.assertEqual(risk.check(policy, changed, require_provenance=True)["status"], "hold")
 
     def test_malformed_cves_and_removed_critical_candidates_fail_closed(self):
         policy = self.reviewed_policy()
