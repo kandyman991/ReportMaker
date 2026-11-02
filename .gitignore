@@ -22,3 +22,8 @@ QtWebEngine/
 .env
 *.pem
 *.key
+
+# Coverage output is local test evidence, never source.
+.coverage
+.coverage.*
+htmlcov/

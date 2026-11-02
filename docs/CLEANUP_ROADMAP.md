@@ -45,5 +45,6 @@ Non-negotiable safeguards: single hierarchy supplies both module tree and TOC; s
 
 ## Phase status
 
-- **Phase 1:** Started on `chore/cleanup-phase1-baseline-20261031`. See `docs/cleanup/PHASE1_BASELINE.md` and `docs/cleanup/FEATURE_PARITY.md` for recorded evidence.
-- **Phases 2–7:** Not started under this roadmap. Existing work/issues are prerequisites, not evidence of completion.
+- **Phase 1:** Completed and merged via owner-authorized PR #123 (`066b1b0`), with exact-head independent review and 645 source regressions passed. See `docs/cleanup/PHASE1_BASELINE.md` and `docs/cleanup/FEATURE_PARITY.md`; physical Windows acceptance remains separate.
+- **Phase 2:** Started in an independently gated CI/security branch; see `docs/cleanup/PHASE2_SECURITY_CI.md`. Windows dependency locking and release provenance (#105) remain outstanding.
+- **Phases 3–7:** Not started under this roadmap. Existing work/issues are prerequisites, not evidence of completion.
