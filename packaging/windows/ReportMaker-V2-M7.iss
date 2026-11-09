@@ -34,8 +34,8 @@ Name: "desktopicon"; Description: "Create V2 preview desktop shortcut"; GroupDes
 Source: "{#SourceRoot}\dist\ReportMakerV2\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs notimestamp
 
 [Icons]
-Name: "{autoprograms}\ReportMaker V2 Preview"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\ReportMaker V2 Preview"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\ReportMaker V2 Preview"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--html"
+Name: "{autodesktop}\ReportMaker V2 Preview"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--html"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch ReportMaker V2 Preview"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--html"; Description: "Launch ReportMaker V2 Preview"; Flags: nowait postinstall skipifsilent
